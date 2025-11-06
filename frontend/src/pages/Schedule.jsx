@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import Header from '../components/Header.jsx';
+import Footer from '../components/Footer.jsx';
 
 const movies = [
   { id: 'drive', title: 'Drive My Car', poster: '/src/assets/images/drive-my-car.jpg' },
@@ -50,20 +52,7 @@ export default function Schedule() {
 
   return (
     <div className="min-h-screen cinema-mood">
-      <header className="site-header">
-        <div className="container nav">
-          <a className="logo" href="#home">🎬 cinesmart</a>
-          <nav className="menu">
-            <a href="#booking">Đặt vé</a>
-            <a href="#schedule">Lịch chiếu</a>
-            <a href="#cinemas">Rạp</a>
-          </nav>
-          <div className="actions">
-            <a className="btn btn--ghost" href="#register">Register</a>
-            <a className="btn btn--primary" href="#signin">Sign In</a>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="main">
         <section className="section">
@@ -126,6 +115,7 @@ export default function Schedule() {
           </div>
         </section>
       </main>
+      <Footer />
     </div>
   );
 }

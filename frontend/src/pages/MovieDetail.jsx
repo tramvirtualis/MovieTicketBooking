@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import Header from '../components/Header.jsx';
+import Footer from '../components/Footer.jsx';
 import BookingModal from '../components/BookingModal.jsx';
 
 export default function MovieDetail() {
@@ -55,20 +57,7 @@ export default function MovieDetail() {
 
   return (
     <div className="min-h-screen cinema-mood">
-      <header className="site-header">
-        <div className="container nav">
-          <a className="logo" href="#home">🎬 cinesmart</a>
-          <nav className="menu">
-            <a href="#booking">Đặt vé</a>
-            <a href="#schedule">Lịch chiếu</a>
-            <a href="#cinemas">Rạp</a>
-          </nav>
-          <div className="actions">
-            <a className="btn btn--ghost" href="#register">Register</a>
-            <a className="btn btn--primary" href="#signin">Sign In</a>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="main">
         <section className="section">
@@ -83,22 +72,124 @@ export default function MovieDetail() {
               </div>
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <h1 className="section__title" style={{ fontSize: '26px', margin: 0 }}>{sample.title}</h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <h1 className="section__title" style={{ fontSize: 'clamp(24px, 3vw, 32px)', margin: 0, fontWeight: 900 }}>{sample.title}</h1>
                 <span className="badge-rating" title="Độ tuổi khuyến nghị">{sample.rating}</span>
               </div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: '10px 0', display: 'grid', gap: '6px', color: '#ddd' }}>
-                <li>• Thể loại: {sample.genre}</li>
-                <li>• Thời lượng: {sample.duration} phút</li>
-                <li>• Ngôn ngữ: {sample.language}</li>
-                <li>• Dự kiến: {sample.release}</li>
-                <li>• Đạo diễn: {sample.director}</li>
-                <li>• Diễn viên: {sample.cast}</li>
-              </ul>
-              <p style={{ color: '#c9c4c5', maxWidth: '72ch' }}>{sample.desc}</p>
-              <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
-                <button className="btn btn--primary" onClick={() => setShowBooking(true)}>Mua vé</button>
-                <button className="btn btn--ghost" onClick={() => setShowTrailer(true)}>Xem Trailer</button>
+
+              {/* Movie Info Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+                <div className="movie-info-card">
+                  <div className="movie-info-card__icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="4" width="20" height="16" rx="2"/>
+                      <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="movie-info-card__label">Thể loại</div>
+                    <div className="movie-info-card__value">{sample.genre}</div>
+                  </div>
+                </div>
+                <div className="movie-info-card">
+                  <div className="movie-info-card__icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="movie-info-card__label">Thời lượng</div>
+                    <div className="movie-info-card__value">{sample.duration} phút</div>
+                  </div>
+                </div>
+                <div className="movie-info-card">
+                  <div className="movie-info-card__icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="2" y1="12" x2="22" y2="12"/>
+                      <line x1="12" y1="2" x2="12" y2="22"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="movie-info-card__label">Ngôn ngữ</div>
+                    <div className="movie-info-card__value">{sample.language}</div>
+                  </div>
+                </div>
+                <div className="movie-info-card">
+                  <div className="movie-info-card__icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                      <line x1="16" y1="2" x2="16" y2="6"/>
+                      <line x1="8" y1="2" x2="8" y2="6"/>
+                      <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="movie-info-card__label">Dự kiến</div>
+                    <div className="movie-info-card__value">{sample.release}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Director & Cast Section */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                <div className="movie-detail-section">
+                  <div className="movie-detail-section__header">
+                    <span className="movie-detail-section__icon">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="9" y1="3" x2="9" y2="21"/>
+                        <line x1="3" y1="9" x2="21" y2="9"/>
+                      </svg>
+                    </span>
+                    <span className="movie-detail-section__title">Đạo diễn</span>
+                  </div>
+                  <div className="movie-detail-section__content">{sample.director}</div>
+                </div>
+                <div className="movie-detail-section">
+                  <div className="movie-detail-section__header">
+                    <span className="movie-detail-section__icon">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                      </svg>
+                    </span>
+                    <span className="movie-detail-section__title">Diễn viên</span>
+                  </div>
+                  <div className="movie-detail-section__content">{sample.cast}</div>
+                </div>
+              </div>
+
+              {/* Synopsis Section */}
+              <div className="movie-synopsis">
+                <div className="movie-synopsis__header">
+                  <span className="movie-synopsis__icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                    </svg>
+                  </span>
+                  <span className="movie-synopsis__title">Nội dung</span>
+                </div>
+                <p className="movie-synopsis__text">{sample.desc}</p>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
+                <button className="btn btn--primary" onClick={() => setShowBooking(true)} style={{ fontSize: '16px', padding: '14px 24px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
+                    <path d="M6 9v6M18 9v6"/>
+                  </svg>
+                  Mua vé
+                </button>
+                <button className="btn btn--ghost" onClick={() => setShowTrailer(true)} style={{ fontSize: '16px', padding: '14px 24px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                  Xem Trailer
+                </button>
               </div>
             </div>
           </div>
@@ -106,39 +197,55 @@ export default function MovieDetail() {
 
         <section className="section">
           <div className="container">
-            <h2 className="section__title" style={{ marginBottom: '12px' }}>Lịch chiếu</h2>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159' }}>
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
+              </svg>
+              <h2 className="section__title" style={{ margin: 0 }}>Lịch chiếu</h2>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '24px', flexWrap: 'wrap' }}>
               {days.map((d, i) => (
                 <button
                   key={i}
-                  className="btn"
+                  className={`schedule-date-btn ${i === dayIdx ? 'schedule-date-btn--active' : ''}`}
                   onClick={() => setDayIdx(i)}
-                  style={{
-                    background: i === dayIdx ? '#e83b41' : 'transparent',
-                    color: i === dayIdx ? '#fff' : '#e6e1e2',
-                    border: '1px solid rgba(255,255,255,0.25)'
-                  }}
                 >
-                  <div style={{ fontWeight: 800 }}>{d.date}</div>
-                  <div style={{ fontSize: '12px' }}>{d.label}</div>
+                  <div className="schedule-date-btn__date">{d.date}</div>
+                  <div className="schedule-date-btn__day">{d.label}</div>
                 </button>
               ))}
             </div>
 
-            <div style={{ display: 'grid', gap: '16px' }}>
+            <div style={{ display: 'grid', gap: '20px' }}>
               {cinemas.map((c, idx) => (
-                <div key={idx} className="card" style={{ padding: '12px 14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px' }}>
-                    <h3 className="card__title" style={{ fontSize: '16px' }}>{c.name}</h3>
+                <div key={idx} className="cinema-schedule-card">
+                  <div className="cinema-schedule-card__header">
+                    <div>
+                      <h3 className="cinema-schedule-card__title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                          <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                        {c.name}
+                      </h3>
+                      <p className="cinema-schedule-card__address">{c.address}</p>
+                    </div>
                   </div>
-                  <p className="card__meta" style={{ marginTop: '4px' }}>{c.address}</p>
-                  <div style={{ display: 'grid', gap: '8px', marginTop: '8px' }}>
+                  <div className="cinema-schedule-card__formats">
                     {c.formats.map((f, i) => (
-                      <div key={i}>
-                        <div className="card__meta" style={{ marginBottom: '6px' }}>{f.label}</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      <div key={i} className="cinema-schedule-card__format">
+                        <div className="cinema-schedule-card__format-label">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
+                            <rect x="2" y="4" width="20" height="16" rx="2"/>
+                            <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
+                          </svg>
+                          {f.label}
+                        </div>
+                        <div className="cinema-schedule-card__times">
                           {f.times.map((t) => (
-                            <a key={t} className="btn" href="#booking" style={{ padding: '8px 12px', background: '#2d2627', border: '1px solid #4a3f41', color: '#fff' }}>{t}</a>
+                            <a key={t} href="#booking" className="showtime-btn">{t}</a>
                           ))}
                         </div>
                       </div>
@@ -233,6 +340,7 @@ export default function MovieDetail() {
           </div>
         </div>
       )}
+      <Footer />
     </div>
   );
 }

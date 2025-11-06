@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Footer from '../components/Footer.jsx';
 
 export default function SignIn() {
   const [showPassword, setShowPassword] = useState(false);
@@ -90,17 +91,7 @@ export default function SignIn() {
         </section>
       </div>
 
-      <footer className="site-footer">
-        <nav className="footer-nav">
-          <a href="#">Terms &amp; Conditions</a>
-          <a href="#">Privacy Policy</a>
-          <a href="#">Copyright Notice</a>
-          <a href="#">Disclaimer</a>
-          <a href="#">Whistleblowing Policy</a>
-          <a href="#">ABC Policy</a>
-        </nav>
-        <p className="copyright">Copyright © 2025 MovieClub Cinemas. All Rights Reserved.</p>
-      </footer>
+      <Footer />
     </div>
   );
 }

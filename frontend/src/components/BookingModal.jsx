@@ -60,7 +60,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options }) {
 
           <div style={{ marginTop: '14px' }}>
             <span className="field__label" style={{ display: 'block', marginBottom: '8px' }}>Tỉnh/Thành phố</span>
-            <div className="chip-row">
+            <div className="chip-row--wrap">
               {provinces.map((p) => (
                 <button key={p} className={`chip ${province===p? 'chip--active': ''}`} onClick={() => setProvince(p)}>
                   {p}
