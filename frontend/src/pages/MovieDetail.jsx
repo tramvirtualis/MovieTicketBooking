@@ -48,6 +48,10 @@ export default function MovieDetail() {
   ];
 
   const [showBooking, setShowBooking] = useState(false);
+  const [showTrailer, setShowTrailer] = useState(false);
+
+  // YouTube video ID của phim (thay bằng ID thực tế)
+  const trailerYoutubeId = '8hP9D6kZseM';
 
   return (
     <div className="min-h-screen cinema-mood">
@@ -94,7 +98,7 @@ export default function MovieDetail() {
               <p style={{ color: '#c9c4c5', maxWidth: '72ch' }}>{sample.desc}</p>
               <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
                 <button className="btn btn--primary" onClick={() => setShowBooking(true)}>Mua vé</button>
-                <a className="btn btn--ghost" href="#trailer">Xem Trailer</a>
+                <button className="btn btn--ghost" onClick={() => setShowTrailer(true)}>Xem Trailer</button>
               </div>
             </div>
           </div>
@@ -171,10 +175,64 @@ export default function MovieDetail() {
           }
         }}
       />
+
+      {/* Trailer Overlay */}
+      {showTrailer && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.95)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+          onClick={() => setShowTrailer(false)}
+        >
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              maxWidth: '1200px',
+              aspectRatio: '16/9'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowTrailer(false)}
+              style={{
+                position: 'absolute',
+                top: '-40px',
+                right: '0',
+                background: 'transparent',
+                border: 'none',
+                color: '#fff',
+                fontSize: '32px',
+                cursor: 'pointer',
+                padding: '0',
+                lineHeight: 1
+              }}
+            >
+              ×
+            </button>
+            <iframe
+              width="100%"
+              height="100%"
+              src={`https://www.youtube.com/embed/${trailerYoutubeId}?autoplay=1`}
+              title="Movie Trailer"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              style={{ borderRadius: '8px' }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-
-
-
