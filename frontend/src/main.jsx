@@ -10,6 +10,9 @@ import MovieDetail from './pages/MovieDetail.jsx'
 import Schedule from './pages/Schedule.jsx'
 import Cinemas from './pages/Cinemas.jsx'
 import CinemaDetail from './pages/CinemaDetail.jsx'
+import BookingHistory from './pages/BookingHistory.jsx'
+import Profile from './pages/Profile.jsx'
+import AdminDashboard from './pages/AdminDashboard.jsx'
 
 function Router() {
   const hash = window.location.hash.toLowerCase();
@@ -21,6 +24,9 @@ function Router() {
   if (hash === '#register') return <SignUp />;
   if (hash === '#signin') return <SignIn />;
   if (hash === '#forgot' || hash === '#forgot-password') return <ForgotPassword />;
+  if (hash === '#booking-history') return <BookingHistory />;
+  if (hash === '#profile') return <Profile />;
+  if (hash === '#admin' || hash === '#admin-dashboard') return <AdminDashboard />;
   return <App />;
 }
 

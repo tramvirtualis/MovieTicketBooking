@@ -33,7 +33,7 @@ export default function SignUp() {
         <section className="intro">
           <div className="intro__content">
             <h1 className="intro__title">DỄ DÀNG<br/>ĐĂNG KÝ</h1>
-            <p className="intro__subtitle">Tạo tài khoản và nhận ưu đãi độc quyền từ MovieClub!</p>
+            <p className="intro__subtitle">Tạo tài khoản và nhận ưu đãi độc quyền từ Cinesmart!</p>
           </div>
           <div className="intro__popcorn" aria-hidden="true"></div>
         </section>

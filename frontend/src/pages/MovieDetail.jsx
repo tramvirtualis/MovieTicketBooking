@@ -51,6 +51,7 @@ export default function MovieDetail() {
 
   const [showBooking, setShowBooking] = useState(false);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
 
   // YouTube video ID của phim (thay bằng ID thực tế)
   const trailerYoutubeId = '8hP9D6kZseM';
@@ -75,6 +76,16 @@ export default function MovieDetail() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                 <h1 className="section__title" style={{ fontSize: 'clamp(24px, 3vw, 32px)', margin: 0, fontWeight: 900 }}>{sample.title}</h1>
                 <span className="badge-rating" title="Độ tuổi khuyến nghị">{sample.rating}</span>
+                <button
+                  className={`favorite-btn ${isFavorite ? 'favorite-btn--active' : ''}`}
+                  onClick={() => setIsFavorite(!isFavorite)}
+                  aria-label={isFavorite ? 'Bỏ yêu thích' : 'Yêu thích'}
+                  title={isFavorite ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                  </svg>
+                </button>
               </div>
 
               {/* Movie Info Cards */}
