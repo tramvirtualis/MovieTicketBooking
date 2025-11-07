@@ -16,12 +16,52 @@ export function Section({ id, title, linkText, children }) {
   );
 }
 
-export function CardsGrid({ items }) {
+export function CardsGrid({ items, isNowShowing = false, onPlayTrailer }) {
+  const displayItems = items.slice(0, 5); // Chỉ hiển thị tối đa 5 phim
   return (
     <div className="grid grid--cards">
-      {items.map((m, idx) => (
+      {displayItems.map((m, idx) => (
         <a key={idx} href={`#movie?title=${encodeURIComponent(m.title)}`} className="card" style={{ textDecoration: 'none' }}>
-          <img src={m.poster} alt={m.title} className="card__img" />
+          <div className="card__img-wrapper">
+            {m.rating && (
+              <span className="card__rating-badge">{m.rating}</span>
+            )}
+            <img src={m.poster} alt={m.title} className="card__img" />
+            <div className="card__play-overlay">
+              <div className="card__buttons">
+                <button 
+                  className="card__play-btn"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (onPlayTrailer && m.trailerId) {
+                      onPlayTrailer(m.trailerId);
+                    }
+                  }}
+                  aria-label="Play trailer"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </button>
+                {isNowShowing && (
+                  <a
+                    href={`#movie?title=${encodeURIComponent(m.title)}`}
+                    className="card__book-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
+                      <path d="M6 9v6M18 9v6"/>
+                    </svg>
+                    <span>Đặt vé</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
           <div className="card__body">
             <h3 className="card__title">{m.title}</h3>
             {m.genre ? <p className="card__meta">{m.genre}</p> : null}

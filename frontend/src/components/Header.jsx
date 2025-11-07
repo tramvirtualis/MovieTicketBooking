@@ -45,7 +45,34 @@ export default function Header() {
   return (
     <header className="site-header">
       <div className="container nav">
-        <a className="logo" href="#home">🎬 cinesmart</a>
+        <a className="logo" href="#home">
+          <svg className="logo__icon" width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#e83b41" stopOpacity="1" />
+                <stop offset="50%" stopColor="#ff5258" stopOpacity="1" />
+                <stop offset="100%" stopColor="#ff6b6b" stopOpacity="1" />
+              </linearGradient>
+              <filter id="logoGlow">
+                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                <feMerge>
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+            </defs>
+            <circle cx="18" cy="18" r="17" fill="url(#logoGradient)" filter="url(#logoGlow)" opacity="0.9"/>
+            <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5"/>
+            <circle cx="18" cy="18" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1"/>
+            <rect x="8" y="8" width="20" height="20" rx="2" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5"/>
+            <path d="M14 14L22 18L14 22V14Z" fill="rgba(255,255,255,0.95)"/>
+            <circle cx="10" cy="10" r="1.5" fill="rgba(255,255,255,0.6)"/>
+            <circle cx="26" cy="10" r="1.5" fill="rgba(255,255,255,0.6)"/>
+            <circle cx="10" cy="26" r="1.5" fill="rgba(255,255,255,0.6)"/>
+            <circle cx="26" cy="26" r="1.5" fill="rgba(255,255,255,0.6)"/>
+          </svg>
+          <span className="logo__text">cinesmart</span>
+        </a>
         <nav className="menu">
           <a href="#schedule">Lịch chiếu phim</a>
           <div className="menu-dropdown" ref={dropdownRef} style={{ position: 'relative' }}>
