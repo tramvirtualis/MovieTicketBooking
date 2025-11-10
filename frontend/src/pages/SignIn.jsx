@@ -18,7 +18,7 @@ export default function SignIn() {
           <div className="auth__panel">
             <button className="close" aria-label="Close" onClick={() => { window.location.hash = ''; }}>×</button>
             <h2 className="auth__title">Đăng nhập</h2>
-            <p className="auth__subtitle">Truy cập quyền lợi và ưu đãi MovieClub</p>
+            <p className="auth__subtitle">Truy cập quyền lợi và ưu đãi Cinesmart</p>
 
             <form className="auth__form" action="#" method="post" autoComplete="on" onSubmit={(e) => e.preventDefault()}>
               <label className="field">
