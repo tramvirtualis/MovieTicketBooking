@@ -10,6 +10,7 @@ import CinemaDetail from './pages/CinemaDetail.jsx';
 import BookingHistory from './pages/BookingHistory.jsx';
 import Profile from './pages/Profile.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
+import ManagerDashboard from './pages/ManagerDashboard.jsx';
 
 export default function App() {
   const [, forceUpdate] = useState({});
@@ -43,6 +44,12 @@ export default function App() {
       pathname === '/admin' ||
       pathname.startsWith('/admin/')) {
     return <AdminDashboard />;
+  }
+  if (pathname === '/manager' ||
+      pathname.startsWith('/manager/') ||
+      pathname === '/managerdashboard' ||
+      pathname === '/manager-dashboard') {
+    return <ManagerDashboard />;
   }
   if (pathname.startsWith('/movie/')) return <MovieDetail />;
   if (pathname === '/cinemas') return <Cinemas />;
@@ -81,6 +88,7 @@ export default function App() {
   if (hash === '#booking-history') return <BookingHistory />;
   if (hash === '#profile') return <Profile />;
   if (hash === '#admin' || hash === '#admin-dashboard') return <AdminDashboard />;
+  if (hash === '#manager' || hash === '#manager-dashboard') return <ManagerDashboard />;
   if (hash === '#home' || hash === '') return <Home />;
   
   return <Home />;

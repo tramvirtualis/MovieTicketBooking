@@ -8,8 +8,8 @@ export default function SignIn() {
       <div className="split">
         <section className="intro">
           <div className="intro__content">
-            <h1 className="intro__title">IT’S SO EASY<br/>TO SIGN UP</h1>
-            <p className="intro__subtitle">Just enter your username and password!</p>
+            <h1 className="intro__title">ĐĂNG NHẬP<br/>THẬT ĐƠN GIẢN</h1>
+            <p className="intro__subtitle">Bạn chỉ cần nhập username và password!</p>
           </div>
           <div className="intro__popcorn" aria-hidden="true"></div>
         </section>

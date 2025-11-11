@@ -16,6 +16,7 @@ export default function MovieDetail() {
     title: 'Inception (T16)',
     duration: 147,
     genre: 'Sci‑Fi, Action',
+    formats: ['2D', '3D'],
     language: 'Khác',
     rating: 'T16',
     desc: 'Trong tương lai gần, một tay trộm hành tinh thức lenh, nơi Predator nợ nần – kẻ bị săn đuổi có cơ hội nhận lại tự do – tìm thấy một mục tiêu không ngờ tới là một bé gái bản lĩnh.',
@@ -73,9 +74,12 @@ export default function MovieDetail() {
               </div>
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
                 <h1 className="section__title" style={{ fontSize: 'clamp(24px, 3vw, 32px)', margin: 0, fontWeight: 900 }}>{sample.title}</h1>
                 <span className="badge-rating" title="Độ tuổi khuyến nghị">{sample.rating}</span>
+                {Array.isArray(sample.formats) && sample.formats.map((f) => (
+                  <span key={f} className="badge-format" title="Định dạng">{f}</span>
+                ))}
                 <button
                   className={`favorite-btn ${isFavorite ? 'favorite-btn--active' : ''}`}
                   onClick={() => setIsFavorite(!isFavorite)}
@@ -137,7 +141,7 @@ export default function MovieDetail() {
                     </svg>
                   </div>
                   <div>
-                    <div className="movie-info-card__label">Dự kiến</div>
+                    <div className="movie-info-card__label">Ngày khởi chiếu</div>
                     <div className="movie-info-card__value">{sample.release}</div>
                   </div>
                 </div>

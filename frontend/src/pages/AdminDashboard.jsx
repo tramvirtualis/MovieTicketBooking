@@ -6,6 +6,20 @@ const MOVIE_STATUSES = ['COMING_SOON', 'NOW_SHOWING', 'ENDED'];
 const AGE_RATINGS = ['P', 'K', '13+', '16+', '18+'];
 const SEAT_TYPES = ['NORMAL', 'VIP', 'COUPLE'];
 const ROOM_TYPES = ['2D', '3D', 'DELUXE'];
+const PROVINCES = [
+  'Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Hải Phòng', 'An Giang', 'Bà Rịa - Vũng Tàu',
+  'Bắc Giang', 'Bắc Kạn', 'Bạc Liêu', 'Bắc Ninh', 'Bến Tre', 'Bình Định', 'Bình Dương',
+  'Bình Phước', 'Bình Thuận', 'Cà Mau', 'Cao Bằng', 'Đắk Lắk', 'Đắk Nông', 'Điện Biên',
+  'Đồng Nai', 'Đồng Tháp', 'Gia Lai', 'Hà Giang', 'Hà Nam', 'Hà Tĩnh', 'Hải Dương',
+  'Hậu Giang', 'Hòa Bình', 'Hưng Yên', 'Khánh Hòa', 'Kiên Giang', 'Kon Tum', 'Lai Châu',
+  'Lâm Đồng', 'Lạng Sơn', 'Lào Cai', 'Long An', 'Nam Định', 'Nghệ An', 'Ninh Bình',
+  'Ninh Thuận', 'Phú Thọ', 'Phú Yên', 'Quảng Bình', 'Quảng Nam', 'Quảng Ngãi', 'Quảng Ninh',
+  'Quảng Trị', 'Sóc Trăng', 'Sơn La', 'Tây Ninh', 'Thái Bình', 'Thái Nguyên', 'Thanh Hóa',
+  'Thừa Thiên Huế', 'Tiền Giang', 'Trà Vinh', 'Tuyên Quang', 'Vĩnh Long', 'Vĩnh Phúc', 'Yên Bái'
+];
+// New enums for movie availability
+const LANGUAGES = ['VIETSUB', 'VIETNAMESE', 'VIETDUB'];
+const MOVIE_FORMATS = ['2D', '3D', 'DELUXE'];
 
 // Generate seats for a room with realistic layout
 function generateSeats(rows, cols) {
@@ -119,7 +133,9 @@ const initialMovies = [
     description: 'A skilled thief is given a chance at redemption if he can perform an impossible task: Inception, planting an idea in someone\'s mind.',
     trailerURL: 'https://www.youtube.com/watch?v=YoHD9XEInc0',
     poster: 'https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg',
-    status: 'NOW_SHOWING'
+    status: 'NOW_SHOWING',
+    languages: ['VIETSUB', 'VIETNAMESE_DUB'],
+    formats: ['2D', '3D']
   },
   {
     movieId: 2,
@@ -133,7 +149,9 @@ const initialMovies = [
     description: 'A team of explorers travel through a wormhole in space in an attempt to ensure humanity\'s survival.',
     trailerURL: 'https://www.youtube.com/watch?v=zSWdZVtXT7E',
     poster: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
-    status: 'NOW_SHOWING'
+    status: 'NOW_SHOWING',
+    languages: ['VIETSUB'],
+    formats: ['2D']
   },
   {
     movieId: 3,
@@ -147,7 +165,9 @@ const initialMovies = [
     description: 'Batman must accept one of the greatest psychological and physical tests of his ability to fight injustice.',
     trailerURL: 'https://www.youtube.com/watch?v=EXeTwQWrcwY',
     poster: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
-    status: 'NOW_SHOWING'
+    status: 'NOW_SHOWING',
+    languages: ['VIETSUB'],
+    formats: ['2D']
   },
   {
     movieId: 4,
@@ -161,7 +181,9 @@ const initialMovies = [
     description: 'A widowed actor who directs theatre productions embarks on a road trip with a young female chauffeur.',
     trailerURL: 'https://www.youtube.com/watch?v=6BPKPb_RTwI',
     poster: 'https://image.tmdb.org/t/p/w500/lXi2YKI3m30qtX9cB5GPz8b3uaw.jpg',
-    status: 'NOW_SHOWING'
+    status: 'NOW_SHOWING',
+    languages: ['VIETSUB'],
+    formats: ['2D']
   },
   {
     movieId: 5,
@@ -175,7 +197,9 @@ const initialMovies = [
     description: 'The untold story of the witches of Oz.',
     trailerURL: 'https://www.youtube.com/watch?v=Y5BeTH2c3WA',
     poster: 'https://image.tmdb.org/t/p/w500/9azEue8jX6n8WcN6iYG3PaY5E9R.jpg',
-    status: 'COMING_SOON'
+    status: 'COMING_SOON',
+    languages: ['VIETSUB'],
+    formats: ['2D']
   },
 ];
 
@@ -205,7 +229,8 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
   const [selectedSeatType, setSelectedSeatType] = useState('NORMAL');
   const [cinemaFormData, setCinemaFormData] = useState({
     name: '',
-    address: ''
+    addressDescription: '',
+    addressProvince: 'Hồ Chí Minh'
   });
   const [roomFormData, setRoomFormData] = useState({
     roomName: '',
@@ -229,26 +254,35 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
 
   const handleEditCinema = (cinema) => {
     setEditingCinema(cinema);
-    setCinemaFormData({ name: cinema.name, address: cinema.address });
+    // Tách địa chỉ thành mô tả + tỉnh/thành
+    const parts = (cinema.address || '').split(',');
+    const province = parts.length > 0 ? parts[parts.length - 1].trim() : 'Hồ Chí Minh';
+    const description = parts.slice(0, -1).join(',').trim();
+    setCinemaFormData({ name: cinema.name, addressDescription: description, addressProvince: province || 'Hồ Chí Minh' });
     setShowCinemaModal(true);
   };
 
   const handleSaveCinema = () => {
     if (!cinemaFormData.name || !cinemaFormData.address) {
+      // Backward-compat: nếu address cũ chưa có, dựng từ 2 trường mới
+    }
+    if (!cinemaFormData.name || !cinemaFormData.addressDescription || !cinemaFormData.addressProvince) {
       alert('Vui lòng điền đầy đủ thông tin');
       return;
     }
+    const composedAddress = `${cinemaFormData.addressDescription}, ${cinemaFormData.addressProvince}`;
 
     if (editingCinema) {
       setCinemas(cinemas.map(c =>
         c.complexId === editingCinema.complexId
-          ? { ...c, ...cinemaFormData }
+          ? { ...c, name: cinemaFormData.name, address: composedAddress }
           : c
       ));
     } else {
       const newCinema = {
         complexId: Math.max(...cinemas.map(c => c.complexId), 0) + 1,
-        ...cinemaFormData,
+        name: cinemaFormData.name,
+        address: composedAddress,
         rooms: []
       };
       setCinemas([...cinemas, newCinema]);
@@ -701,15 +735,26 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
                     placeholder="Nhập tên rạp"
                   />
                 </div>
-                <div className="movie-form__group">
-                  <label>Địa chỉ <span className="required">*</span></label>
-                  <input
-                    type="text"
-                    value={cinemaFormData.address}
-                    onChange={(e) => setCinemaFormData({ ...cinemaFormData, address: e.target.value })}
-                    placeholder="Nhập địa chỉ"
-                  />
-                </div>
+              <div className="movie-form__group">
+                <label>Địa chỉ - Mô tả <span className="required">*</span></label>
+                <input
+                  type="text"
+                  value={cinemaFormData.addressDescription}
+                  onChange={(e) => setCinemaFormData({ ...cinemaFormData, addressDescription: e.target.value })}
+                  placeholder="Số nhà, đường, phường/xã, quận/huyện"
+                />
+              </div>
+              <div className="movie-form__group">
+                <label>Tỉnh/Thành phố <span className="required">*</span></label>
+                <select
+                  value={cinemaFormData.addressProvince}
+                  onChange={(e) => setCinemaFormData({ ...cinemaFormData, addressProvince: e.target.value })}
+                >
+                  {PROVINCES.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
               </div>
             </div>
             <div className="movie-modal__footer">
@@ -829,7 +874,9 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     trailerURL: '',
     poster: '',
     posterFile: null,
-    status: 'COMING_SOON'
+    status: 'COMING_SOON',
+    languages: [],
+    formats: []
   });
   const [posterPreview, setPosterPreview] = useState('');
 
@@ -902,7 +949,9 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
       trailerURL: '',
       poster: '',
       posterFile: null,
-      status: 'COMING_SOON'
+      status: 'COMING_SOON',
+      languages: [],
+      formats: []
     });
     setPosterPreview('');
     setShowModal(true);
@@ -923,7 +972,9 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
       trailerURL: movie.trailerURL,
       poster: movie.poster,
       posterFile: null,
-      status: movie.status
+      status: movie.status,
+      languages: movie.languages || [],
+      formats: movie.formats || []
     });
     setPosterPreview(movie.poster || '');
     setShowModal(true);
@@ -1114,6 +1165,12 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                   <span className="movie-card__genre">{formatGenre(movie.genre)}</span>
                   <span className="movie-card__rating">{movie.ageRating}</span>
                   <span className="movie-card__duration">{movie.duration} phút</span>
+                  {(movie.formats || []).slice(0,2).map(f => (
+                    <span key={f} className="movie-card__rating">{f}</span>
+                  ))}
+                  {(movie.languages || []).slice(0,2).map(l => (
+                    <span key={l} className="movie-card__rating">{l}</span>
+                  ))}
                 </div>
                 <div className="movie-card__director">Đạo diễn: {movie.director}</div>
               </div>
@@ -1130,6 +1187,8 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                 <th>Thể loại</th>
                 <th>Đạo diễn</th>
                 <th>Thời lượng</th>
+                <th>Định dạng</th>
+                <th>Ngôn ngữ</th>
                 <th>Ngày phát hành</th>
                 <th>Trạng thái</th>
                 <th>Thao tác</th>
@@ -1148,6 +1207,8 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                   <td>{formatGenre(movie.genre)}</td>
                   <td>{movie.director}</td>
                   <td>{movie.duration} phút</td>
+                  <td>{(movie.formats || []).join(', ')}</td>
+                  <td>{(movie.languages || []).join(', ')}</td>
                   <td>{new Date(movie.releaseDate).toLocaleDateString('vi-VN')}</td>
                   <td>
                     <span className="movie-status-badge" style={{ backgroundColor: getStatusColor(movie.status) }}>
@@ -1285,6 +1346,56 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                     </select>
                   </div>
                 </div>
+              <div className="movie-form__row">
+                <div className="movie-form__group">
+                  <label>Định dạng</label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {MOVIE_FORMATS.map(fmt => {
+                      const active = formData.formats.includes(fmt);
+                      return (
+                        <button
+                          type="button"
+                          key={fmt}
+                          className={`view-mode-btn ${active ? 'active' : ''}`}
+                          onClick={() => {
+                            const exists = formData.formats.includes(fmt);
+                            setFormData({
+                              ...formData,
+                              formats: exists ? formData.formats.filter(f => f !== fmt) : [...formData.formats, fmt]
+                            });
+                          }}
+                        >
+                          {fmt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="movie-form__group">
+                  <label>Ngôn ngữ</label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {LANGUAGES.map(lang => {
+                      const active = formData.languages.includes(lang);
+                      return (
+                        <button
+                          type="button"
+                          key={lang}
+                          className={`view-mode-btn ${active ? 'active' : ''}`}
+                          onClick={() => {
+                            const exists = formData.languages.includes(lang);
+                            setFormData({
+                              ...formData,
+                              languages: exists ? formData.languages.filter(l => l !== lang) : [...formData.languages, lang]
+                            });
+                          }}
+                        >
+                          {lang}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
                 <div className="movie-form__group">
                   <label>Đạo diễn <span className="required">*</span></label>
                   <input
