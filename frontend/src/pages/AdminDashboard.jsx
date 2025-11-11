@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 // Enums from database
 const GENRES = ['ACTION', 'COMEDY', 'HORROR', 'DRAMA', 'ROMANCE', 'THRILLER', 'ANIMATION', 'FANTASY', 'SCI-FI', 'MUSICAL', 'FAMILY', 'DOCUMENTARY', 'ADVENTURE', 'SUPERHERO'];
@@ -215,6 +215,68 @@ const topMovies = [
   { id: 2, title: 'Interstellar', bookings: 389, revenue: 70020000 },
   { id: 3, title: 'The Dark Knight', bookings: 312, revenue: 37440000 },
   { id: 4, title: 'Drive My Car', bookings: 245, revenue: 36750000 },
+];
+
+// Sample bookings for booking management
+const initialBookingOrders = [
+  {
+    bookingId: 1001,
+    user: { name: 'Nguyễn Văn A', email: 'a@example.com', phone: '0909000001' },
+    movieId: 1,
+    movieTitle: 'Inception',
+    cinemaComplexId: 1,
+    cinemaName: 'Cinestar Quốc Thanh',
+    roomId: 1,
+    roomName: 'Phòng 1',
+    showtime: '2025-11-11T19:30:00',
+    seats: ['E7', 'E8'],
+    pricePerSeat: 120000,
+    totalAmount: 240000,
+    status: 'PAID', // PAID | CANCELED | REFUNDED
+    paymentMethod: 'VNPAY' // VNPAY | MOMO | CASH
+  },
+  {
+    bookingId: 1002,
+    user: { name: 'Trần Thị B', email: 'b@example.com', phone: '0909000002' },
+    movieId: 2,
+    movieTitle: 'Interstellar',
+    cinemaComplexId: 2,
+    cinemaName: 'Cinestar Hai Bà Trưng',
+    roomId: 3,
+    roomName: 'Phòng 1',
+    showtime: '2025-11-12T21:00:00',
+    seats: ['B5'],
+    pricePerSeat: 180000,
+    totalAmount: 180000,
+    status: 'PAID',
+    paymentMethod: 'MOMO'
+  },
+  {
+    bookingId: 1003,
+    user: { name: 'Lê Văn C', email: 'c@example.com', phone: '0909000003' },
+    movieId: 3,
+    movieTitle: 'The Dark Knight',
+    cinemaComplexId: 1,
+    cinemaName: 'Cinestar Quốc Thanh',
+    roomId: 2,
+    roomName: 'Phòng 2',
+    showtime: '2025-11-10T20:15:00',
+    seats: ['A1', 'A2', 'A3'],
+    pricePerSeat: 120000,
+    totalAmount: 360000,
+    status: 'REFUNDED',
+    paymentMethod: 'CASH'
+  }
+];
+
+// Sample price table: price by RoomType x SeatType
+const initialPrices = [
+  { id: 1, roomType: '2D', seatType: 'NORMAL', price: 90000 },
+  { id: 2, roomType: '2D', seatType: 'VIP', price: 120000 },
+  { id: 3, roomType: '2D', seatType: 'COUPLE', price: 200000 },
+  { id: 4, roomType: '3D', seatType: 'NORMAL', price: 120000 },
+  { id: 5, roomType: '3D', seatType: 'VIP', price: 150000 },
+  { id: 6, roomType: 'DELUXE', seatType: 'VIP', price: 180000 }
 ];
 
 // Sample vouchers data
@@ -2235,6 +2297,392 @@ function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) 
   );
 }
 
+// Booking Management Component
+function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies: moviesList, onOrdersChange }) {
+  const [orders, setOrders] = useState(initialOrders);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCinema, setFilterCinema] = useState('');
+  const [filterMovie, setFilterMovie] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    if (onOrdersChange) onOrdersChange(orders);
+  }, [orders, onOrdersChange]);
+
+  const withinRange = (dt) => {
+    const t = new Date(dt).getTime();
+    if (dateFrom && t < new Date(dateFrom).getTime()) return false;
+    if (dateTo && t > new Date(dateTo + 'T23:59:59').getTime()) return false;
+    return true;
+  };
+
+  const isExpired = (o) => new Date(o.showtime).getTime() < Date.now();
+  const derivedStatus = (o) => (isExpired(o) ? 'EXPIRED' : 'ACTIVE'); // Còn hạn / Hết hạn
+
+  const filtered = orders.filter(o => {
+    const matchesText =
+      o.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.user.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.movieTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.cinemaName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCinema = !filterCinema || String(o.cinemaComplexId) === String(filterCinema);
+    const matchesMovie = !filterMovie || String(o.movieId) === String(filterMovie);
+    const matchesStatus = !filterStatus || derivedStatus(o) === filterStatus;
+    return matchesText && matchesCinema && matchesMovie && matchesStatus && withinRange(o.showtime);
+  });
+
+  const statusColor = (s) => ({ ACTIVE: '#4caf50', EXPIRED: '#9e9e9e' }[s] || '#9e9e9e');
+
+  const groupByDate = filtered.reduce((acc, o) => {
+    const d = new Date(o.showtime).toLocaleDateString('vi-VN');
+    if (!acc[d]) acc[d] = [];
+    acc[d].push(o);
+    return acc;
+  }, {});
+  const dateKeys = Object.keys(groupByDate).sort((a,b) => {
+    const pa = a.split('/').reverse().join('-');
+    const pb = b.split('/').reverse().join('-');
+    return new Date(pb) - new Date(pa);
+  });
+
+  return (
+    <div className="admin-card">
+      <div className="admin-card__header">
+        <h2 className="admin-card__title">Quản lý đặt vé</h2>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="movie-search">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input className="movie-search__input" placeholder="Tìm tên KH, sđt, phim, rạp..." value={searchTerm} onChange={(e)=>setSearchTerm(e.target.value)} />
+          </div>
+          <select className="movie-filter" value={filterCinema} onChange={(e)=>setFilterCinema(e.target.value)}>
+            <option value="">Tất cả rạp</option>
+            {cinemasList.map(c => <option key={c.complexId} value={c.complexId}>#{c.complexId} - {c.name}</option>)}
+          </select>
+          <select className="movie-filter" value={filterMovie} onChange={(e)=>setFilterMovie(e.target.value)}>
+            <option value="">Tất cả phim</option>
+            {moviesList.map(m => <option key={m.movieId} value={m.movieId}>{m.title}</option>)}
+          </select>
+          <select className="movie-filter" value={filterStatus} onChange={(e)=>setFilterStatus(e.target.value)}>
+            <option value="">Tất cả trạng thái</option>
+            <option value="ACTIVE">Còn hạn</option>
+            <option value="EXPIRED">Hết hạn</option>
+          </select>
+          <input type="date" className="movie-filter" value={dateFrom} onChange={(e)=>setDateFrom(e.target.value)} />
+          <input type="date" className="movie-filter" value={dateTo} onChange={(e)=>setDateTo(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="admin-card__content">
+        {dateKeys.length === 0 ? (
+          <div className="movie-empty">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <p>Không có đơn đặt vé</p>
+          </div>
+        ) : (
+          <div className="admin-dashboard-grid">
+            {dateKeys.map(dateKey => (
+              <div key={dateKey} className="admin-card" style={{ background: 'rgba(255,255,255,0.02)' }}>
+                <div className="admin-card__header">
+                  <h3 className="admin-card__title">Ngày {dateKey}</h3>
+                </div>
+                <div className="admin-card__content">
+                  <div className="admin-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Mã</th>
+                          <th>Khách hàng</th>
+                          <th>Phim / Rạp / Phòng</th>
+                          <th>Suất</th>
+                          <th>Ghế</th>
+                          <th>Thanh toán</th>
+                          <th>Trạng thái</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupByDate[dateKey].map(o => (
+                          <tr key={o.bookingId}>
+                            <td>#{o.bookingId}</td>
+                            <td>
+                              <div className="movie-table-title">{o.user.name}</div>
+                              <div className="movie-table-rating">{o.user.phone}</div>
+                            </td>
+                            <td>
+                              <div className="movie-table-title">{o.movieTitle}</div>
+                              <div className="movie-table-rating">{o.cinemaName} • {o.roomName}</div>
+                            </td>
+                            <td>{new Date(o.showtime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {o.seats.map(s => (
+                                  <span
+                                    key={s}
+                                    className="badge-rating"
+                                    style={{
+                                      background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)',
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.15)' // nhẹ nhàng
+                                    }}
+                                  >
+                                    {s}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="movie-table-title">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(o.totalAmount)}</div>
+                              <div className="movie-table-rating">{o.paymentMethod}</div>
+                            </td>
+                            <td>
+                              <span className="movie-status-badge" style={{ backgroundColor: statusColor(derivedStatus(o)) }}>
+                                {derivedStatus(o) === 'ACTIVE' ? 'Còn hạn' : 'Hết hạn'}
+                              </span>
+                            </td>
+                            <td>
+                              <div className="movie-table-actions">
+                                <button className="movie-action-btn" title="Chi tiết" onClick={()=>setSelected(o)}>
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {selected && (
+        <div className="movie-modal-overlay" onClick={()=>setSelected(null)}>
+          <div className="movie-modal" onClick={(e)=>e.stopPropagation()}>
+            <div className="movie-modal__header">
+              <h2>Chi tiết đơn #{selected.bookingId}</h2>
+              <button className="movie-modal__close" onClick={()=>setSelected(null)}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="movie-modal__content">
+              <div className="admin-dashboard-grid">
+                <div className="admin-card">
+                  <div className="admin-card__header"><h3 className="admin-card__title">Thông tin</h3></div>
+                  <div className="admin-card__content">
+                    <div className="movie-table-title">{selected.user.name}</div>
+                    <div className="movie-table-rating">{selected.user.email} • {selected.user.phone}</div>
+                    <div style={{ marginTop: 8 }}>{selected.movieTitle} • {selected.cinemaName} • {selected.roomName}</div>
+                    <div>Suất: {new Date(selected.showtime).toLocaleString('vi-VN')}</div>
+                  </div>
+                </div>
+                <div className="admin-card">
+                  <div className="admin-card__header"><h3 className="admin-card__title">Ghế & Thanh toán</h3></div>
+                  <div className="admin-card__content">
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                      {selected.seats.map(s => (
+                        <span
+                          key={s}
+                          className="badge-rating"
+                          style={{ background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}
+                        >
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                    <div>Giá vé: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.pricePerSeat)} / ghế</div>
+                    <div>Tổng: <strong>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.totalAmount)}</strong> • {selected.paymentMethod}</div>
+                    <div style={{ marginTop: 8 }}>
+                      Trạng thái:{' '}
+                      <span className="movie-status-badge" style={{ backgroundColor: statusColor(derivedStatus(selected)) }}>
+                        {derivedStatus(selected) === 'ACTIVE' ? 'Còn hạn' : 'Hết hạn'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="movie-modal__footer">
+              <button className="btn btn--ghost" onClick={()=>setSelected(null)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Price Management Component
+function PriceManagement({ prices: initialPricesList, onPricesChange }) {
+  const [prices, setPrices] = useState(initialPricesList || []);
+
+  // Build an in-memory matrix for easy inline editing: key `${roomType}-${seatType}` -> price
+  const matrix = useMemo(() => {
+    const map = new Map();
+    (prices || []).forEach(p => {
+      if (p && p.roomType && p.seatType) {
+        map.set(`${p.roomType}-${p.seatType}`, Number(p.price) || 0);
+      }
+    });
+    return map;
+  }, [prices]);
+
+  const [draft, setDraft] = useState(() => {
+    const obj = {};
+    // Initialize all combinations with 0 if not in prices
+    ROOM_TYPES.forEach(rt => {
+      SEAT_TYPES.forEach(st => {
+        const existing = (prices || []).find(p => p && p.roomType === rt && p.seatType === st);
+        obj[`${rt}-${st}`] = existing ? Number(existing.price) || 0 : 0;
+      });
+    });
+    return obj;
+  });
+
+  useEffect(() => {
+    if (onPricesChange) onPricesChange(prices);
+  }, [prices, onPricesChange]);
+
+  useEffect(() => {
+    // Sync draft when prices change externally - initialize all combinations
+    const obj = {};
+    ROOM_TYPES.forEach(rt => {
+      SEAT_TYPES.forEach(st => {
+        const existing = (prices || []).find(p => p && p.roomType === rt && p.seatType === st);
+        obj[`${rt}-${st}`] = existing ? Number(existing.price) || 0 : 0;
+      });
+    });
+    setDraft(obj);
+  }, [prices]);
+
+  const getPrice = (roomType, seatType) =>
+    draft[`${roomType}-${seatType}`] ?? matrix.get(`${roomType}-${seatType}`) ?? 0;
+
+  const setPrice = (roomType, seatType, value) => {
+    setDraft(prev => ({
+      ...prev,
+      [`${roomType}-${seatType}`]: value
+    }));
+  };
+
+  const applyQuickFillRow = (seatType, value) => {
+    const num = Number(value) || 0;
+    const next = { ...draft };
+    ROOM_TYPES.forEach(rt => { next[`${rt}-${seatType}`] = num; });
+    setDraft(next);
+  };
+
+  const applyQuickFillCol = (roomType, value) => {
+    const num = Number(value) || 0;
+    const next = { ...draft };
+    SEAT_TYPES.forEach(st => { next[`${roomType}-${st}`] = num; });
+    setDraft(next);
+  };
+
+  const handleReset = () => {
+    const obj = {};
+    (prices || []).forEach(p => { obj[`${p.roomType}-${p.seatType}`] = Number(p.price); });
+    setDraft(obj);
+  };
+
+  const handleSaveAll = () => {
+    // Convert draft matrix -> normalized array (unique pairs)
+    const items = [];
+    ROOM_TYPES.forEach(rt => {
+      SEAT_TYPES.forEach(st => {
+        const price = Number(getPrice(rt, st) || 0);
+        if (price >= 0) {
+          const exist = prices.find(p => p.roomType === rt && p.seatType === st);
+          if (exist) {
+            items.push({ ...exist, price });
+          } else {
+            items.push({
+              id: Math.max(0, ...prices.map(p => p.id)) + items.length + 1,
+              roomType: rt,
+              seatType: st,
+              price
+            });
+          }
+        }
+      });
+    });
+    setPrices(items);
+  };
+
+  const formatCurrency = (v) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v);
+
+  return (
+    <div className="admin-card">
+      <div className="admin-card__header">
+        <h2 className="admin-card__title">Bảng giá</h2>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn--ghost" onClick={handleReset}>Hoàn tác</button>
+          <button className="btn btn--primary" onClick={handleSaveAll}>
+            Lưu bảng giá
+          </button>
+        </div>
+      </div>
+      <div className="admin-card__content">
+        <div className="admin-table" style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={{ padding: '16px', textAlign: 'left', borderBottom: '2px solid rgba(255,255,255,0.1)' }}>
+                  Loại ghế / Loại phòng
+                </th>
+                {ROOM_TYPES.map(rt => (
+                  <th key={rt} style={{ padding: '16px', textAlign: 'center', borderBottom: '2px solid rgba(255,255,255,0.1)' }}>
+                    {rt}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {SEAT_TYPES.map(st => (
+                <tr key={st}>
+                  <td style={{ padding: '16px', fontWeight: '600', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    {st}
+                  </td>
+                  {ROOM_TYPES.map(rt => {
+                    const val = getPrice(rt, st);
+                    return (
+                      <td key={`${rt}-${st}`} style={{ padding: '16px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <input
+                          type="number"
+                          min="0"
+                          value={val}
+                          onChange={(e)=>setPrice(rt, st, Number(e.target.value))}
+                          style={{
+                            width: '120px',
+                            padding: '10px',
+                            background: 'rgba(20, 15, 16, 0.8)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '8px',
+                            color: '#fff',
+                            fontSize: '14px',
+                            textAlign: 'center'
+                          }}
+                        />
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#ffd159' }}>
+                          {formatCurrency(val || 0)}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -2242,6 +2690,8 @@ export default function AdminDashboard() {
   const [cinemas, setCinemas] = useState(initialCinemas);
   const [users, setUsers] = useState(initialUsers);
   const [vouchers, setVouchers] = useState(initialVouchers);
+  const [orders, setOrders] = useState(initialBookingOrders);
+  const [prices, setPrices] = useState(initialPrices);
 
   const getIcon = (iconName) => {
     switch (iconName) {
@@ -2370,6 +2820,16 @@ export default function AdminDashboard() {
               <circle cx="12" cy="10" r="3"/>
             </svg>
             <span>Quản lý rạp</span>
+          </button>
+          <button
+            className={`admin-nav-item ${activeSection === 'prices' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => setActiveSection('prices')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1v22"/>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7"/>
+            </svg>
+            <span>Bảng giá</span>
           </button>
           <button
             className={`admin-nav-item ${activeSection === 'bookings' ? 'admin-nav-item--active' : ''}`}
@@ -2551,16 +3011,7 @@ export default function AdminDashboard() {
           )}
 
           {activeSection === 'bookings' && (
-            <div className="admin-card">
-              <div className="admin-card__header">
-                <h2 className="admin-card__title">Quản lý đặt vé</h2>
-              </div>
-              <div className="admin-card__content">
-                <p style={{ color: '#c9c4c5', textAlign: 'center', padding: '40px' }}>
-                  Tính năng quản lý đặt vé đang được phát triển...
-                </p>
-              </div>
-            </div>
+            <BookingManagement orders={orders} cinemas={cinemas} movies={movies} onOrdersChange={setOrders} />
           )}
 
           {activeSection === 'users' && (
@@ -2570,6 +3021,10 @@ export default function AdminDashboard() {
           {activeSection === 'vouchers' && (
             <VoucherManagement vouchers={vouchers} onVouchersChange={setVouchers} />
           )}
+
+              {activeSection === 'prices' && (
+                <PriceManagement prices={prices} onPricesChange={setPrices} />
+              )}
 
           {activeSection === 'reports' && (
             <div className="admin-card">

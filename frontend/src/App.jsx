@@ -11,6 +11,7 @@ import BookingHistory from './pages/BookingHistory.jsx';
 import Profile from './pages/Profile.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import ManagerDashboard from './pages/ManagerDashboard.jsx';
+import Events from './pages/Events.jsx';
 
 export default function App() {
   const [, forceUpdate] = useState({});
@@ -39,12 +40,16 @@ export default function App() {
   const hash = window.location.hash.toLowerCase();
   
   // Path-based routing - check admin routes first
-  if (pathname === '/admin/admindashboard' || 
-      pathname === '/admin/admin-dashboard' || 
-      pathname === '/admin' ||
-      pathname === '/admindashboard' ||
-      pathname === '/admin-dashboard' ||
-      pathname.startsWith('/admin/')) {
+  // Handle both lowercase and mixed case URLs
+  const normalizedPath = pathname.toLowerCase();
+  if (normalizedPath === '/admin/admindashboard' || 
+      normalizedPath === '/admin/admin-dashboard' || 
+      normalizedPath === '/admin' ||
+      normalizedPath === '/admindashboard' ||
+      normalizedPath === '/admin-dashboard' ||
+      normalizedPath.startsWith('/admin/') ||
+      pathname === '/AdminDashboard' || // Handle exact case
+      pathname === '/Admin-Dashboard') {
     return <AdminDashboard />;
   }
   if (pathname === '/manager' ||
@@ -55,6 +60,7 @@ export default function App() {
   }
   if (pathname.startsWith('/movie/')) return <MovieDetail />;
   if (pathname === '/cinemas') return <Cinemas />;
+  if (pathname === '/events') return <Events />;
   if (pathname.startsWith('/cinema/')) return <CinemaDetail />;
   if (pathname === '/schedule') return <Schedule />;
   if (pathname === '/signup' || pathname === '/register') return <SignUp />;
@@ -81,6 +87,7 @@ export default function App() {
   // Hash-based routing (fallback for compatibility)
   if (hash.startsWith('#movie')) return <MovieDetail />;
   if (hash === '#cinemas') return <Cinemas />;
+  if (hash === '#events') return <Events />;
   if (hash.startsWith('#cinema')) return <CinemaDetail />;
   if (hash === '#schedule') return <Schedule />;
   if (hash === '#signup') return <SignUp />;
