@@ -42,6 +42,8 @@ export default function App() {
   if (pathname === '/admin/admindashboard' || 
       pathname === '/admin/admin-dashboard' || 
       pathname === '/admin' ||
+      pathname === '/admindashboard' ||
+      pathname === '/admin-dashboard' ||
       pathname.startsWith('/admin/')) {
     return <AdminDashboard />;
   }

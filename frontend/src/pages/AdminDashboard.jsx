@@ -217,6 +217,75 @@ const topMovies = [
   { id: 4, title: 'Drive My Car', bookings: 245, revenue: 36750000 },
 ];
 
+// Sample vouchers data
+const initialVouchers = [
+  {
+    voucherId: 1,
+    code: 'WELCOME10',
+    name: 'Chào mừng 10%',
+    description: 'Giảm 10% cho đơn đầu tiên',
+    discountType: 'PERCENT', // PERCENT | AMOUNT
+    discountValue: 10,
+    maxDiscount: 30000,
+    minOrder: 100000,
+    startDate: '2025-11-01',
+    endDate: '2025-12-31',
+    quantity: 1000,
+    status: true,
+    image: 'https://images.unsplash.com/photo-1493707553565-03c0f1a3c9a8?q=80&w=800&auto=format&fit=crop'
+  },
+  {
+    voucherId: 2,
+    code: 'CINE50K',
+    name: 'Giảm 50.000đ',
+    description: 'Áp dụng vé xem phim 2D',
+    discountType: 'AMOUNT',
+    discountValue: 50000,
+    maxDiscount: 50000,
+    minOrder: 120000,
+    startDate: '2025-11-05',
+    endDate: '2025-11-30',
+    quantity: 300,
+    status: true,
+    image: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=800&auto=format&fit=crop'
+  }
+];
+
+// Sample users data
+const initialUsers = [
+  {
+    userId: 1,
+    username: 'admin',
+    password: '******',
+    email: 'admin@cinesmart.vn',
+    phone: '0909000001',
+    address: '01 Lê Lợi, Quận 1, Hồ Chí Minh',
+    status: true,
+    role: 'ADMIN'
+  },
+  {
+    userId: 2,
+    username: 'manager_qt',
+    password: '******',
+    email: 'manager.qt@cinesmart.vn',
+    phone: '0909000002',
+    address: '271 Nguyễn Trãi, Quận 1, Hồ Chí Minh',
+    status: true,
+    role: 'MANAGER',
+    cinemaComplexId: 1
+  },
+  {
+    userId: 3,
+    username: 'user_a',
+    password: '******',
+    email: 'user.a@example.com',
+    phone: '0909000003',
+    address: 'Hai Bà Trưng, Quận 1, Hồ Chí Minh',
+    status: true,
+    role: 'USER'
+  }
+];
+
 // Cinema Management Component
 function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
   const [cinemas, setCinemas] = useState(initialCinemasList);
@@ -1536,11 +1605,643 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
   );
 }
 
+// User Management Component
+function UserManagement({ users: initialUsersList, cinemas: cinemasList, onUsersChange }) {
+  const [users, setUsers] = useState(initialUsersList);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterProvince, setFilterProvince] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [formData, setFormData] = useState({
+    username: '',
+    password: '',
+    email: '',
+    phone: '',
+    addressDescription: '',
+    addressProvince: 'Hồ Chí Minh',
+    status: true,
+    role: 'USER',
+    cinemaComplexId: ''
+  });
+
+  useEffect(() => {
+    if (onUsersChange) onUsersChange(users);
+  }, [users, onUsersChange]);
+
+  const formatRole = (r) => r === 'ADMIN' ? 'Admin' : r === 'MANAGER' ? 'Manager' : 'User';
+
+  const filtered = users.filter(u => {
+    const matchesSearch =
+      u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.phone.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = !filterRole || u.role === filterRole;
+    const matchesStatus = filterStatus === '' ? true : u.status === (filterStatus === 'true');
+    const province = (u.address?.split(',').pop() || '').trim();
+    const matchesProvince = !filterProvince || province === filterProvince;
+    return matchesSearch && matchesRole && matchesStatus && matchesProvince;
+  });
+
+  const handleAdd = () => {
+    setEditingUser(null);
+    setFormData({
+      username: '',
+      password: '',
+      email: '',
+      phone: '',
+      addressDescription: '',
+      addressProvince: 'Hồ Chí Minh',
+      status: true,
+      role: 'USER',
+      cinemaComplexId: ''
+    });
+    setShowModal(true);
+  };
+
+  const handleEdit = (user) => {
+    setEditingUser(user);
+    const parts = (user.address || '').split(',');
+    const province = parts.length > 0 ? parts[parts.length - 1].trim() : 'Hồ Chí Minh';
+    const description = parts.slice(0, -1).join(',').trim();
+    setFormData({
+      username: user.username,
+      password: '',
+      email: user.email,
+      phone: user.phone,
+      addressDescription: description,
+      addressProvince: province || 'Hồ Chí Minh',
+      status: !!user.status,
+      role: user.role,
+      cinemaComplexId: user.cinemaComplexId || ''
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = () => {
+    if (!formData.username || (!editingUser && !formData.password) || !formData.email || !formData.phone || !formData.addressDescription || !formData.addressProvince) {
+      alert('Vui lòng điền đầy đủ thông tin bắt buộc');
+      return;
+    }
+    if (formData.role === 'MANAGER' && !formData.cinemaComplexId) {
+      alert('Manager cần gán vào một cụm rạp');
+      return;
+    }
+    const address = `${formData.addressDescription}, ${formData.addressProvince}`;
+    if (editingUser) {
+      setUsers(users.map(u =>
+        u.userId === editingUser.userId
+          ? {
+              ...u,
+              username: formData.username,
+              // Chỉ cập nhật mật khẩu nếu nhập mới
+              password: formData.password ? '******' : u.password,
+              email: formData.email,
+              phone: formData.phone,
+              address,
+              status: formData.status,
+              role: formData.role,
+              cinemaComplexId: formData.role === 'MANAGER' ? Number(formData.cinemaComplexId) : undefined
+            }
+          : u
+      ));
+    } else {
+      const newUser = {
+        userId: Math.max(...users.map(u => u.userId), 0) + 1,
+        username: formData.username,
+        password: '******',
+        email: formData.email,
+        phone: formData.phone,
+        address,
+        status: formData.status,
+        role: formData.role,
+        cinemaComplexId: formData.role === 'MANAGER' ? Number(formData.cinemaComplexId) : undefined
+      };
+      setUsers([newUser, ...users]);
+    }
+    setShowModal(false);
+    setEditingUser(null);
+  };
+
+  const handleDelete = (userId) => {
+    if (window.confirm('Xóa người dùng này?')) {
+      setUsers(users.filter(u => u.userId !== userId));
+    }
+  };
+
+  return (
+    <div className="admin-card">
+      <div className="admin-card__header">
+        <h2 className="admin-card__title">Quản lý người dùng</h2>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            className="movie-search__input"
+            style={{ minWidth: 240 }}
+            placeholder="Tìm username, email, phone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="movie-filter">
+            <option value="">Tất cả vai trò</option>
+            <option value="ADMIN">ADMIN</option>
+            <option value="MANAGER">MANAGER</option>
+            <option value="USER">USER</option>
+          </select>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="movie-filter">
+            <option value="">Tất cả trạng thái</option>
+            <option value="true">Hoạt động</option>
+            <option value="false">Khóa</option>
+          </select>
+          <select value={filterProvince} onChange={(e) => setFilterProvince(e.target.value)} className="movie-filter">
+            <option value="">Tất cả tỉnh/thành</option>
+            {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <button className="btn btn--primary" onClick={handleAdd}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Thêm người dùng
+          </button>
+        </div>
+      </div>
+      <div className="admin-card__content">
+        <div className="admin-table">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Địa chỉ</th>
+                <th>Vai trò</th>
+                <th>Trạng thái</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(u => (
+                <tr key={u.userId}>
+                  <td>{u.userId}</td>
+                  <td>{u.username}</td>
+                  <td>{u.email}</td>
+                  <td>{u.phone}</td>
+                  <td>{u.address}</td>
+                  <td>
+                    {formatRole(u.role)}
+                    {u.role === 'MANAGER' && u.cinemaComplexId ? (
+                      <span style={{ marginLeft: 6, fontSize: 12, opacity: .85 }}>(Cụm #{u.cinemaComplexId})</span>
+                    ) : null}
+                  </td>
+                  <td>
+                    <span className="movie-status-badge" style={{ backgroundColor: u.status ? '#4caf50' : '#9e9e9e' }}>
+                      {u.status ? 'Hoạt động' : 'Khóa'}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="movie-table-actions">
+                      <button className="movie-action-btn" onClick={() => handleEdit(u)} title="Chỉnh sửa">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button className="movie-action-btn movie-action-btn--delete" onClick={() => handleDelete(u.userId)} title="Xóa">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showModal && (
+        <div className="movie-modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="movie-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="movie-modal__header">
+              <h2>{editingUser ? 'Chỉnh sửa người dùng' : 'Thêm người dùng'}</h2>
+              <button className="movie-modal__close" onClick={() => setShowModal(false)}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="movie-modal__content">
+              <div className="movie-form">
+                <div className="movie-form__row">
+                  <div className="movie-form__group">
+                    <label>Username <span className="required">*</span></label>
+                    <input type="text" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} />
+                  </div>
+                  <div className="movie-form__group">
+                    <label>Mật khẩu {editingUser ? <span style={{ opacity: .7 }}>(để trống nếu không đổi)</span> : <span className="required">*</span>}</label>
+                    <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} />
+                  </div>
+                </div>
+                <div className="movie-form__row">
+                  <div className="movie-form__group">
+                    <label>Email <span className="required">*</span></label>
+                    <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                  </div>
+                  <div className="movie-form__group">
+                    <label>Phone <span className="required">*</span></label>
+                    <input type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+                  </div>
+                </div>
+                <div className="movie-form__group">
+                  <label>Địa chỉ - Mô tả <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    value={formData.addressDescription}
+                    onChange={(e) => setFormData({ ...formData, addressDescription: e.target.value })}
+                    placeholder="Số nhà, đường, phường/xã, quận/huyện"
+                  />
+                </div>
+                <div className="movie-form__group">
+                  <label>Tỉnh/Thành phố <span className="required">*</span></label>
+                  <select
+                    value={formData.addressProvince}
+                    onChange={(e) => setFormData({ ...formData, addressProvince: e.target.value })}
+                  >
+                    {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div className="movie-form__row">
+                  <div className="movie-form__group">
+                    <label>Vai trò <span className="required">*</span></label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    >
+                      <option value="USER">USER</option>
+                      <option value="MANAGER">MANAGER</option>
+                      <option value="ADMIN">ADMIN</option>
+                    </select>
+                  </div>
+                  {formData.role === 'MANAGER' && (
+                    <div className="movie-form__group">
+                      <label>Cụm rạp (Manager) <span className="required">*</span></label>
+                      <select
+                        value={formData.cinemaComplexId}
+                        onChange={(e) => setFormData({ ...formData, cinemaComplexId: e.target.value })}
+                      >
+                        <option value="">Chọn cụm rạp</option>
+                        {cinemasList.map(c => (
+                          <option key={c.complexId} value={c.complexId}>
+                            #{c.complexId} - {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+                <div className="movie-form__group">
+                  <label>Trạng thái</label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <input type="checkbox" checked={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.checked })} />
+                    Hoạt động
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="movie-modal__footer">
+              <button className="btn btn--ghost" onClick={() => setShowModal(false)}>Hủy</button>
+              <button className="btn btn--primary" onClick={handleSave}>{editingUser ? 'Cập nhật' : 'Thêm người dùng'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Voucher Management Component
+function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) {
+  const [vouchers, setVouchers] = useState(initialVouchersList);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingVoucher, setEditingVoucher] = useState(null);
+  const [formData, setFormData] = useState({
+    code: '',
+    name: '',
+    description: '',
+    discountType: 'PERCENT',
+    discountValue: '',
+    maxDiscount: '',
+    minOrder: '',
+    startDate: '',
+    endDate: '',
+    quantity: '',
+    status: true,
+    image: '',
+    imageFile: null
+  });
+  const [imagePreview, setImagePreview] = useState('');
+
+  useEffect(() => {
+    if (onVouchersChange) onVouchersChange(vouchers);
+  }, [vouchers, onVouchersChange]);
+
+  const filtered = vouchers.filter(v => {
+    const matchesSearch =
+      v.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      v.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === '' ? true : v.status === (filterStatus === 'true');
+    const matchesType = !filterType || v.discountType === filterType;
+    return matchesSearch && matchesStatus && matchesType;
+  });
+
+  const handleAdd = () => {
+    setEditingVoucher(null);
+    setFormData({
+      code: '',
+      name: '',
+      description: '',
+      discountType: 'PERCENT',
+      discountValue: '',
+      maxDiscount: '',
+      minOrder: '',
+      startDate: '',
+      endDate: '',
+      quantity: '',
+      status: true,
+      image: '',
+      imageFile: null
+    });
+    setImagePreview('');
+    setShowModal(true);
+  };
+
+  const handleEdit = (v) => {
+    setEditingVoucher(v);
+    setFormData({
+      code: v.code,
+      name: v.name,
+      description: v.description,
+      discountType: v.discountType,
+      discountValue: v.discountValue.toString(),
+      maxDiscount: v.maxDiscount.toString(),
+      minOrder: v.minOrder.toString(),
+      startDate: v.startDate,
+      endDate: v.endDate,
+      quantity: v.quantity.toString(),
+      status: v.status,
+      image: v.image || '',
+      imageFile: null
+    });
+    setImagePreview(v.image || '');
+    setShowModal(true);
+  };
+
+  const handleSave = () => {
+    if (!formData.code || !formData.name || !formData.discountValue || !formData.startDate || !formData.endDate) {
+      alert('Vui lòng điền đầy đủ thông tin bắt buộc');
+      return;
+    }
+    const payload = {
+      code: formData.code.trim(),
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      discountType: formData.discountType,
+      discountValue: Number(formData.discountValue),
+      maxDiscount: Number(formData.maxDiscount || 0),
+      minOrder: Number(formData.minOrder || 0),
+      startDate: formData.startDate,
+      endDate: formData.endDate,
+      quantity: Number(formData.quantity || 0),
+      status: !!formData.status,
+      image: imagePreview || formData.image
+    };
+    if (editingVoucher) {
+      setVouchers(vouchers.map(v => v.voucherId === editingVoucher.voucherId ? { ...v, ...payload } : v));
+    } else {
+      const newItem = { voucherId: Math.max(...vouchers.map(v => v.voucherId), 0) + 1, ...payload };
+      setVouchers([newItem, ...vouchers]);
+    }
+    setShowModal(false);
+    setEditingVoucher(null);
+    setImagePreview('');
+  };
+
+  const handleDelete = (voucherId) => {
+    if (window.confirm('Xóa voucher này?')) {
+      setVouchers(vouchers.filter(v => v.voucherId !== voucherId));
+    }
+  };
+
+  const onUploadImage = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Vui lòng chọn file hình ảnh');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      alert('Kích thước ảnh tối đa 4MB');
+      return;
+    }
+    setFormData(prev => ({ ...prev, imageFile: file, image: '' }));
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const discountBadge = (v) => {
+    if (v.discountType === 'PERCENT') return `-${v.discountValue}%`;
+    return `-${new Intl.NumberFormat('vi-VN').format(v.discountValue)}đ`;
+  };
+
+  return (
+    <div className="admin-card">
+      <div className="admin-card__header">
+        <h2 className="admin-card__title">Quản lý voucher</h2>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="movie-search">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input className="movie-search__input" placeholder="Tìm mã hoặc tên voucher..." value={searchTerm} onChange={(e)=>setSearchTerm(e.target.value)} />
+          </div>
+          <select className="movie-filter" value={filterType} onChange={(e)=>setFilterType(e.target.value)}>
+            <option value="">Tất cả loại giảm</option>
+            <option value="PERCENT">Phần trăm</option>
+            <option value="AMOUNT">Số tiền</option>
+          </select>
+          <select className="movie-filter" value={filterStatus} onChange={(e)=>setFilterStatus(e.target.value)}>
+            <option value="">Tất cả trạng thái</option>
+            <option value="true">Hoạt động</option>
+            <option value="false">Ngừng</option>
+          </select>
+          <button className="btn btn--primary" onClick={handleAdd}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Tạo voucher
+          </button>
+        </div>
+      </div>
+      <div className="admin-card__content">
+        {filtered.length === 0 ? (
+          <div className="movie-empty">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/></svg>
+            <p>Không có voucher nào</p>
+          </div>
+        ) : (
+          <div className="movie-grid">
+            {filtered.map(v => (
+              <div key={v.voucherId} className="movie-card">
+                <div
+                  className="movie-card__poster"
+                  style={{ width: '100%', height: '160px', overflow: 'hidden', position: 'relative', padding: 0 }}
+                >
+                  <img
+                    src={v.image || 'https://via.placeholder.com/1000x430?text=Voucher'}
+                    alt={v.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                  <div className="movie-card__overlay">
+                    <button className="movie-card__action" onClick={() => handleEdit(v)} title="Chỉnh sửa">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button className="movie-card__action movie-card__action--delete" onClick={() => handleDelete(v.voucherId)} title="Xóa">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                  <div className="movie-card__status" style={{ backgroundColor: v.status ? '#4caf50' : '#9e9e9e' }}>
+                    {v.status ? 'Hoạt động' : 'Ngừng'}
+                  </div>
+                  <div className="movie-card__badge" style={{ position: 'absolute', top: 8, left: 8, background: '#e83b41', color: '#fff', padding: '4px 8px', borderRadius: 6, fontWeight: 800 }}>
+                    {discountBadge(v)}
+                  </div>
+                </div>
+                <div className="movie-card__content">
+                  <h3 className="movie-card__title">{v.name}</h3>
+                  <div className="movie-card__meta">
+                    <span className="movie-card__genre">Mã: {v.code}</span>
+                    <span className="movie-card__rating">{new Date(v.startDate).toLocaleDateString('vi-VN')} — {new Date(v.endDate).toLocaleDateString('vi-VN')}</span>
+                    <span className="movie-card__duration">SL: {v.quantity}</span>
+                  </div>
+                  <div className="movie-card__director">{v.description}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showModal && (
+        <div className="movie-modal-overlay" onClick={() => { setShowModal(false); setImagePreview(''); }}>
+          <div className="movie-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="movie-modal__header">
+              <h2>{editingVoucher ? 'Chỉnh sửa voucher' : 'Tạo voucher'}</h2>
+              <button className="movie-modal__close" onClick={() => setShowModal(false)}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="movie-modal__content">
+              <div className="movie-form">
+                <div className="movie-form__row">
+                  <div className="movie-form__group">
+                    <label>Tên voucher <span className="required">*</span></label>
+                    <input value={formData.name} onChange={(e)=>setFormData({ ...formData, name: e.target.value })} />
+                  </div>
+                  <div className="movie-form__group">
+                    <label>Mã <span className="required">*</span></label>
+                    <input value={formData.code} onChange={(e)=>setFormData({ ...formData, code: e.target.value.toUpperCase() })} />
+                  </div>
+                </div>
+                <div className="movie-form__group">
+                  <label>Mô tả</label>
+                  <input value={formData.description} onChange={(e)=>setFormData({ ...formData, description: e.target.value })} />
+                </div>
+                <div className="movie-form__row">
+                  <div className="movie-form__group">
+                    <label>Loại giảm <span className="required">*</span></label>
+                    <select value={formData.discountType} onChange={(e)=>setFormData({ ...formData, discountType: e.target.value })}>
+                      <option value="PERCENT">Phần trăm (%)</option>
+                      <option value="AMOUNT">Số tiền (đ)</option>
+                    </select>
+                  </div>
+                  <div className="movie-form__group">
+                    <label>Giá trị <span className="required">*</span></label>
+                    <input type="number" value={formData.discountValue} onChange={(e)=>setFormData({ ...formData, discountValue: e.target.value })} min="0" />
+                  </div>
+                  <div className="movie-form__group">
+                    <label>Giảm tối đa</label>
+                    <input type="number" value={formData.maxDiscount} onChange={(e)=>setFormData({ ...formData, maxDiscount: e.target.value })} min="0" />
+                  </div>
+                </div>
+                <div className="movie-form__row">
+                  <div className="movie-form__group">
+                    <label>Đơn tối thiểu</label>
+                    <input type="number" value={formData.minOrder} onChange={(e)=>setFormData({ ...formData, minOrder: e.target.value })} min="0" />
+                  </div>
+                  <div className="movie-form__group">
+                    <label>Số lượng</label>
+                    <input type="number" value={formData.quantity} onChange={(e)=>setFormData({ ...formData, quantity: e.target.value })} min="0" />
+                  </div>
+                </div>
+                <div className="movie-form__row">
+                  <div className="movie-form__group">
+                    <label>Ngày bắt đầu <span className="required">*</span></label>
+                    <input type="date" value={formData.startDate} onChange={(e)=>setFormData({ ...formData, startDate: e.target.value })} />
+                  </div>
+                  <div className="movie-form__group">
+                    <label>Ngày kết thúc <span className="required">*</span></label>
+                    <input type="date" value={formData.endDate} onChange={(e)=>setFormData({ ...formData, endDate: e.target.value })} />
+                  </div>
+                </div>
+                <div className="movie-form__group">
+                  <label>Ảnh voucher</label>
+                  <div className="movie-poster-upload">
+                    <div className="movie-poster-upload__options">
+                      <label className="movie-poster-upload__btn">
+                        <input type="file" accept="image/*" onChange={onUploadImage} style={{ display: 'none' }} />
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Upload từ máy
+                      </label>
+                      <span className="movie-poster-upload__or">hoặc</span>
+                      <input
+                        type="url"
+                        className="movie-poster-upload__url"
+                        placeholder="Dán URL ảnh"
+                        value={formData.image}
+                        onChange={(e)=>{ setFormData({ ...formData, image: e.target.value, imageFile: null }); setImagePreview(e.target.value); }}
+                      />
+                    </div>
+                    {(imagePreview || formData.image) && (
+                      <div className="movie-poster-upload__preview" style={{ width: '100%', height: '180px' }}>
+                        <img
+                          src={imagePreview || formData.image}
+                          alt="Voucher preview"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="movie-form__group">
+                  <label>Trạng thái</label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <input type="checkbox" checked={formData.status} onChange={(e)=>setFormData({ ...formData, status: e.target.checked })} />
+                    Hoạt động
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="movie-modal__footer">
+              <button className="btn btn--ghost" onClick={() => setShowModal(false)}>Hủy</button>
+              <button className="btn btn--primary" onClick={handleSave}>{editingVoucher ? 'Cập nhật' : 'Tạo voucher'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [movies, setMovies] = useState(initialMovies);
   const [cinemas, setCinemas] = useState(initialCinemas);
+  const [users, setUsers] = useState(initialUsers);
+  const [vouchers, setVouchers] = useState(initialVouchers);
 
   const getIcon = (iconName) => {
     switch (iconName) {
@@ -1863,30 +2564,11 @@ export default function AdminDashboard() {
           )}
 
           {activeSection === 'users' && (
-            <div className="admin-card">
-              <div className="admin-card__header">
-                <h2 className="admin-card__title">Quản lý người dùng</h2>
-              </div>
-              <div className="admin-card__content">
-                <p style={{ color: '#c9c4c5', textAlign: 'center', padding: '40px' }}>
-                  Tính năng quản lý người dùng đang được phát triển...
-                </p>
-              </div>
-            </div>
+            <UserManagement users={users} cinemas={cinemas} onUsersChange={setUsers} />
           )}
 
           {activeSection === 'vouchers' && (
-            <div className="admin-card">
-              <div className="admin-card__header">
-                <h2 className="admin-card__title">Quản lý voucher</h2>
-                <button className="btn btn--primary">Tạo voucher mới</button>
-              </div>
-              <div className="admin-card__content">
-                <p style={{ color: '#c9c4c5', textAlign: 'center', padding: '40px' }}>
-                  Tính năng quản lý voucher đang được phát triển...
-                </p>
-              </div>
-            </div>
+            <VoucherManagement vouchers={vouchers} onVouchersChange={setVouchers} />
           )}
 
           {activeSection === 'reports' && (
