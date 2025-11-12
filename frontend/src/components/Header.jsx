@@ -14,10 +14,8 @@ const cinemas = [
 
 export default function Header() {
   const [showCinemaDropdown, setShowCinemaDropdown] = useState(false);
-  const [showNewsDropdown, setShowNewsDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const dropdownRef = useRef(null);
-  const newsDropdownRef = useRef(null);
   const userDropdownRef = useRef(null);
 
   useEffect(() => {
@@ -25,22 +23,19 @@ export default function Header() {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowCinemaDropdown(false);
       }
-      if (newsDropdownRef.current && !newsDropdownRef.current.contains(event.target)) {
-        setShowNewsDropdown(false);
-      }
       if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) {
         setShowUserDropdown(false);
       }
     };
 
-    if (showCinemaDropdown || showNewsDropdown || showUserDropdown) {
+    if (showCinemaDropdown || showUserDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCinemaDropdown, showNewsDropdown, showUserDropdown]);
+  }, [showCinemaDropdown, showUserDropdown]);
 
   return (
     <header className="site-header">
@@ -105,40 +100,7 @@ export default function Header() {
               </div>
             )}
           </div>
-          <div className="menu-dropdown" ref={newsDropdownRef} style={{ position: 'relative' }}>
-            <button
-              className="menu-link"
-              onClick={() => setShowNewsDropdown(!showNewsDropdown)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: showNewsDropdown ? '#ffd159' : '#e6e1e2',
-                fontWeight: 600,
-                cursor: 'pointer',
-                padding: 0
-              }}
-            >
-              Tin tức
-            </button>
-            {showNewsDropdown && (
-              <div className="cinema-dropdown">
-                <a
-                  href="#cinema-news"
-                  className="cinema-dropdown__item"
-                  onClick={() => setShowNewsDropdown(false)}
-                >
-                  Tin điện ảnh
-                </a>
-                <a
-                  href="#movie-reviews"
-                  className="cinema-dropdown__item"
-                  onClick={() => setShowNewsDropdown(false)}
-                >
-                  Đánh giá phim
-                </a>
-              </div>
-            )}
-          </div>
+          <a href="#food-drinks">Đồ ăn nước uống</a>
           <a href="#events">Sự kiện và khuyến mãi</a>
         </nav>
         <div className="actions">
@@ -159,8 +121,8 @@ export default function Header() {
                 <a href="#profile" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
                   Trang cá nhân
                 </a>
-                <a href="#account" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
-                  Quản lý tài khoản
+                <a href="#orders" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
+                  Đơn hàng
                 </a>
                 <div className="user-dropdown__divider"></div>
                 <a href="#library" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>

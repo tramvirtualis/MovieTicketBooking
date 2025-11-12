@@ -107,9 +107,27 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options }) {
                     {show.length === 0 ? (
                       <span className="card__meta">Chưa có suất</span>
                     ) : (
-                      show.map((t) => (
-                        <a key={t} href="#booking" className="btn" style={{ padding: '8px 12px', background: '#2d2627', border: '1px solid #4a3f41', color: '#fff' }}>{t}</a>
-                      ))
+                      show.map((t) => {
+                        // Build booking URL with parameters
+                        const bookingParams = new URLSearchParams({
+                          movieId: options.movieId || '',
+                          cinemaId: c.id,
+                          showtime: t,
+                          date: date,
+                          format: format,
+                          cinemaName: c.name
+                        });
+                        return (
+                          <a 
+                            key={t} 
+                            href={`#booking?${bookingParams.toString()}`} 
+                            className="btn" 
+                            style={{ padding: '8px 12px', background: '#2d2627', border: '1px solid #4a3f41', color: '#fff' }}
+                          >
+                            {t}
+                          </a>
+                        );
+                      })
                     )}
                   </div>
                 </div>

@@ -6,14 +6,27 @@ import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
 import driveMyCar from '../assets/images/drive-my-car.jpg';
 
-// Sample user data
-const userData = {
+const PROVINCES = [
+  'Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Hải Phòng', 'An Giang', 'Bà Rịa - Vũng Tàu',
+  'Bắc Giang', 'Bắc Kạn', 'Bạc Liêu', 'Bắc Ninh', 'Bến Tre', 'Bình Định', 'Bình Dương',
+  'Bình Phước', 'Bình Thuận', 'Cà Mau', 'Cao Bằng', 'Đắk Lắk', 'Đắk Nông', 'Điện Biên',
+  'Đồng Nai', 'Đồng Tháp', 'Gia Lai', 'Hà Giang', 'Hà Nam', 'Hà Tĩnh', 'Hải Dương',
+  'Hậu Giang', 'Hòa Bình', 'Hưng Yên', 'Khánh Hòa', 'Kiên Giang', 'Kon Tum', 'Lai Châu',
+  'Lâm Đồng', 'Lạng Sơn', 'Lào Cai', 'Long An', 'Nam Định', 'Nghệ An', 'Ninh Bình',
+  'Ninh Thuận', 'Phú Thọ', 'Phú Yên', 'Quảng Bình', 'Quảng Nam', 'Quảng Ngãi', 'Quảng Ninh',
+  'Quảng Trị', 'Sóc Trăng', 'Sơn La', 'Tây Ninh', 'Thái Bình', 'Thái Nguyên', 'Thanh Hóa',
+  'Thừa Thiên Huế', 'Tiền Giang', 'Trà Vinh', 'Tuyên Quang', 'Vĩnh Long', 'Vĩnh Phúc', 'Yên Bái'
+];
+
+// Initial user data
+const initialUserData = {
   name: 'Nguyễn Văn A',
   email: 'nguyenvana@example.com',
   phone: '0901234567',
   dob: '1995-05-15',
   joinDate: '2023-01-15',
-  address: '123 Đường ABC, Phường XYZ, Quận 1, TP.HCM',
+  addressDescription: '123 Đường ABC, Phường XYZ, Quận 1',
+  addressProvince: 'Hồ Chí Minh',
   totalBookings: 24,
   totalSpent: 2880000,
   favoriteMovies: 8,
@@ -28,6 +41,7 @@ const vouchers = [
     discount: 50000,
     expiryDate: '2025-12-31',
     status: 'available',
+    image: 'https://images.unsplash.com/photo-1511735111819-9a3f7709049c?q=80&w=1200&auto=format&fit=crop'
   },
   {
     id: 2,
@@ -37,6 +51,7 @@ const vouchers = [
     discount: 0,
     expiryDate: '2025-11-30',
     status: 'available',
+    image: 'https://images.unsplash.com/photo-1512428559087-560fa5ceab42?q=80&w=1200&auto=format&fit=crop'
   },
   {
     id: 3,
@@ -46,6 +61,7 @@ const vouchers = [
     discount: 100000,
     expiryDate: '2025-10-15',
     status: 'expired',
+    image: 'https://images.unsplash.com/photo-1524985069026-dd778a71c7b4?q=80&w=1200&auto=format&fit=crop'
   },
 ];
 
@@ -73,15 +89,25 @@ const recentBookings = [
   },
 ];
 
-const stats = [
-  { label: 'Tổng số vé đã mua', value: userData.totalBookings, icon: 'ticket' },
-  { label: 'Tổng chi tiêu', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(userData.totalSpent), icon: 'money' },
-  { label: 'Phim yêu thích', value: userData.favoriteMovies, icon: 'heart' },
-  { label: 'Thành viên từ', value: new Date(userData.joinDate).toLocaleDateString('vi-VN'), icon: 'calendar' },
-];
-
 export default function Profile() {
+  const [userData, setUserData] = useState(initialUserData);
   const [activeTab, setActiveTab] = useState('overview');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    name: initialUserData.name,
+    email: initialUserData.email,
+    phone: initialUserData.phone,
+    dob: initialUserData.dob,
+    addressDescription: initialUserData.addressDescription,
+    addressProvince: initialUserData.addressProvince,
+  });
+
+  const stats = [
+    { label: 'Tổng số vé đã mua', value: userData.totalBookings, icon: 'ticket' },
+    { label: 'Tổng chi tiêu', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(userData.totalSpent), icon: 'money' },
+    { label: 'Phim yêu thích', value: userData.favoriteMovies, icon: 'heart' },
+    { label: 'Thành viên từ', value: new Date(userData.joinDate).toLocaleDateString('vi-VN'), icon: 'calendar' },
+  ];
 
   const getIcon = (iconName) => {
     switch (iconName) {
@@ -230,9 +256,11 @@ export default function Profile() {
                           {new Date(userData.dob).toLocaleDateString('vi-VN')}
                         </span>
                       </div>
-                      <div className="profile-info-item">
+                      <div className="profile-info-item" style={{ gridColumn: '1 / -1' }}>
                         <span className="profile-info-item__label">Địa chỉ</span>
-                        <span className="profile-info-item__value">{userData.address}</span>
+                        <span className="profile-info-item__value">
+                          {userData.addressDescription}, {userData.addressProvince}
+                        </span>
                       </div>
                       <div className="profile-info-item">
                         <span className="profile-info-item__label">Tham gia từ</span>
@@ -241,7 +269,7 @@ export default function Profile() {
                         </span>
                       </div>
                     </div>
-                    <button className="btn btn--primary" style={{ marginTop: '20px' }}>
+                    <button className="btn btn--primary" style={{ marginTop: '20px' }} onClick={() => setIsEditing(true)}>
                       Chỉnh sửa thông tin
                     </button>
                   </div>
@@ -321,37 +349,45 @@ export default function Profile() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                     <h2 className="profile-section__title">Voucher của tôi ({vouchers.length})</h2>
                   </div>
-                  <div className="profile-vouchers-grid">
-                    {vouchers.map((voucher) => (
-                      <div key={voucher.id} className={`profile-voucher-card ${voucher.status === 'expired' ? 'profile-voucher-card--expired' : ''}`}>
-                        <div className="profile-voucher-card__header">
-                          <div className="profile-voucher-card__code">{voucher.code}</div>
-                          {voucher.status === 'expired' && (
-                            <span className="profile-voucher-badge profile-voucher-badge--expired">Đã hết hạn</span>
-                          )}
-                          {voucher.status === 'available' && (
-                            <span className="profile-voucher-badge profile-voucher-badge--available">Có thể dùng</span>
-                          )}
-                        </div>
-                        <div className="profile-voucher-card__content">
-                          <div className="profile-voucher-card__title">{voucher.title}</div>
-                          <div className="profile-voucher-card__desc">{voucher.description}</div>
-                          {voucher.discount > 0 && (
-                            <div className="profile-voucher-card__discount">
-                              Giảm {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(voucher.discount)}
+                  <div className="movie-grid">
+                    {vouchers.map((voucher) => {
+                      const discountBadge = voucher.discount > 0 
+                        ? `-${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(voucher.discount)}`
+                        : 'FREE';
+                      return (
+                        <div key={voucher.id} className="movie-card">
+                          <div
+                            className="movie-card__poster"
+                            style={{ width: '100%', height: '160px', overflow: 'hidden', position: 'relative', padding: 0 }}
+                          >
+                            <img
+                              src={voucher.image || 'https://via.placeholder.com/1000x430?text=Voucher'}
+                              alt={voucher.title}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                            />
+                            <div className="movie-card__status" style={{ backgroundColor: voucher.status === 'available' ? '#4caf50' : '#9e9e9e' }}>
+                              {voucher.status === 'available' ? 'Có thể dùng' : 'Đã hết hạn'}
                             </div>
-                          )}
-                          <div className="profile-voucher-card__expiry">
-                            HSD: {new Date(voucher.expiryDate).toLocaleDateString('vi-VN')}
+                            <div className="movie-card__badge" style={{ position: 'absolute', top: 8, left: 8, background: '#e83b41', color: '#fff', padding: '4px 8px', borderRadius: 6, fontWeight: 800 }}>
+                              {discountBadge}
+                            </div>
+                          </div>
+                          <div className="movie-card__content">
+                            <h3 className="movie-card__title">{voucher.title}</h3>
+                            <div className="movie-card__meta">
+                              <span className="movie-card__genre">Mã: {voucher.code}</span>
+                              <span className="movie-card__rating">HSD: {new Date(voucher.expiryDate).toLocaleDateString('vi-VN')}</span>
+                            </div>
+                            <div className="movie-card__director">{voucher.description}</div>
+                            {voucher.status === 'available' && (
+                              <button className="btn btn--primary" style={{ width: '100%', marginTop: '12px' }}>
+                                Sử dụng ngay
+                              </button>
+                            )}
                           </div>
                         </div>
-                        {voucher.status === 'available' && (
-                          <button className="btn btn--primary" style={{ width: '100%', marginTop: '12px' }}>
-                            Sử dụng ngay
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -359,6 +395,126 @@ export default function Profile() {
           </div>
         </section>
       </main>
+
+      {/* Edit Profile Modal */}
+      {isEditing && (
+        <div className="movie-modal-overlay" onClick={() => {
+          setIsEditing(false);
+          setEditData({
+            name: userData.name,
+            email: userData.email,
+            phone: userData.phone,
+            dob: userData.dob,
+            addressDescription: userData.addressDescription,
+            addressProvince: userData.addressProvince,
+          });
+        }}>
+          <div className="movie-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="movie-modal__header">
+              <h2>Chỉnh sửa thông tin cá nhân</h2>
+              <button className="movie-modal__close" onClick={() => {
+                setIsEditing(false);
+                setEditData({
+                  name: userData.name,
+                  email: userData.email,
+                  phone: userData.phone,
+                  dob: userData.dob,
+                  addressDescription: userData.addressDescription,
+                  addressProvince: userData.addressProvince,
+                });
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="movie-modal__content">
+              <div className="movie-form">
+                <div className="movie-form__group">
+                  <label>Họ và tên <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    value={editData.name}
+                    onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                    placeholder="Nhập họ và tên"
+                  />
+                </div>
+                <div className="movie-form__row">
+                  <div className="movie-form__group">
+                    <label>Email <span className="required">*</span></label>
+                    <input
+                      type="email"
+                      value={editData.email}
+                      onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                      placeholder="Nhập email"
+                    />
+                  </div>
+                  <div className="movie-form__group">
+                    <label>Số điện thoại <span className="required">*</span></label>
+                    <input
+                      type="tel"
+                      value={editData.phone}
+                      onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                      placeholder="Nhập số điện thoại"
+                    />
+                  </div>
+                </div>
+                <div className="movie-form__group">
+                  <label>Ngày sinh <span className="required">*</span></label>
+                  <input
+                    type="date"
+                    value={editData.dob}
+                    onChange={(e) => setEditData({ ...editData, dob: e.target.value })}
+                  />
+                </div>
+                <div className="movie-form__group">
+                  <label>Địa chỉ - Mô tả <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    value={editData.addressDescription}
+                    onChange={(e) => setEditData({ ...editData, addressDescription: e.target.value })}
+                    placeholder="Số nhà, đường, phường/xã, quận/huyện"
+                  />
+                </div>
+                <div className="movie-form__group">
+                  <label>Tỉnh/Thành phố <span className="required">*</span></label>
+                  <select
+                    value={editData.addressProvince}
+                    onChange={(e) => setEditData({ ...editData, addressProvince: e.target.value })}
+                  >
+                    {PROVINCES.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="movie-modal__footer">
+              <button className="btn btn--ghost" onClick={() => {
+                setIsEditing(false);
+                setEditData({
+                  name: userData.name,
+                  email: userData.email,
+                  phone: userData.phone,
+                  dob: userData.dob,
+                  addressDescription: userData.addressDescription,
+                  addressProvince: userData.addressProvince,
+                });
+              }}>
+                Hủy
+              </button>
+              <button className="btn btn--primary" onClick={() => {
+                // In real app, save to API here
+                setUserData({ ...userData, ...editData });
+                setIsEditing(false);
+              }}>
+                Lưu thay đổi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

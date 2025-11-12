@@ -90,15 +90,30 @@ export function HallsGrid({ items }) {
 
 export function PromosGrid({ items }) {
   return (
-    <div className="grid grid--promos">
+    <div className="movie-grid">
       {items.map((p, idx) => (
-        <article key={idx} className="card promo">
-          <img src={p.image} alt={p.title} className="card__img" />
-          <div className="card__body">
-            <h3 className="card__title">{p.title}</h3>
-            {p.desc ? <p className="card__meta">{p.desc}</p> : null}
+        <div key={idx} className="movie-card">
+          <div
+            className="movie-card__poster"
+            style={{ width: '100%', height: '160px', overflow: 'hidden', position: 'relative', padding: 0 }}
+          >
+            <img
+              src={p.image || 'https://via.placeholder.com/1000x430?text=Promotion'}
+              alt={p.title}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+            <div className="movie-card__status" style={{ backgroundColor: '#4caf50' }}>
+              Đang diễn ra
+            </div>
           </div>
-        </article>
+          <div className="movie-card__content">
+            <h3 className="movie-card__title">{p.title}</h3>
+            {p.desc ? <div className="movie-card__director">{p.desc}</div> : null}
+            <a href="#events" className="btn btn--primary" style={{ width: '100%', marginTop: '12px', textAlign: 'center', display: 'block', textDecoration: 'none' }}>
+              Xem chi tiết
+            </a>
+          </div>
+        </div>
       ))}
     </div>
   );

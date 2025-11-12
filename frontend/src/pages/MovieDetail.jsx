@@ -26,33 +26,149 @@ export default function MovieDetail() {
     release: 'Thứ Sáu, 07/11/2025',
   };
 
-  const [dayIdx, setDayIdx] = useState(0);
-  const days = [
-    { label: 'Thứ Sáu', date: '07/11' },
-    { label: 'Thứ Bảy', date: '08/11' },
-  ];
-
-  const cinemas = [
-    {
-      name: 'Cinestar Satra Quận 6 (TPHCM)',
-      address: 'Tầng 6, TTTM Satra Vs Văn Kiệt, 1466 Võ Văn Kiệt, Phường 1, Quận 6, TPHCM',
-      formats: [
-        { label: 'Standard', times: ['09:15', '12:10', '21:05'] },
-      ],
-    },
-    {
-      name: 'Cinestar Quốc Thanh (TPHCM)',
-      address: '271 Nguyễn Trãi, Phường Nguyễn Cư Trinh, Quận 1, Thành Phố Hồ Chí Minh',
-      formats: [
-        { label: 'Standard', times: ['11:45', '14:45', '19:30', '21:40'] },
-        { label: 'Deluxe', times: ['09:00'] },
-      ],
-    },
-  ];
-
   const [showBooking, setShowBooking] = useState(false);
   const [showTrailer, setShowTrailer] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [expandedReviews, setExpandedReviews] = useState(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const reviewsPerPage = 4;
+
+  const reviews = [
+    {
+      id: 1,
+      userId: 'user1',
+      userName: 'Nguyễn Văn A',
+      avatar: 'https://ui-avatars.com/api/?name=Nguyen+Van+A&background=e83b41&color=fff&size=128',
+      rating: 5,
+      reviewText: 'Một kiệt tác điện ảnh không thể phủ nhận. Christopher Nolan đã tạo nên một tác phẩm xuất sắc với cốt truyện phức tạp, đầy kịch tính. Diễn xuất của Leonardo DiCaprio và toàn bộ dàn cast đều xuất sắc. Hiệu ứng hình ảnh và âm thanh đỉnh cao, tạo nên một trải nghiệm điện ảnh đáng nhớ.',
+      reviewDate: '2024-11-05'
+    },
+    {
+      id: 2,
+      userId: 'user2',
+      userName: 'Trần Thị B',
+      avatar: 'https://ui-avatars.com/api/?name=Tran+Thi+B&background=7b61ff&color=fff&size=128',
+      rating: 4,
+      reviewText: 'Bộ phim hay nhưng hơi khó hiểu với những người mới xem lần đầu. Cần xem lại nhiều lần để hiểu hết các tầng ý nghĩa. Tuy nhiên, đây vẫn là một tác phẩm đáng xem.',
+      reviewDate: '2024-11-03'
+    },
+    {
+      id: 3,
+      userId: 'user3',
+      userName: 'Lê Văn C',
+      avatar: 'https://ui-avatars.com/api/?name=Le+Van+C&background=ffd159&color=1a1415&size=128',
+      rating: 5,
+      reviewText: 'Tuyệt vời! Một trong những bộ phim hay nhất mà tôi từng xem. Cốt truyện độc đáo, kỹ thuật quay phim xuất sắc.',
+      reviewDate: '2024-11-01'
+    },
+    {
+      id: 4,
+      userId: 'user4',
+      userName: 'Phạm Thị D',
+      avatar: 'https://ui-avatars.com/api/?name=Pham+Thi+D&background=4caf50&color=fff&size=128',
+      rating: 3,
+      reviewText: 'Phim ổn nhưng không quá xuất sắc như mọi người nói. Cốt truyện hơi rối, một số phần hơi dài dòng.',
+      reviewDate: '2024-10-28'
+    },
+    {
+      id: 5,
+      userId: 'user5',
+      userName: 'Hoàng Văn E',
+      avatar: 'https://ui-avatars.com/api/?name=Hoang+Van+E&background=e83b41&color=fff&size=128',
+      rating: 5,
+      reviewText: 'Tuyệt vời! Một bộ phim đáng xem nhiều lần. Mỗi lần xem lại đều phát hiện thêm chi tiết mới. Nolan thực sự là bậc thầy.',
+      reviewDate: '2024-10-25'
+    },
+    {
+      id: 6,
+      userId: 'user6',
+      userName: 'Võ Thị F',
+      avatar: 'https://ui-avatars.com/api/?name=Vo+Thi+F&background=7b61ff&color=fff&size=128',
+      rating: 4,
+      reviewText: 'Phim hay, cốt truyện thú vị. Tuy nhiên một số cảnh hơi khó hiểu, cần tập trung cao độ khi xem.',
+      reviewDate: '2024-10-22'
+    },
+    {
+      id: 7,
+      userId: 'user7',
+      userName: 'Đỗ Văn G',
+      avatar: 'https://ui-avatars.com/api/?name=Do+Van+G&background=ffd159&color=1a1415&size=128',
+      rating: 5,
+      reviewText: 'Kiệt tác! Một trong những bộ phim hay nhất thập kỷ. Âm thanh và hình ảnh đỉnh cao, cốt truyện xuất sắc.',
+      reviewDate: '2024-10-20'
+    },
+    {
+      id: 8,
+      userId: 'user8',
+      userName: 'Bùi Thị H',
+      avatar: 'https://ui-avatars.com/api/?name=Bui+Thi+H&background=4caf50&color=fff&size=128',
+      rating: 4,
+      reviewText: 'Phim tốt, đáng xem. Diễn xuất tốt, kỹ thuật quay phim ấn tượng.',
+      reviewDate: '2024-10-18'
+    }
+  ];
+
+  const averageRating = reviews.length > 0 
+    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+    : 0;
+  const totalReviews = reviews.length;
+  const totalPages = Math.ceil(reviews.length / reviewsPerPage);
+  const startIndex = (currentPage - 1) * reviewsPerPage;
+  const endIndex = startIndex + reviewsPerPage;
+  const currentReviews = reviews.slice(startIndex, endIndex);
+
+  const toggleReview = (reviewId) => {
+    setExpandedReviews(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(reviewId)) {
+        newSet.delete(reviewId);
+      } else {
+        newSet.add(reviewId);
+      }
+      return newSet;
+    });
+  };
+
+  const isReviewExpanded = (reviewId) => {
+    return expandedReviews.has(reviewId);
+  };
+
+  const shouldTruncate = (text, maxLength = 200) => {
+    return text && text.length > maxLength;
+  };
+
+  const truncateText = (text, maxLength = 200) => {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+  };
+
+  const renderStars = (rating) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <svg
+        key={i}
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill={i < rating ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ color: i < rating ? '#ffd159' : 'rgba(255, 255, 255, 0.3)' }}
+      >
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+    ));
+  };
+
+  const formatShortDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('vi-VN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
 
   // YouTube video ID của phim (thay bằng ID thực tế)
   const trailerYoutubeId = '8hP9D6kZseM';
@@ -212,63 +328,128 @@ export default function MovieDetail() {
 
         <section className="section">
           <div className="container">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159' }}>
-                <rect x="2" y="4" width="20" height="16" rx="2"/>
-                <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
-              </svg>
-              <h2 className="section__title" style={{ margin: 0 }}>Lịch chiếu</h2>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '24px', flexWrap: 'wrap' }}>
-              {days.map((d, i) => (
-                <button
-                  key={i}
-                  className={`schedule-date-btn ${i === dayIdx ? 'schedule-date-btn--active' : ''}`}
-                  onClick={() => setDayIdx(i)}
-                >
-                  <div className="schedule-date-btn__date">{d.date}</div>
-                  <div className="schedule-date-btn__day">{d.label}</div>
-                </button>
-              ))}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159' }}>
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                <h2 className="section__title" style={{ margin: 0 }}>Đánh giá</h2>
+              </div>
+              {totalReviews > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {renderStars(Math.round(parseFloat(averageRating)))}
+                    </div>
+                    <span style={{ fontSize: '20px', fontWeight: 800, color: '#ffd159' }}>
+                      {averageRating}
+                    </span>
+                  </div>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '14px' }}>
+                    ({totalReviews} đánh giá)
+                  </span>
+                </div>
+              )}
             </div>
 
-            <div style={{ display: 'grid', gap: '20px' }}>
-              {cinemas.map((c, idx) => (
-                <div key={idx} className="cinema-schedule-card">
-                  <div className="cinema-schedule-card__header">
-                    <div>
-                      <h3 className="cinema-schedule-card__title">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                          <circle cx="12" cy="10" r="3"/>
-                        </svg>
-                        {c.name}
-                      </h3>
-                      <p className="cinema-schedule-card__address">{c.address}</p>
-                    </div>
-                  </div>
-                  <div className="cinema-schedule-card__formats">
-                    {c.formats.map((f, i) => (
-                      <div key={i} className="cinema-schedule-card__format">
-                        <div className="cinema-schedule-card__format-label">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
-                            <rect x="2" y="4" width="20" height="16" rx="2"/>
-                            <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
-                          </svg>
-                          {f.label}
+            {reviews.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(255, 255, 255, 0.6)' }}>
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ margin: '0 auto 16px', opacity: 0.4 }}>
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                <p style={{ margin: 0, fontSize: '16px' }}>Chưa có đánh giá nào</p>
+              </div>
+            ) : (
+              <>
+                <div className="movie-reviews-list">
+                  {currentReviews.map((review) => {
+                    const isExpanded = isReviewExpanded(review.id);
+                    const hasLongReview = shouldTruncate(review.reviewText);
+                    const displayText = isExpanded || !hasLongReview 
+                      ? review.reviewText 
+                      : truncateText(review.reviewText);
+                    
+                    return (
+                      <div key={review.id} className="movie-review-card">
+                        <div className="movie-review-card__avatar">
+                          <img src={review.avatar} alt={review.userName} />
                         </div>
-                        <div className="cinema-schedule-card__times">
-                          {f.times.map((t) => (
-                            <a key={t} href="#booking" className="showtime-btn">{t}</a>
-                          ))}
+                        <div className="movie-review-card__content">
+                          <div className="movie-review-card__header">
+                            <div className="movie-review-card__user-info">
+                              <h4 className="movie-review-card__user-name">{review.userName}</h4>
+                              <div className="movie-review-card__rating">
+                                <div className="movie-review-card__stars">
+                                  {renderStars(review.rating)}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="movie-review-card__date">
+                              {formatShortDate(review.reviewDate)}
+                            </div>
+                          </div>
+                          <div className="movie-review-card__review">
+                            <p className="movie-review-card__review-text">
+                              {displayText}
+                            </p>
+                            {hasLongReview && (
+                              <button
+                                className="movie-review-card__expand"
+                                onClick={() => toggleReview(review.id)}
+                              >
+                                <span>{isExpanded ? 'Thu gọn' : 'Mở rộng'}</span>
+                                <svg 
+                                  width="16" 
+                                  height="16" 
+                                  viewBox="0 0 24 24" 
+                                  fill="none" 
+                                  stroke="currentColor" 
+                                  strokeWidth="2"
+                                  style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 300ms ease' }}
+                                >
+                                  <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+                {totalPages > 1 && (
+                  <div className="movie-reviews-pagination">
+                    <button
+                      className="movie-reviews-pagination__btn"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                      </svg>
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        className={`movie-reviews-pagination__btn movie-reviews-pagination__btn--number ${currentPage === page ? 'movie-reviews-pagination__btn--active' : ''}`}
+                        onClick={() => setCurrentPage(page)}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      className="movie-reviews-pagination__btn"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </section>
       </main>
@@ -278,6 +459,7 @@ export default function MovieDetail() {
         onClose={() => setShowBooking(false)}
         movieTitle={sample.title}
         options={{
+          movieId: sample.movieId || 1,
           cinemas: [
             { id: 'cns_q6', name: 'Cinestar Satra Quận 6 (TPHCM)', province: 'Hồ Chí Minh' },
             { id: 'cns_qt', name: 'Cinestar Quốc Thanh (TPHCM)', province: 'Hồ Chí Minh' },

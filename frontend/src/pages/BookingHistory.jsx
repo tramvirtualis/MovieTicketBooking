@@ -124,7 +124,7 @@ export default function BookingHistory() {
                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                 <path d="M8 7h8M8 11h8M8 15h4"/>
               </svg>
-              <h1 className="section__title" style={{ fontSize: 'clamp(24px, 3vw, 32px)', margin: 0, fontWeight: 900 }}>
+              <h1 className="section__title" style={{ fontSize: 'clamp(28px, 4vw, 36px)', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}>
                 Lịch sử đặt vé
               </h1>
             </div>

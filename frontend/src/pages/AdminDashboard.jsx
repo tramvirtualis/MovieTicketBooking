@@ -294,6 +294,8 @@ const initialVouchers = [
     endDate: '2025-12-31',
     quantity: 1000,
     status: true,
+    isPublic: true, // PUBLIC | PRIVATE
+    assignedUserIds: [], // Array of userIds for private vouchers
     image: 'https://images.unsplash.com/photo-1493707553565-03c0f1a3c9a8?q=80&w=800&auto=format&fit=crop'
   },
   {
@@ -309,7 +311,26 @@ const initialVouchers = [
     endDate: '2025-11-30',
     quantity: 300,
     status: true,
+    isPublic: true,
+    assignedUserIds: [],
     image: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=800&auto=format&fit=crop'
+  },
+  {
+    voucherId: 3,
+    code: 'VIP100K',
+    name: 'Voucher VIP 100K',
+    description: 'Voucher riêng tư cho khách hàng VIP',
+    discountType: 'AMOUNT',
+    discountValue: 100000,
+    maxDiscount: 100000,
+    minOrder: 200000,
+    startDate: '2025-11-01',
+    endDate: '2025-12-31',
+    quantity: 50,
+    status: true,
+    isPublic: false,
+    assignedUserIds: [],
+    image: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=800&auto=format&fit=crop'
   }
 ];
 
@@ -1667,15 +1688,133 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
   );
 }
 
+// Voucher Assign Modal Component
+function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
+  const [newSelectedIds, setNewSelectedIds] = useState([]);
+
+  const privateVouchers = vouchers?.filter(v => v.isPublic === false) || [];
+  const alreadyAssignedIds = vouchers?.filter(v => v.isPublic === false && v.assignedUserIds?.includes(user.userId)).map(v => v.voucherId) || [];
+
+  const handleToggle = (voucherId) => {
+    // Cannot uncheck already assigned vouchers
+    if (alreadyAssignedIds.includes(voucherId)) {
+      return;
+    }
+    setNewSelectedIds(prev => {
+      if (prev.includes(voucherId)) {
+        return prev.filter(id => id !== voucherId);
+      } else {
+        return [...prev, voucherId];
+      }
+    });
+  };
+
+  const handleSave = () => {
+    const updatedVouchers = vouchers.map(v => {
+      if (!v.isPublic) {
+        const currentIds = v.assignedUserIds || [];
+        const isAlreadyAssigned = alreadyAssignedIds.includes(v.voucherId);
+        const isNewlySelected = newSelectedIds.includes(v.voucherId);
+        
+        if (isAlreadyAssigned) {
+          // Keep already assigned vouchers
+          return v;
+        } else if (isNewlySelected) {
+          // Add newly selected vouchers
+          return { ...v, assignedUserIds: [...currentIds, user.userId] };
+        } else {
+          // Remove if it was previously selected but not saved yet (shouldn't happen, but just in case)
+          return { ...v, assignedUserIds: currentIds.filter(id => id !== user.userId) };
+        }
+      }
+      return v;
+    });
+    onSave(updatedVouchers);
+  };
+
+  return (
+    <div className="movie-modal-overlay" onClick={onClose}>
+      <div className="movie-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="movie-modal__header">
+          <h2>Gán voucher riêng tư cho {user.username}</h2>
+          <button className="movie-modal__close" onClick={onClose}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div className="movie-modal__content">
+          {privateVouchers.length > 0 ? (
+            <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: 12, background: 'rgba(20, 15, 16, 0.5)' }}>
+              {privateVouchers.map(voucher => {
+                const isAlreadyAssigned = alreadyAssignedIds.includes(voucher.voucherId);
+                const isSelected = isAlreadyAssigned || newSelectedIds.includes(voucher.voucherId);
+                return (
+                  <label 
+                    key={voucher.voucherId} 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 12, 
+                      padding: '12px 0', 
+                      cursor: isAlreadyAssigned ? 'not-allowed' : 'pointer',
+                      borderBottom: '1px solid rgba(255,255,255,0.1)',
+                      opacity: isAlreadyAssigned ? 0.7 : 1
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      disabled={isAlreadyAssigned}
+                      onChange={() => handleToggle(voucher.voucherId)}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {voucher.name}
+                        {isAlreadyAssigned && (
+                          <span style={{ fontSize: '10px', padding: '2px 6px', background: '#4caf50', borderRadius: 4, color: '#fff' }}>
+                            Đã gán
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>
+                        Mã: {voucher.code} • {voucher.discountType === 'PERCENT' ? `Giảm ${voucher.discountValue}%` : `Giảm ${new Intl.NumberFormat('vi-VN').format(voucher.discountValue)}đ`}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'rgba(255,255,255,0.5)' }}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: 16, opacity: 0.5 }}>
+                <path d="M20 7h-4V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                <path d="M12 12v6M9 15h6"/>
+              </svg>
+              <p>Chưa có voucher riêng tư nào</p>
+            </div>
+          )}
+        </div>
+        <div className="movie-modal__footer">
+          <button className="btn btn--ghost" onClick={onClose}>Hủy</button>
+          <button className="btn btn--primary" onClick={handleSave} disabled={newSelectedIds.length === 0}>
+            Lưu
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // User Management Component
-function UserManagement({ users: initialUsersList, cinemas: cinemasList, onUsersChange }) {
+function UserManagement({ users: initialUsersList, cinemas: cinemasList, vouchers: vouchersList, onUsersChange, onVouchersChange }) {
   const [users, setUsers] = useState(initialUsersList);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterProvince, setFilterProvince] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showVoucherModal, setShowVoucherModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [voucherAssigningUser, setVoucherAssigningUser] = useState(null);
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -1864,6 +2003,9 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, onUsers
                       <button className="movie-action-btn" onClick={() => handleEdit(u)} title="Chỉnh sửa">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                       </button>
+                      <button className="movie-action-btn" onClick={() => { setVoucherAssigningUser(u); setShowVoucherModal(true); }} title="Gán voucher">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7h-4V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M12 12v6M9 15h6"/></svg>
+                      </button>
                       <button className="movie-action-btn movie-action-btn--delete" onClick={() => handleDelete(u.userId)} title="Xóa">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                       </button>
@@ -1970,16 +2112,32 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, onUsers
           </div>
         </div>
       )}
+
+      {showVoucherModal && voucherAssigningUser && vouchersList && (
+        <VoucherAssignModal
+          user={voucherAssigningUser}
+          vouchers={vouchersList}
+          onClose={() => { setShowVoucherModal(false); setVoucherAssigningUser(null); }}
+          onSave={(updatedVouchers) => {
+            if (onVouchersChange) {
+              onVouchersChange(updatedVouchers);
+            }
+            setShowVoucherModal(false);
+            setVoucherAssigningUser(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // Voucher Management Component
-function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) {
+function VoucherManagement({ vouchers: initialVouchersList, users: usersList, onVouchersChange }) {
   const [vouchers, setVouchers] = useState(initialVouchersList);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [filterPublic, setFilterPublic] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState(null);
   const [formData, setFormData] = useState({
@@ -1994,6 +2152,8 @@ function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) 
     endDate: '',
     quantity: '',
     status: true,
+    isPublic: true,
+    assignedUserIds: [],
     image: '',
     imageFile: null
   });
@@ -2001,6 +2161,12 @@ function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) 
 
   useEffect(() => {
     if (onVouchersChange) onVouchersChange(vouchers);
+    // Save vouchers to localStorage for Events page
+    try {
+      localStorage.setItem('adminVouchers', JSON.stringify(vouchers));
+    } catch (e) {
+      console.error('Failed to save vouchers to localStorage', e);
+    }
   }, [vouchers, onVouchersChange]);
 
   const filtered = vouchers.filter(v => {
@@ -2009,7 +2175,8 @@ function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) 
       v.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === '' ? true : v.status === (filterStatus === 'true');
     const matchesType = !filterType || v.discountType === filterType;
-    return matchesSearch && matchesStatus && matchesType;
+    const matchesPublic = filterPublic === '' ? true : (filterPublic === 'true' ? v.isPublic : !v.isPublic);
+    return matchesSearch && matchesStatus && matchesType && matchesPublic;
   });
 
   const handleAdd = () => {
@@ -2026,6 +2193,8 @@ function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) 
       endDate: '',
       quantity: '',
       status: true,
+      isPublic: true,
+      assignedUserIds: [],
       image: '',
       imageFile: null
     });
@@ -2047,6 +2216,8 @@ function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) 
       endDate: v.endDate,
       quantity: v.quantity.toString(),
       status: v.status,
+      isPublic: v.isPublic !== undefined ? v.isPublic : true,
+      assignedUserIds: v.assignedUserIds || [],
       image: v.image || '',
       imageFile: null
     });
@@ -2071,6 +2242,8 @@ function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) 
       endDate: formData.endDate,
       quantity: Number(formData.quantity || 0),
       status: !!formData.status,
+      isPublic: !!formData.isPublic,
+      assignedUserIds: formData.isPublic ? [] : (editingVoucher ? (editingVoucher.assignedUserIds || []) : []),
       image: imagePreview || formData.image
     };
     if (editingVoucher) {
@@ -2126,6 +2299,11 @@ function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) 
             <option value="PERCENT">Phần trăm</option>
             <option value="AMOUNT">Số tiền</option>
           </select>
+          <select className="movie-filter" value={filterPublic} onChange={(e)=>setFilterPublic(e.target.value)}>
+            <option value="">Tất cả loại</option>
+            <option value="true">Công khai</option>
+            <option value="false">Riêng tư</option>
+          </select>
           <select className="movie-filter" value={filterStatus} onChange={(e)=>setFilterStatus(e.target.value)}>
             <option value="">Tất cả trạng thái</option>
             <option value="true">Hoạt động</option>
@@ -2173,6 +2351,15 @@ function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) 
                 </div>
                 <div className="movie-card__content">
                   <h3 className="movie-card__title">{v.name}</h3>
+                  {v.isPublic === false && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, marginBottom: 8 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: '#7b61ff' }}>
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                      <span style={{ fontSize: '12px', color: '#7b61ff', fontWeight: 500 }}>Riêng tư</span>
+                    </div>
+                  )}
                   <div className="movie-card__meta">
                     <span className="movie-card__genre">Mã: {v.code}</span>
                     <span className="movie-card__rating">{new Date(v.startDate).toLocaleDateString('vi-VN')} — {new Date(v.endDate).toLocaleDateString('vi-VN')}</span>
@@ -2278,6 +2465,29 @@ function VoucherManagement({ vouchers: initialVouchersList, onVouchersChange }) 
                   </div>
                 </div>
                 <div className="movie-form__group">
+                  <label>Loại voucher <span className="required">*</span></label>
+                  <div style={{ display: 'flex', gap: 16 }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                      <input 
+                        type="radio" 
+                        name="voucherType" 
+                        checked={formData.isPublic} 
+                        onChange={() => setFormData({ ...formData, isPublic: true })} 
+                      />
+                      Công khai (Hiển thị trên trang voucher)
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                      <input 
+                        type="radio" 
+                        name="voucherType" 
+                        checked={!formData.isPublic} 
+                        onChange={() => setFormData({ ...formData, isPublic: false })} 
+                      />
+                      Riêng tư (Gán cho người dùng ở trang quản lý người dùng)
+                    </label>
+                  </div>
+                </div>
+                <div className="movie-form__group">
                   <label>Trạng thái</label>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                     <input type="checkbox" checked={formData.status} onChange={(e)=>setFormData({ ...formData, status: e.target.checked })} />
@@ -2307,6 +2517,8 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selected, setSelected] = useState(null);
+  const [sortField, setSortField] = useState('showtime');
+  const [sortDirection, setSortDirection] = useState('desc');
 
   useEffect(() => {
     if (onOrdersChange) onOrdersChange(orders);
@@ -2336,17 +2548,74 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
 
   const statusColor = (s) => ({ ACTIVE: '#4caf50', EXPIRED: '#9e9e9e' }[s] || '#9e9e9e');
 
-  const groupByDate = filtered.reduce((acc, o) => {
-    const d = new Date(o.showtime).toLocaleDateString('vi-VN');
-    if (!acc[d]) acc[d] = [];
-    acc[d].push(o);
-    return acc;
-  }, {});
-  const dateKeys = Object.keys(groupByDate).sort((a,b) => {
-    const pa = a.split('/').reverse().join('-');
-    const pb = b.split('/').reverse().join('-');
-    return new Date(pb) - new Date(pa);
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const sorted = [...filtered].sort((a, b) => {
+    let aVal, bVal;
+    switch (sortField) {
+      case 'bookingId':
+        aVal = a.bookingId;
+        bVal = b.bookingId;
+        break;
+      case 'customer':
+        aVal = a.user.name.toLowerCase();
+        bVal = b.user.name.toLowerCase();
+        break;
+      case 'movie':
+        aVal = a.movieTitle.toLowerCase();
+        bVal = b.movieTitle.toLowerCase();
+        break;
+      case 'showtime':
+        aVal = new Date(a.showtime).getTime();
+        bVal = new Date(b.showtime).getTime();
+        break;
+      case 'amount':
+        aVal = a.totalAmount;
+        bVal = b.totalAmount;
+        break;
+      case 'status':
+        aVal = derivedStatus(a);
+        bVal = derivedStatus(b);
+        break;
+      default:
+        aVal = new Date(a.showtime).getTime();
+        bVal = new Date(b.showtime).getTime();
+    }
+    
+    if (typeof aVal === 'string') {
+      return sortDirection === 'asc' 
+        ? aVal.localeCompare(bVal)
+        : bVal.localeCompare(aVal);
+    } else {
+      return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+    }
   });
+
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) {
+      return (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.3, marginLeft: 4 }}>
+          <path d="M8 9l4-4 4 4M16 15l-4 4-4-4"/>
+        </svg>
+      );
+    }
+    return sortDirection === 'asc' ? (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 4 }}>
+        <path d="M8 9l4-4 4 4"/>
+      </svg>
+    ) : (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 4 }}>
+        <path d="M16 15l-4 4-4-4"/>
+      </svg>
+    );
+  };
 
   return (
     <div className="admin-card">
@@ -2376,86 +2645,90 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
       </div>
 
       <div className="admin-card__content">
-        {dateKeys.length === 0 ? (
+        {sorted.length === 0 ? (
           <div className="movie-empty">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             <p>Không có đơn đặt vé</p>
           </div>
         ) : (
-          <div className="admin-dashboard-grid">
-            {dateKeys.map(dateKey => (
-              <div key={dateKey} className="admin-card" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                <div className="admin-card__header">
-                  <h3 className="admin-card__title">Ngày {dateKey}</h3>
-                </div>
-                <div className="admin-card__content">
-                  <div className="admin-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Mã</th>
-                          <th>Khách hàng</th>
-                          <th>Phim / Rạp / Phòng</th>
-                          <th>Suất</th>
-                          <th>Ghế</th>
-                          <th>Thanh toán</th>
-                          <th>Trạng thái</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {groupByDate[dateKey].map(o => (
-                          <tr key={o.bookingId}>
-                            <td>#{o.bookingId}</td>
-                            <td>
-                              <div className="movie-table-title">{o.user.name}</div>
-                              <div className="movie-table-rating">{o.user.phone}</div>
-                            </td>
-                            <td>
-                              <div className="movie-table-title">{o.movieTitle}</div>
-                              <div className="movie-table-rating">{o.cinemaName} • {o.roomName}</div>
-                            </td>
-                            <td>{new Date(o.showtime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td>
-                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                {o.seats.map(s => (
-                                  <span
-                                    key={s}
-                                    className="badge-rating"
-                                    style={{
-                                      background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)',
-                                      boxShadow: '0 1px 3px rgba(0,0,0,0.15)' // nhẹ nhàng
-                                    }}
-                                  >
-                                    {s}
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                            <td>
-                              <div className="movie-table-title">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(o.totalAmount)}</div>
-                              <div className="movie-table-rating">{o.paymentMethod}</div>
-                            </td>
-                            <td>
-                              <span className="movie-status-badge" style={{ backgroundColor: statusColor(derivedStatus(o)) }}>
-                                {derivedStatus(o) === 'ACTIVE' ? 'Còn hạn' : 'Hết hạn'}
-                              </span>
-                            </td>
-                            <td>
-                              <div className="movie-table-actions">
-                                <button className="movie-action-btn" title="Chi tiết" onClick={()=>setSelected(o)}>
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
+          <div className="admin-table">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('bookingId')}>
+                    Mã <SortIcon field="bookingId" />
+                  </th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('customer')}>
+                    Khách hàng <SortIcon field="customer" />
+                  </th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('movie')}>
+                    Phim / Rạp / Phòng <SortIcon field="movie" />
+                  </th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('showtime')}>
+                    Suất <SortIcon field="showtime" />
+                  </th>
+                  <th>Ghế</th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('amount')}>
+                    Thanh toán <SortIcon field="amount" />
+                  </th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('status')}>
+                    Trạng thái <SortIcon field="status" />
+                  </th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map(o => (
+                  <tr key={o.bookingId}>
+                    <td>#{o.bookingId}</td>
+                    <td>
+                      <div className="movie-table-title">{o.user.name}</div>
+                      <div className="movie-table-rating">{o.user.phone}</div>
+                    </td>
+                    <td>
+                      <div className="movie-table-title">{o.movieTitle}</div>
+                      <div className="movie-table-rating">{o.cinemaName} • {o.roomName}</div>
+                    </td>
+                    <td>
+                      <div className="movie-table-title">{new Date(o.showtime).toLocaleDateString('vi-VN')}</div>
+                      <div className="movie-table-rating">{new Date(o.showtime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {o.seats.map(s => (
+                          <span
+                            key={s}
+                            className="badge-rating"
+                            style={{
+                              background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
+                            }}
+                          >
+                            {s}
+                          </span>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            ))}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="movie-table-title">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(o.totalAmount)}</div>
+                      <div className="movie-table-rating">{o.paymentMethod}</div>
+                    </td>
+                    <td>
+                      <span className="movie-status-badge" style={{ backgroundColor: statusColor(derivedStatus(o)) }}>
+                        {derivedStatus(o) === 'ACTIVE' ? 'Còn hạn' : 'Hết hạn'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="movie-table-actions">
+                        <button className="movie-action-btn" title="Chi tiết" onClick={()=>setSelected(o)}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -3015,16 +3288,16 @@ export default function AdminDashboard() {
           )}
 
           {activeSection === 'users' && (
-            <UserManagement users={users} cinemas={cinemas} onUsersChange={setUsers} />
+            <UserManagement users={users} cinemas={cinemas} vouchers={vouchers} onUsersChange={setUsers} onVouchersChange={setVouchers} />
           )}
 
           {activeSection === 'vouchers' && (
-            <VoucherManagement vouchers={vouchers} onVouchersChange={setVouchers} />
+            <VoucherManagement vouchers={vouchers} users={users} onVouchersChange={setVouchers} />
           )}
 
               {activeSection === 'prices' && (
                 <PriceManagement prices={prices} onPricesChange={setPrices} />
-              )}
+          )}
 
           {activeSection === 'reports' && (
             <div className="admin-card">

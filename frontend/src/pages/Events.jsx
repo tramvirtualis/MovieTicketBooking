@@ -1,49 +1,63 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-const SAMPLE_VOUCHERS = [
-  {
-    voucherId: 101,
-    code: 'CSCHOOL45K',
-    name: 'C’School | Ưu đãi vé từ 45K',
-    description: 'Áp dụng cho học sinh, sinh viên, U22 và giáo viên trên toàn hệ thống.',
-    discountType: 'AMOUNT',
-    discountValue: 45000,
-    minOrderAmount: 45000,
-    maxDiscountAmount: 45000,
-    startDate: '2025-11-01',
-    endDate: '2025-12-31',
-    quantity: 1500,
-    image: 'https://images.unsplash.com/photo-1607319123379-5525198f977b?q=80&w=1200&auto=format&fit=crop'
-  },
-  {
-    voucherId: 102,
-    code: 'POPCORN30',
-    name: 'Combo bắp nước 30K',
-    description: 'Đặt vé online từ 2 ghế trở lên để nhận ngay voucher bắp nước trị giá 30.000đ.',
-    discountType: 'AMOUNT',
-    discountValue: 30000,
-    minOrderAmount: 50000,
-    maxDiscountAmount: 30000,
-    startDate: '2025-11-05',
-    endDate: '2025-11-30',
-    quantity: 800,
-    image: 'https://images.unsplash.com/photo-1502139214982-d0ad755818d8?q=80&w=1200&auto=format&fit=crop'
-  },
-  {
-    voucherId: 103,
-    code: 'COUPLE20',
-    name: 'Movie Night Couple',
-    description: 'Giảm 20% khi đặt ghế đôi COUPLE cho các suất chiếu sau 18h thứ 6 hàng tuần.',
-    discountType: 'PERCENT',
-    discountValue: 20,
-    minOrderAmount: 180000,
-    maxDiscountAmount: 70000,
-    startDate: '2025-11-08',
-    endDate: '2026-01-05',
-    quantity: 1200,
-    image: 'https://images.unsplash.com/photo-1524985069026-dd778a71c7b4?q=80&w=1200&auto=format&fit=crop'
+// Get vouchers from AdminDashboard (stored in localStorage)
+const getPublicVouchers = () => {
+  try {
+    const stored = localStorage.getItem('adminVouchers');
+    if (stored) {
+      const allVouchers = JSON.parse(stored);
+      // Only return public vouchers that are active
+      return allVouchers.filter(v => v.isPublic && v.status);
+    }
+  } catch (e) {
+    console.error('Failed to load vouchers from localStorage', e);
   }
-];
+  // Fallback to sample vouchers if no admin vouchers
+  return [
+    {
+      voucherId: 101,
+      code: 'CSCHOOL45K',
+      name: "C'School | Ưu đãi vé từ 45K",
+      description: 'Áp dụng cho học sinh, sinh viên, U22 và giáo viên trên toàn hệ thống.',
+      discountType: 'AMOUNT',
+      discountValue: 45000,
+      minOrder: 45000,
+      maxDiscount: 45000,
+      startDate: '2025-11-01',
+      endDate: '2025-12-31',
+      quantity: 1500,
+      image: 'https://images.unsplash.com/photo-1607319123379-5525198f977b?q=80&w=1200&auto=format&fit=crop'
+    },
+    {
+      voucherId: 102,
+      code: 'POPCORN30',
+      name: 'Combo bắp nước 30K',
+      description: 'Đặt vé online từ 2 ghế trở lên để nhận ngay voucher bắp nước trị giá 30.000đ.',
+      discountType: 'AMOUNT',
+      discountValue: 30000,
+      minOrder: 50000,
+      maxDiscount: 30000,
+      startDate: '2025-11-05',
+      endDate: '2025-11-30',
+      quantity: 800,
+      image: 'https://images.unsplash.com/photo-1502139214982-d0ad755818d8?q=80&w=1200&auto=format&fit=crop'
+    },
+    {
+      voucherId: 103,
+      code: 'COUPLE20',
+      name: 'Movie Night Couple',
+      description: 'Giảm 20% khi đặt ghế đôi COUPLE cho các suất chiếu sau 18h thứ 6 hàng tuần.',
+      discountType: 'PERCENT',
+      discountValue: 20,
+      minOrder: 180000,
+      maxDiscount: 70000,
+      startDate: '2025-11-08',
+      endDate: '2026-01-05',
+      quantity: 1200,
+      image: 'https://images.unsplash.com/photo-1524985069026-dd778a71c7b4?q=80&w=1200&auto=format&fit=crop'
+    }
+  ];
+};
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
@@ -55,8 +69,8 @@ const formatDiscountBadge = (voucher) =>
 
 const formatDiscountDetail = (voucher) => {
   if (voucher.discountType === 'PERCENT') {
-    return voucher.maxDiscountAmount
-      ? `Giảm ${voucher.discountValue}% (tối đa ${formatCurrency(voucher.maxDiscountAmount)})`
+    return voucher.maxDiscount || voucher.maxDiscountAmount
+      ? `Giảm ${voucher.discountValue}% (tối đa ${formatCurrency(voucher.maxDiscount || voucher.maxDiscountAmount)})`
       : `Giảm ${voucher.discountValue}%`;
   }
   return `Giảm trực tiếp ${formatCurrency(voucher.discountValue)}`;
@@ -81,6 +95,7 @@ const getDaysLeft = (voucher) => {
 };
 
 export default function Events() {
+  const [, forceUpdate] = useState({});
   const [saved, setSaved] = useState(() => {
     try {
       const raw = localStorage.getItem('savedVouchers');
@@ -90,12 +105,29 @@ export default function Events() {
     }
   });
 
+  // Listen for storage changes to update when AdminDashboard updates vouchers
+  useEffect(() => {
+    const handleStorageChange = () => {
+      forceUpdate({});
+    };
+    window.addEventListener('storage', handleStorageChange);
+    // Also check periodically for changes (since storage event only fires in other tabs)
+    const interval = setInterval(() => {
+      forceUpdate({});
+    }, 1000);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('savedVouchers', JSON.stringify(saved));
   }, [saved]);
 
   const vouchers = useMemo(() => {
-    return SAMPLE_VOUCHERS.map((voucher) => {
+    const publicVouchers = getPublicVouchers();
+    return publicVouchers.map((voucher) => {
       const active = isVoucherActive(voucher);
       const remaining = Math.max(0, voucher.quantity - (saved[voucher.voucherId] ? 1 : 0));
       return {
@@ -148,34 +180,18 @@ export default function Events() {
                     <strong>{voucher.code}</strong>
                   </div>
                   <div className="voucher-meta-chip">
-                    <span>Loại ưu đãi</span>
-                    <strong>{formatDiscountType(voucher.discountType)}</strong>
-                  </div>
-                  <div className="voucher-meta-chip">
                     <span>Giá trị</span>
                     <strong>{formatDiscountDetail(voucher)}</strong>
                   </div>
                   <div className="voucher-meta-chip">
                     <span>Đơn tối thiểu</span>
-                    <strong>{formatCurrency(voucher.minOrderAmount)}</strong>
+                    <strong>{formatCurrency(voucher.minOrder || voucher.minOrderAmount || 0)}</strong>
                   </div>
-                  {voucher.discountType === 'PERCENT' && voucher.maxDiscountAmount ? (
-                    <div className="voucher-meta-chip">
-                      <span>Giảm tối đa</span>
-                      <strong>{formatCurrency(voucher.maxDiscountAmount)}</strong>
-                    </div>
-                  ) : null}
                   <div className="voucher-meta-chip">
                     <span>Thời gian</span>
                     <strong>
                       {new Date(voucher.startDate).toLocaleDateString('vi-VN')} -{' '}
                       {new Date(voucher.endDate).toLocaleDateString('vi-VN')}
-                    </strong>
-                  </div>
-                  <div className="voucher-meta-chip">
-                    <span>Trạng thái</span>
-                    <strong className={voucher.active ? 'voucher-meta-chip--active' : 'voucher-meta-chip--inactive'}>
-                      {voucher.active ? 'Đang diễn ra' : 'Hết hạn'}
                     </strong>
                   </div>
                   <div className="voucher-meta-chip">
