@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import com.example.backend.entities.enums.DiscountType;
+import com.example.backend.entities.enums.VoucherScope;
 
 @Entity
 @Table(name = "vouchers")
@@ -32,7 +33,7 @@ public class Voucher {
     private LocalDateTime startDate;
     private LocalDateTime endDate;
 
-    @ManyToOne(optional = true)
-    @JoinColumn(name = "owner_id", nullable = true)
-    private Customer owner;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private VoucherScope scope;
 }
