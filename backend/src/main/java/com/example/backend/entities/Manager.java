@@ -1,19 +1,19 @@
 package com.example.backend.entities;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Table(name = "managers")
-@PrimaryKeyJoinColumn(name = "user_id")
-@Getter
-@Setter
+@Data
+@EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
+@AllArgsConstructor
+@SuperBuilder
 public class Manager extends User {
-    @ManyToOne(fetch = FetchType.LAZY)
+
+    @ManyToOne
     @JoinColumn(name = "cinema_complex_id")
     private CinemaComplex cinemaComplex;
 }
-

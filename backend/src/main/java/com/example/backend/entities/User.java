@@ -1,41 +1,29 @@
 package com.example.backend.entities;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Table(name = "users")
 @Inheritance(strategy = InheritanceType.JOINED)
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
-public abstract class User {
+@SuperBuilder
+public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id")
-    protected Long userId;
+    private Long userId;
 
-    @Column(name = "username", nullable = false, unique = true)
-    protected String username;
+    private String username;
+    private String password;
 
-    @Column(name = "password", nullable = false)
-    protected String password;
+    @OneToOne
+    @JoinColumn(name = "address_id", referencedColumnName = "addressId")
+    private Address address;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "address_id")
-    protected Address address;
-
-    @Column(name = "email", nullable = false, unique = true)
-    protected String email;
-
-    @Column(name = "phone")
-    protected String phone;
-
-    @Column(name = "status", nullable = false)
-    protected Boolean status = true;
+    private String email;
+    private String phone;
+    private Boolean status;
 }
-

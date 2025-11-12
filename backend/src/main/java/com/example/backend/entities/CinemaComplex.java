@@ -1,37 +1,27 @@
 package com.example.backend.entities;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "cinema_complexes")
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class CinemaComplex {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "complex_id")
     private Long complexId;
 
-    @Column(name = "name", nullable = false)
     private String name;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "address_id")
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "address_id", referencedColumnName = "addressId")
     private Address address;
 
-    @OneToMany(mappedBy = "cinemaComplex", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<CinemaRoom> rooms = new ArrayList<>();
-
-    @OneToMany(mappedBy = "cinemaComplex", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Manager> managers = new ArrayList<>();
+    @OneToMany(mappedBy = "cinemaComplex", cascade = CascadeType.ALL)
+    private List<CinemaRoom> rooms;
 }
-
