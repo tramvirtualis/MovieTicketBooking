@@ -78,15 +78,42 @@ export const authService = {
   login: async (username, password) => {
     try {
       const response = await axiosInstance.post('/auth/login', { username, password });
+  
+      // Response thành công sẽ là object user + token
+      const { token, role } = response.data;
+  
+      // Lưu JWT token vào localStorage
+      if (token) {
+        localStorage.setItem('jwt', token);
+      }
+  
+      // Chuyển hướng theo role
+      if (role === 'ADMIN') {
+        window.location.href = '/admin';
+      } else if (role === 'MANAGER') {
+        window.location.href = '/manager';
+      } else {
+        window.location.href = '/'; // CUSTOMER hoặc role khác
+      }
+      
+      console.log(role);
       
       return {
         success: true,
-        data: response.data,
+        data: response.data, // trả toàn bộ object user + token
       };
     } catch (error) {
+      // Nếu backend trả về lỗi với message
+      let message = 'Đăng nhập thất bại.';
+      if (error.response && error.response.data && error.response.data.message) {
+        message = error.response.data.message;
+      } else if (error.message) {
+        message = error.message;
+      }
+  
       return {
         success: false,
-        error: error.message || 'Đăng nhập thất bại',
+        error: message,
       };
     }
   },

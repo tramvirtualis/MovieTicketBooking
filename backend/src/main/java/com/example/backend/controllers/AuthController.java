@@ -1,6 +1,17 @@
 package com.example.backend.controllers;
 
+<<<<<<< HEAD
 import com.example.backend.dtos.*;
+=======
+import com.example.backend.dtos.LoginResponseDTO;
+import com.example.backend.dtos.RegisterRequestDTO;
+import com.example.backend.dtos.RegisterResponseDTO;
+import com.example.backend.dtos.SendOtpRequestDTO;
+import com.example.backend.entities.Admin;
+import com.example.backend.entities.Customer;
+import com.example.backend.entities.Manager;
+import com.example.backend.entities.User;
+>>>>>>> origin/thanhnha
 import com.example.backend.services.AuthService;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
@@ -142,6 +153,19 @@ public class AuthController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody Map<String, String> request) {
+        try {
+            String username = request.get("username");
+            String password = request.get("password");
+            LoginResponseDTO loginResponseDTO = authService.login(username, password);
+
+            return ResponseEntity.ok(loginResponseDTO);
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(Map.of("message", e.getMessage()));
         }
     }
     

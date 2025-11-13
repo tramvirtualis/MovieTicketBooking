@@ -1,18 +1,28 @@
 package com.example.backend.services;
 
+<<<<<<< HEAD
 import com.example.backend.dtos.OtpSessionDTO;
 import com.example.backend.dtos.RegisterRequestDTO;
 import com.example.backend.dtos.RegisterResponseDTO;
 import com.example.backend.dtos.ResetTokenSessionDTO;
 import com.example.backend.dtos.SendOtpRequestDTO;
+=======
+import com.example.backend.dtos.*;
+import com.example.backend.entities.Admin;
+>>>>>>> origin/thanhnha
 import com.example.backend.entities.Customer;
+import com.example.backend.entities.Manager;
+import com.example.backend.entities.User;
 import com.example.backend.repositories.CustomerRepository;
+import com.example.backend.repositories.UserRepository;
+import com.example.backend.utils.JwtUtils;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -24,6 +34,8 @@ public class AuthService {
     private final CustomerRepository customerRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+    private final JwtUtils jwtUtils;
+    private final UserRepository userRepository;
     
     private static final int OTP_LENGTH = 6;
     // Đăng ký tài khoản
@@ -285,5 +297,35 @@ public class AuthService {
         }
         
         return otp.toString();
+    }
+
+    public LoginResponseDTO login(String username, String password) throws Exception {
+        Optional<User> userOpt = userRepository.findByUsername(username);
+        if (userOpt.isEmpty()) {
+            throw new Exception("Invalid username or password");
+        }
+
+        User user = userOpt.get();
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new Exception("Invalid username or password");
+        }
+
+        String role;
+        if (user instanceof Admin) role = "ADMIN";
+        else if (user instanceof Manager) role = "MANAGER";
+        else role = "CUSTOMER";
+
+        String token = jwtUtils.generateJwtToken(username, role);
+
+        return LoginResponseDTO.builder()
+                .userId(user.getUserId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .status(user.getStatus())
+                .address(user.getAddress())
+                .role(role)
+                .token(token)
+                .build();
     }
 }
