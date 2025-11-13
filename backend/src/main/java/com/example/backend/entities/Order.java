@@ -5,6 +5,7 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import com.example.backend.entities.enums.PaymentMethod;
 
 @Entity
 @Table(name = "orders")
@@ -26,6 +27,9 @@ public class Order {
 
     private BigDecimal totalAmount;
     private LocalDateTime orderDate;
+
+    @Enumerated(EnumType.STRING)
+    private PaymentMethod paymentMethod;
 
     @ManyToOne
     @JoinColumn(name = "voucher_id")
