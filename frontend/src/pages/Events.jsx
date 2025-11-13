@@ -194,10 +194,6 @@ export default function Events() {
                       {new Date(voucher.endDate).toLocaleDateString('vi-VN')}
                     </strong>
                   </div>
-                  <div className="voucher-meta-chip">
-                    <span>Số lượng còn</span>
-                    <strong>{voucher.remaining}</strong>
-                  </div>
                 </div>
 
                 <footer className="voucher-panel__footer">

@@ -403,12 +403,6 @@ const initialPrices = [
   { id: 6, roomType: 'DELUXE', seatType: 'VIP', price: 180000 }
 ];
 
-// Sample banners data
-const initialBanners = [
-  { id: 1, image: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=1200&auto=format&fit=crop', alt: 'Cinesmart - Khuyến mãi cuối tuần', link: '#promotions' },
-  { id: 2, image: 'https://images.unsplash.com/photo-1511735111819-9a3f7709049c?q=80&w=1200&auto=format&fit=crop', alt: 'Wicked - Khởi chiếu 22/11', link: '#coming-soon' }
-];
-
 // Sample vouchers data
 const initialVouchers = [
   {
@@ -530,7 +524,7 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
   // Handle cinema operations
   const handleAddCinema = () => {
     setEditingCinema(null);
-    setCinemaFormData({ name: '', address: '' });
+    setCinemaFormData({ name: '', addressDescription: '', addressProvince: 'Hồ Chí Minh' });
     setShowCinemaModal(true);
   };
 
@@ -545,9 +539,6 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
   };
 
   const handleSaveCinema = () => {
-    if (!cinemaFormData.name || !cinemaFormData.address) {
-      // Backward-compat: nếu address cũ chưa có, dựng từ 2 trường mới
-    }
     if (!cinemaFormData.name || !cinemaFormData.addressDescription || !cinemaFormData.addressProvince) {
       alert('Vui lòng điền đầy đủ thông tin');
       return;
@@ -851,7 +842,7 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          Thêm rạp mới
+          Thêm cụm rạp mới
         </button>
       </div>
 
@@ -988,6 +979,14 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
                 Click vào ghế để thay đổi loại: Thường → VIP → Đôi → Thường
               </p>
               {renderSeatLayout(selectedRoom)}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '16px', borderTop: '1px solid #2a2729' }}>
+              <button className="btn btn--ghost" onClick={() => setSelectedRoom(null)}>
+                Đóng
+              </button>
+              <button className="btn btn--primary" onClick={() => setSelectedRoom(null)}>
+                Lưu thay đổi
+              </button>
             </div>
           </div>
         </div>
@@ -1935,6 +1934,7 @@ function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
 }
 
 // User Management Component
+// User Management Component
 function UserManagement({ users: initialUsersList, cinemas: cinemasList, vouchers: vouchersList, onUsersChange, onVouchersChange }) {
   const [users, setUsers] = useState(initialUsersList);
   const [searchTerm, setSearchTerm] = useState('');
@@ -1943,7 +1943,6 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
   const [filterProvince, setFilterProvince] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showVoucherModal, setShowVoucherModal] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
   const [voucherAssigningUser, setVoucherAssigningUser] = useState(null);
   const [formData, setFormData] = useState({
     username: '',
@@ -1953,7 +1952,7 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
     addressDescription: '',
     addressProvince: 'Hồ Chí Minh',
     status: true,
-    role: 'USER',
+    role: 'MANAGER',
     cinemaComplexId: ''
   });
 
@@ -1975,8 +1974,7 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
     return matchesSearch && matchesRole && matchesStatus && matchesProvince;
   });
 
-  const handleAdd = () => {
-    setEditingUser(null);
+  const handleAddStaff = () => {
     setFormData({
       username: '',
       password: '',
@@ -1985,33 +1983,14 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
       addressDescription: '',
       addressProvince: 'Hồ Chí Minh',
       status: true,
-      role: 'USER',
+      role: 'MANAGER',
       cinemaComplexId: ''
     });
     setShowModal(true);
   };
 
-  const handleEdit = (user) => {
-    setEditingUser(user);
-    const parts = (user.address || '').split(',');
-    const province = parts.length > 0 ? parts[parts.length - 1].trim() : 'Hồ Chí Minh';
-    const description = parts.slice(0, -1).join(',').trim();
-    setFormData({
-      username: user.username,
-      password: '',
-      email: user.email,
-      phone: user.phone,
-      addressDescription: description,
-      addressProvince: province || 'Hồ Chí Minh',
-      status: !!user.status,
-      role: user.role,
-      cinemaComplexId: user.cinemaComplexId || ''
-    });
-    setShowModal(true);
-  };
-
-  const handleSave = () => {
-    if (!formData.username || (!editingUser && !formData.password) || !formData.email || !formData.phone || !formData.addressDescription || !formData.addressProvince) {
+  const handleSaveStaff = () => {
+    if (!formData.username || !formData.password || !formData.email || !formData.phone || !formData.addressDescription || !formData.addressProvince) {
       alert('Vui lòng điền đầy đủ thông tin bắt buộc');
       return;
     }
@@ -2019,81 +1998,68 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
       alert('Manager cần gán vào một cụm rạp');
       return;
     }
+
     const address = `${formData.addressDescription}, ${formData.addressProvince}`;
-    if (editingUser) {
-      setUsers(users.map(u =>
-        u.userId === editingUser.userId
-          ? {
-              ...u,
-              username: formData.username,
-              // Chỉ cập nhật mật khẩu nếu nhập mới
-              password: formData.password ? '******' : u.password,
-              email: formData.email,
-              phone: formData.phone,
-              address,
-              status: formData.status,
-              role: formData.role,
-              cinemaComplexId: formData.role === 'MANAGER' ? Number(formData.cinemaComplexId) : undefined
-            }
-          : u
-      ));
-    } else {
-      const newUser = {
-        userId: Math.max(...users.map(u => u.userId), 0) + 1,
-        username: formData.username,
-        password: '******',
-        email: formData.email,
-        phone: formData.phone,
-        address,
-        status: formData.status,
-        role: formData.role,
-        cinemaComplexId: formData.role === 'MANAGER' ? Number(formData.cinemaComplexId) : undefined
-      };
-      setUsers([newUser, ...users]);
-    }
+    const newUser = {
+      userId: Math.max(...users.map(u => u.userId), 0) + 1,
+      username: formData.username,
+      password: '******',
+      email: formData.email,
+      phone: formData.phone,
+      address,
+      status: formData.status,
+      role: formData.role,
+      cinemaComplexId: formData.role === 'MANAGER' ? Number(formData.cinemaComplexId) : undefined
+    };
+    setUsers([newUser, ...users]);
     setShowModal(false);
-    setEditingUser(null);
   };
 
-  const handleDelete = (userId) => {
-    if (window.confirm('Xóa người dùng này?')) {
-      setUsers(users.filter(u => u.userId !== userId));
+  const handleToggleStatus = (user) => {
+    if (window.confirm(`Bạn muốn ${user.status ? 'chặn' : 'bỏ chặn'} người dùng ${user.username}?`)) {
+      setUsers(users.map(u =>
+        u.userId === user.userId ? { ...u, status: !u.status } : u
+      ));
     }
   };
+
+  // Chỉ cho phép gán voucher cho user thường
+  const canAssignVoucher = (user) => user.role === 'USER';
 
   return (
     <div className="admin-card">
       <div className="admin-card__header">
         <h2 className="admin-card__title">Quản lý người dùng</h2>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', alignItems: 'center' }}>
           <input
             className="movie-search__input"
-            style={{ minWidth: 240 }}
+            style={{ minWidth: 180, flex: 1 }}
             placeholder="Tìm username, email, phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="movie-filter">
+          <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="movie-filter" style={{ minWidth: 120 }}>
             <option value="">Tất cả vai trò</option>
             <option value="ADMIN">ADMIN</option>
             <option value="MANAGER">MANAGER</option>
             <option value="USER">USER</option>
           </select>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="movie-filter">
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="movie-filter" style={{ minWidth: 120 }}>
             <option value="">Tất cả trạng thái</option>
             <option value="true">Hoạt động</option>
             <option value="false">Khóa</option>
           </select>
-          <select value={filterProvince} onChange={(e) => setFilterProvince(e.target.value)} className="movie-filter">
+          <select value={filterProvince} onChange={(e) => setFilterProvince(e.target.value)} className="movie-filter" style={{ minWidth: 120 }}>
             <option value="">Tất cả tỉnh/thành</option>
             {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
-          <button className="btn btn--primary" onClick={handleAdd}>
+          <button className="btn btn--primary" onClick={handleAddStaff} style={{ whiteSpace: 'nowrap' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Thêm người dùng
+            Tạo tài khoản Staff
           </button>
         </div>
       </div>
+      
       <div className="admin-card__content">
         <div className="admin-table">
           <table>
@@ -2124,21 +2090,52 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
                     ) : null}
                   </td>
                   <td>
-                    <span className="movie-status-badge" style={{ backgroundColor: u.status ? '#4caf50' : '#9e9e9e' }}>
+                    <span 
+                      className="movie-status-badge" 
+                      style={{ 
+                        backgroundColor: u.status ? '#4caf50' : '#9e9e9e',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: '100px'
+                      }}
+                      onClick={() => handleToggleStatus(u)}
+                      title={`Click để ${u.status ? 'chặn' : 'bỏ chặn'}`}
+                    >
                       {u.status ? 'Hoạt động' : 'Khóa'}
                     </span>
                   </td>
                   <td>
                     <div className="movie-table-actions">
-                      <button className="movie-action-btn" onClick={() => handleEdit(u)} title="Chỉnh sửa">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      <button 
+                        className="movie-action-btn"
+                        onClick={() => handleToggleStatus(u)}
+                        title={u.status ? 'Chặn người dùng này' : 'Bỏ chặn người dùng này'}
+                        style={{ color: u.status ? '#e83b41' : '#4caf50' }}
+                      >
+                        {u.status ? (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                          </svg>
+                        ) : (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="16" x2="12" y2="12"/>
+                            <line x1="12" y1="8" x2="12.01" y2="8"/>
+                          </svg>
+                        )}
                       </button>
-                      <button className="movie-action-btn" onClick={() => { setVoucherAssigningUser(u); setShowVoucherModal(true); }} title="Gán voucher">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7h-4V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M12 12v6M9 15h6"/></svg>
-                      </button>
-                      <button className="movie-action-btn movie-action-btn--delete" onClick={() => handleDelete(u.userId)} title="Xóa">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                      </button>
+                      {canAssignVoucher(u) && (
+                        <button 
+                          className="movie-action-btn" 
+                          onClick={() => { setVoucherAssigningUser(u); setShowVoucherModal(true); }} 
+                          title="Gán voucher"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7h-4V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M12 12v6M9 15h6"/></svg>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -2148,11 +2145,12 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
         </div>
       </div>
 
+      {/* Modal tạo tài khoản Staff (Manager/Admin) */}
       {showModal && (
         <div className="movie-modal-overlay" onClick={() => setShowModal(false)}>
           <div className="movie-modal" onClick={(e) => e.stopPropagation()}>
             <div className="movie-modal__header">
-              <h2>{editingUser ? 'Chỉnh sửa người dùng' : 'Thêm người dùng'}</h2>
+              <h2>Tạo tài khoản Staff</h2>
               <button className="movie-modal__close" onClick={() => setShowModal(false)}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
@@ -2165,7 +2163,7 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
                     <input type="text" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} />
                   </div>
                   <div className="movie-form__group">
-                    <label>Mật khẩu {editingUser ? <span style={{ opacity: .7 }}>(để trống nếu không đổi)</span> : <span className="required">*</span>}</label>
+                    <label>Password <span className="required">*</span></label>
                     <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} />
                   </div>
                 </div>
@@ -2204,7 +2202,6 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                     >
-                      <option value="USER">USER</option>
                       <option value="MANAGER">MANAGER</option>
                       <option value="ADMIN">ADMIN</option>
                     </select>
@@ -2226,24 +2223,18 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
                     </div>
                   )}
                 </div>
-                <div className="movie-form__group">
-                  <label>Trạng thái</label>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <input type="checkbox" checked={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.checked })} />
-                    Hoạt động
-                  </label>
-                </div>
               </div>
             </div>
             <div className="movie-modal__footer">
               <button className="btn btn--ghost" onClick={() => setShowModal(false)}>Hủy</button>
-              <button className="btn btn--primary" onClick={handleSave}>{editingUser ? 'Cập nhật' : 'Thêm người dùng'}</button>
+              <button className="btn btn--primary" onClick={handleSaveStaff}>Tạo tài khoản</button>
             </div>
           </div>
         </div>
       )}
 
-      {showVoucherModal && voucherAssigningUser && vouchersList && (
+      {/* Modal gán voucher (chỉ cho user thường) */}
+      {showVoucherModal && voucherAssigningUser && vouchersList && canAssignVoucher(voucherAssigningUser) && (
         <VoucherAssignModal
           user={voucherAssigningUser}
           vouchers={vouchersList}
@@ -2260,6 +2251,7 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
     </div>
   );
 }
+
 
 // Voucher Management Component
 function VoucherManagement({ vouchers: initialVouchersList, users: usersList, onVouchersChange }) {
@@ -2900,7 +2892,6 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                     <div>Giá vé: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.pricePerSeat)} / ghế</div>
                     <div>Tổng: <strong>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.totalAmount)}</strong> • {selected.paymentMethod}</div>
                     <div style={{ marginTop: 8 }}>
-                      Trạng thái:{' '}
                       <span className="movie-status-badge" style={{ backgroundColor: statusColor(derivedStatus(selected)) }}>
                         {derivedStatus(selected) === 'ACTIVE' ? 'Còn hạn' : 'Hết hạn'}
                       </span>
@@ -3667,146 +3658,6 @@ function PriceManagement({ prices: initialPricesList, onPricesChange }) {
   );
 }
 
-// Banner Management Component
-function BannerManagement({ banners: initialBannersList, onBannersChange }) {
-  const [banners, setBanners] = useState(initialBannersList || []);
-  const [editing, setEditing] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ image: '', alt: '', link: '' });
-
-  useEffect(() => {
-    onBannersChange && onBannersChange(banners);
-  }, [banners, onBannersChange]);
-
-  const openAdd = () => {
-    setEditing(null);
-    setForm({ image: '', alt: '', link: '' });
-    setShowModal(true);
-  };
-
-  const openEdit = (b) => {
-    setEditing(b);
-    setForm({ image: b.image || '', alt: b.alt || '', link: b.link || '' });
-    setShowModal(true);
-  };
-
-  const handleSave = () => {
-    if (!form.image) {
-      alert('Vui lòng cung cấp URL hình ảnh cho banner');
-      return;
-    }
-    if (editing) {
-      setBanners(banners.map(b => b.id === editing.id ? { ...b, ...form } : b));
-    } else {
-      const nextId = Math.max(0, ...banners.map(b => b.id || 0)) + 1;
-      setBanners([{ id: nextId, ...form }, ...banners]);
-    }
-    setShowModal(false);
-    setEditing(null);
-  };
-
-  const handleDelete = (id) => {
-    if (!window.confirm('Xóa banner này?')) return;
-    setBanners(banners.filter(b => b.id !== id));
-  };
-
-  return (
-    <div>
-      <div className="admin-card">
-        <div className="admin-card__header">
-          <h2 className="admin-card__title">Quản lý banner</h2>
-          <div>
-            <button className="btn btn--ghost" onClick={openAdd}>Thêm banner</button>
-          </div>
-        </div>
-        <div className="admin-card__content">
-          <div className="admin-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Ảnh</th>
-                  <th>Alt</th>
-                  <th>Link</th>
-                  <th>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {banners.length === 0 ? (
-                  <tr>
-                    <td colSpan="4" style={{ textAlign: 'center', color: '#c9c4c5' }}>Chưa có banner</td>
-                  </tr>
-                ) : (
-                  banners.map(b => (
-                    <tr key={b.id}>
-                      <td style={{ width: 220 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <img src={b.image} alt={b.alt} style={{ width: 200, height: 80, objectFit: 'cover', borderRadius: 6 }} />
-                        </div>
-                      </td>
-                      <td>{b.alt}</td>
-                      <td>{b.link}</td>
-                      <td>
-                        <div className="movie-table-actions">
-                          <button className="movie-action-btn" onClick={() => openEdit(b)} title="Sửa">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                          </button>
-                          <button className="movie-action-btn movie-action-btn--delete" onClick={() => handleDelete(b.id)} title="Xóa">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {showModal && (
-        <div className="movie-modal-overlay" onClick={() => { setShowModal(false); setEditing(null); }}>
-          <div className="movie-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
-            <div className="movie-modal__header">
-              <h2>{editing ? 'Chỉnh sửa banner' : 'Thêm banner'}</h2>
-              <button className="movie-modal__close" onClick={() => { setShowModal(false); setEditing(null); }}>
-                ×
-              </button>
-            </div>
-            <div className="movie-modal__content">
-              <div className="movie-form">
-                <div className="movie-form__group">
-                  <label>Image URL <span className="required">*</span></label>
-                  <input type="text" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="https://..." />
-                </div>
-                <div className="movie-form__group">
-                  <label>Alt text</label>
-                  <input type="text" value={form.alt} onChange={(e) => setForm({ ...form, alt: e.target.value })} />
-                </div>
-                <div className="movie-form__group">
-                  <label>Link</label>
-                  <input type="text" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="#" />
-                </div>
-
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ marginBottom: 8, color: '#c9c4c5' }}>Preview</div>
-                  <div style={{ borderRadius: 8, overflow: 'hidden', background: '#111' }}>
-                    <img src={form.image || 'https://via.placeholder.com/800x200?text=Preview'} alt={form.alt || ''} style={{ width: '100%', height: 160, objectFit: 'cover' }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="movie-modal__footer">
-              <button className="btn btn--ghost" onClick={() => { setShowModal(false); setEditing(null); }}>Hủy</button>
-              <button className="btn btn--primary" onClick={handleSave}>{editing ? 'Lưu' : 'Thêm'}</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -3816,7 +3667,6 @@ export default function AdminDashboard() {
   const [vouchers, setVouchers] = useState(initialVouchers);
   const [orders, setOrders] = useState(initialBookingOrders);
   const [prices, setPrices] = useState(initialPrices);
-  const [banners, setBanners] = useState(initialBanners);
 
   const getIcon = (iconName) => {
     switch (iconName) {
@@ -3989,18 +3839,6 @@ export default function AdminDashboard() {
             </svg>
             <span>Quản lý voucher</span>
           </button>
-
-          <button
-            className={`admin-nav-item ${activeSection === 'banners' ? 'admin-nav-item--active' : ''}`}
-            onClick={() => setActiveSection('banners')}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="5" width="18" height="14" rx="2"/>
-              <path d="M3 9h18" strokeOpacity="0.2"/>
-            </svg>
-            <span>Quản lý banner</span>
-          </button>
-
           <button
             className={`admin-nav-item ${activeSection === 'reports' ? 'admin-nav-item--active' : ''}`}
             onClick={() => setActiveSection('reports')}
@@ -4038,7 +3876,6 @@ export default function AdminDashboard() {
               {activeSection === 'bookings' && 'Quản lý đặt vé'}
               {activeSection === 'users' && 'Quản lý người dùng'}
               {activeSection === 'vouchers' && 'Quản lý voucher'}
-              {activeSection === 'banners' && 'Quản lý banner'}
               {activeSection === 'reports' && 'Báo cáo'}
             </h1>
           </div>
@@ -4158,10 +3995,6 @@ export default function AdminDashboard() {
 
           {activeSection === 'vouchers' && (
             <VoucherManagement vouchers={vouchers} users={users} onVouchersChange={setVouchers} />
-          )}
-
-          {activeSection === 'banners' && (
-            <BannerManagement banners={banners} onBannersChange={setBanners} />
           )}
 
               {activeSection === 'prices' && (

@@ -803,6 +803,14 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange 
               </p>
               {renderSeatLayout(selectedRoom)}
             </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '16px', borderTop: '1px solid #2a2729' }}>
+              <button className="btn btn--ghost" onClick={() => setSelectedRoom(null)}>
+                Đóng
+              </button>
+              <button className="btn btn--primary" onClick={() => setSelectedRoom(null)}>
+                Lưu thay đổi
+              </button>
+            </div>
           </div>
         </div>
       )}
