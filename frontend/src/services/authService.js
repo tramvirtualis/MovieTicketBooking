@@ -100,7 +100,7 @@ export const authService = {
    */
   sendForgotPasswordOtp: async (email) => {
     try {
-      const response = await axiosInstance.post('/forgot-password/send-otp', { email });
+      const response = await axiosInstance.post('/auth/forgot-password/send-otp', { email });
       
       return {
         success: true,
@@ -122,7 +122,7 @@ export const authService = {
    */
   resendForgotPasswordOtp: async (email) => {
     try {
-      const response = await axiosInstance.post('/forgot-password/resend-otp', { email });
+      const response = await axiosInstance.post('/auth/forgot-password/resend-otp', { email });
       
       return {
         success: true,
@@ -145,7 +145,7 @@ export const authService = {
    */
   verifyForgotPasswordOtp: async (email, otp) => {
     try {
-      const response = await axiosInstance.post('/forgot-password/verify-otp', { email, otp });
+      const response = await axiosInstance.post('/auth/forgot-password/verify-otp', { email, otp });
       
       return {
         success: true,
@@ -170,7 +170,7 @@ export const authService = {
    */
   resetPassword: async (token, newPassword) => {
     try {
-      const response = await axiosInstance.post('/forgot-password/reset-password', { 
+      const response = await axiosInstance.post('/auth/forgot-password/reset-password', { 
         token, 
         newPassword 
       });
@@ -194,7 +194,7 @@ export const authService = {
    */
   getOtpRemainingTime: async () => {
     try {
-      const response = await axiosInstance.get('/forgot-password/otp-remaining-time');
+      const response = await axiosInstance.get('/auth/forgot-password/otp-remaining-time');
       
       return {
         success: true,

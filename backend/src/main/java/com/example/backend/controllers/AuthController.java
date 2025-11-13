@@ -1,8 +1,6 @@
 package com.example.backend.controllers;
 
-import com.example.backend.dtos.RegisterRequestDTO;
-import com.example.backend.dtos.RegisterResponseDTO;
-import com.example.backend.dtos.SendOtpRequestDTO;
+import com.example.backend.dtos.*;
 import com.example.backend.services.AuthService;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
@@ -42,6 +40,89 @@ public class AuthController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/forgot-password/send-otp")
+    public ResponseEntity<?> sendForgotPasswordOtp(@Valid @RequestBody SendOtpRequestDTO request,
+                                                   HttpSession session) {
+        try {
+            authService.sendForgotPasswordOtp(request.getEmail(), session);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Mã OTP đã được gửi đến email của bạn");
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    @PostMapping("/forgot-password/resend-otp")
+    public ResponseEntity<?> resendForgotPasswordOtp(@Valid @RequestBody SendOtpRequestDTO request,
+                                                     HttpSession session) {
+        return sendForgotPasswordOtp(request, session);
+    }
+
+    @PostMapping("/forgot-password/verify-otp")
+    public ResponseEntity<?> verifyForgotPasswordOtp(@Valid @RequestBody VerifyOtpRequestDTO request,
+                                                     HttpSession session) {
+        try {
+            String resetToken = authService.verifyForgotPasswordOtp(
+                    request.getEmail(),
+                    request.getOtp(),
+                    session
+            );
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Xác thực OTP thành công");
+            response.put("token", resetToken);
+            response.put("email", request.getEmail());
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    @PostMapping("/forgot-password/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequestDTO request,
+                                           HttpSession session) {
+        try {
+            authService.resetForgotPassword(request.getToken(), request.getNewPassword(), session);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Đặt lại mật khẩu thành công");
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    @GetMapping("/forgot-password/otp-remaining-time")
+    public ResponseEntity<?> getForgotPasswordOtpRemainingTime(HttpSession session) {
+        try {
+            long remainingSeconds = authService.getForgotPasswordOtpRemainingSeconds(session);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("remainingSeconds", remainingSeconds);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra"));
         }
     }
     
