@@ -1,29 +1,30 @@
 package com.example.backend.controllers;
 
-<<<<<<< HEAD
-import com.example.backend.dtos.*;
-=======
-import com.example.backend.dtos.LoginResponseDTO;
-import com.example.backend.dtos.RegisterRequestDTO;
-import com.example.backend.dtos.RegisterResponseDTO;
-import com.example.backend.dtos.SendOtpRequestDTO;
-import com.example.backend.entities.Admin;
-import com.example.backend.entities.Customer;
-import com.example.backend.entities.Manager;
-import com.example.backend.entities.User;
->>>>>>> origin/thanhnha
-import com.example.backend.services.AuthService;
-import jakarta.servlet.http.HttpSession;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.validation.BindingResult;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.example.backend.dtos.LoginResponseDTO;
+import com.example.backend.dtos.RegisterRequestDTO;
+import com.example.backend.dtos.RegisterResponseDTO;
+import com.example.backend.dtos.ResetPasswordRequestDTO;
+import com.example.backend.dtos.SendOtpRequestDTO;
+import com.example.backend.dtos.VerifyOtpRequestDTO;
+import com.example.backend.services.AuthService;
+
+import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/auth")

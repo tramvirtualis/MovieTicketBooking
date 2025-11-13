@@ -1,31 +1,31 @@
 package com.example.backend.services;
 
-<<<<<<< HEAD
+import java.util.Optional;
+import java.util.Random;
+import java.util.UUID;
+import java.util.regex.Pattern;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.backend.dtos.LoginResponseDTO;
 import com.example.backend.dtos.OtpSessionDTO;
 import com.example.backend.dtos.RegisterRequestDTO;
 import com.example.backend.dtos.RegisterResponseDTO;
 import com.example.backend.dtos.ResetTokenSessionDTO;
 import com.example.backend.dtos.SendOtpRequestDTO;
-=======
-import com.example.backend.dtos.*;
 import com.example.backend.entities.Admin;
->>>>>>> origin/thanhnha
 import com.example.backend.entities.Customer;
 import com.example.backend.entities.Manager;
 import com.example.backend.entities.User;
 import com.example.backend.repositories.CustomerRepository;
 import com.example.backend.repositories.UserRepository;
 import com.example.backend.utils.JwtUtils;
+
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
-import java.util.Random;
-import java.util.UUID;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
