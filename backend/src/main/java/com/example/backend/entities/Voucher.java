@@ -36,4 +36,6 @@ public class Voucher {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private VoucherScope scope;
+
+    private String image;
 }
