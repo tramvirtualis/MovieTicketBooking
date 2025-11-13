@@ -12,7 +12,7 @@ const cinemas = [
   { name: 'Kiên Giang', province: 'An Giang' },
 ];
 
-export default function Header() {
+export default function Header({ children }) {
   const [showCinemaDropdown, setShowCinemaDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const dropdownRef = useRef(null);
@@ -104,6 +104,8 @@ export default function Header() {
           <a href="#events">Sự kiện và khuyến mãi</a>
         </nav>
         <div className="actions">
+          {/* render optional header children (e.g., NotificationBell) */}
+          {children}
           <div className="user-menu" ref={userDropdownRef} style={{ position: 'relative' }}>
             <button
               className="user-avatar"
