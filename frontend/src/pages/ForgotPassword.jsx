@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Footer from '../components/Footer.jsx';
+import authService from '../services/authService';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -9,6 +10,7 @@ export default function ForgotPassword() {
   const [countdown, setCountdown] = useState(0);
   const [isResendDisabled, setIsResendDisabled] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -23,69 +25,47 @@ export default function ForgotPassword() {
     }
   }, [countdown, isResendDisabled]);
 
-  const handleSendOTP = (e) => {
+  const handleSendOTP = async (e) => {
     e.preventDefault();
     setError('');
+    setIsSending(true);
 
     if (!email) {
       setError('Vui lòng nhập email');
+      setIsSending(false);
       return;
     }
 
-    // TODO: Gọi API gửi OTP qua email
-    // fetch('/api/forgot-password/send-otp', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ email })
-    // })
-    //   .then(res => res.json())
-    //   .then(data => {
-    //     if (data.success) {
-    //       setStep(2);
-    //       setCountdown(60);
-    //       setIsResendDisabled(true);
-    //     } else {
-    //       setError(data.message || 'Có lỗi xảy ra');
-    //     }
-    //   })
-    //   .catch(err => {
-    //     setError('Có lỗi xảy ra. Vui lòng thử lại sau.');
-    //   });
-
-    // Simulate API call
-    setTimeout(() => {
+    // Gọi API gửi OTP
+    const result = await authService.sendForgotPasswordOtp(email);
+    
+    if (result.success) {
       setStep(2);
       setCountdown(60);
       setIsResendDisabled(true);
-    }, 1000);
+    } else {
+      setError(result.error || 'Có lỗi xảy ra');
+    }
+    
+    setIsSending(false);
   };
 
-  const handleResendOTP = () => {
+  const handleResendOTP = async () => {
     setError('');
     setIsResendDisabled(true);
     setCountdown(60);
 
-    // TODO: Gọi API gửi lại OTP
-    // fetch('/api/forgot-password/resend-otp', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ email })
-    // })
-    //   .then(res => res.json())
-    //   .then(data => {
-    //     if (data.success) {
-    //       setCountdown(60);
-    //       setIsResendDisabled(true);
-    //     } else {
-    //       setError(data.message || 'Có lỗi xảy ra');
-    //     }
-    //   })
-    //   .catch(err => {
-    //     setError('Có lỗi xảy ra. Vui lòng thử lại sau.');
-    //   });
+    // Gọi API gửi lại OTP
+    const result = await authService.resendForgotPasswordOtp(email);
+    
+    if (!result.success) {
+      setError(result.error || 'Có lỗi xảy ra');
+      setIsResendDisabled(false);
+      setCountdown(0);
+    }
   };
 
-  const handleVerifyOTP = (e) => {
+  const handleVerifyOTP = async (e) => {
     e.preventDefault();
     setError('');
     setIsVerifying(true);
@@ -96,38 +76,17 @@ export default function ForgotPassword() {
       return;
     }
 
-    // TODO: Gọi API xác thực OTP
-    // fetch('/api/forgot-password/verify-otp', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ email, otp })
-    // })
-    //   .then(res => res.json())
-    //   .then(data => {
-    //     if (data.success) {
-    //       // Generate a token and redirect to reset password
-    //       const token = data.token || 'reset_token_' + Date.now();
-    //       window.location.hash = `#reset-password?token=${token}&email=${encodeURIComponent(email)}`;
-    //     } else {
-    //       setError(data.message || 'Mã OTP không đúng');
-    //       setIsVerifying(false);
-    //     }
-    //   })
-    //   .catch(err => {
-    //     setError('Có lỗi xảy ra. Vui lòng thử lại sau.');
-    //     setIsVerifying(false);
-    //   });
-
-    // Simulate API call - verify OTP (accept any 6-digit code for demo)
-    setTimeout(() => {
-      if (otp.length === 6) {
-        const mockToken = 'reset_token_' + Date.now();
-        window.location.hash = `#reset-password?token=${mockToken}&email=${encodeURIComponent(email)}`;
-      } else {
-        setError('Mã OTP không đúng');
-        setIsVerifying(false);
-      }
-    }, 1000);
+    // Gọi API xác thực OTP
+    const result = await authService.verifyForgotPasswordOtp(email, otp);
+    
+    if (result.success) {
+      // Redirect đến trang reset password với token
+      const token = result.token;
+      window.location.hash = `#reset-password?token=${token}&email=${encodeURIComponent(email)}`;
+    } else {
+      setError(result.error || 'Mã OTP không đúng');
+      setIsVerifying(false);
+    }
   };
 
   // Step 2: Nhập OTP
@@ -169,7 +128,6 @@ export default function ForgotPassword() {
               <form className="auth__form" action="#" method="post" autoComplete="off" onSubmit={handleVerifyOTP}>
                 <label className="field">
                   <span className="field__label">Mã OTP</span>
-                  {/* make placeholder smaller only for this OTP input */}
                   <style>{`.otp-input::placeholder { font-size: 14px; opacity: 0.85; }`}</style>
                   <input
                     className="field__input otp-input"
@@ -318,7 +276,17 @@ export default function ForgotPassword() {
                 />
               </label>
 
-              <button className="btn btn--primary" type="submit">Gửi mã OTP</button>
+              <button 
+                className="btn btn--primary" 
+                type="submit"
+                disabled={isSending}
+                style={{
+                  opacity: isSending ? 0.6 : 1,
+                  cursor: isSending ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isSending ? 'Đang gửi...' : 'Gửi mã OTP'}
+              </button>
             </form>
 
             <div className="auth__signup">
@@ -332,4 +300,3 @@ export default function ForgotPassword() {
     </div>
   );
 }
-

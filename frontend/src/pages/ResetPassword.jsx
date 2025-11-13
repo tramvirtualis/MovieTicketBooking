@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Footer from '../components/Footer.jsx';
+import authService from '../services/authService';
 
 export default function ResetPassword() {
   const [password, setPassword] = useState('');
@@ -9,6 +10,8 @@ export default function ResetPassword() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [token, setToken] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,32}$/;
 
   useEffect(() => {
     // Lấy token từ URL query parameter
@@ -17,10 +20,10 @@ export default function ResetPassword() {
     if (tokenFromUrl) {
       setToken(tokenFromUrl);
     } else {
-      // Nếu không có token, có thể lấy từ hash hoặc redirect về forgot password
+      // Nếu không có token, có thể lấy từ hash
       const hash = window.location.hash;
       if (hash.includes('token=')) {
-        const hashParams = new URLSearchParams(hash.substring(1));
+        const hashParams = new URLSearchParams(hash.substring(hash.indexOf('?') + 1));
         const tokenFromHash = hashParams.get('token');
         if (tokenFromHash) {
           setToken(tokenFromHash);
@@ -29,7 +32,7 @@ export default function ResetPassword() {
     }
   }, []);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -39,8 +42,8 @@ export default function ResetPassword() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Mật khẩu phải có ít nhất 6 ký tự');
+    if (!passwordRegex.test(password)) {
+      setError('Mật khẩu phải từ 8 đến 32 ký tự, gồm ít nhất 1 chữ hoa, 1 chữ thường và 1 số');
       return;
     }
 
@@ -54,28 +57,17 @@ export default function ResetPassword() {
       return;
     }
 
-    // TODO: Gọi API đặt lại mật khẩu
-    // fetch('/api/reset-password', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ token, password })
-    // })
-    //   .then(res => res.json())
-    //   .then(data => {
-    //     if (data.success) {
-    //       setSuccess(true);
-    //     } else {
-    //       setError(data.message || 'Có lỗi xảy ra');
-    //     }
-    //   })
-    //   .catch(err => {
-    //     setError('Có lỗi xảy ra. Vui lòng thử lại sau.');
-    //   });
+    setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
+    // Gọi API đặt lại mật khẩu
+    const result = await authService.resetPassword(token, password);
+    
+    if (result.success) {
       setSuccess(true);
-    }, 1000);
+    } else {
+      setError(result.error || 'Có lỗi xảy ra. Vui lòng thử lại.');
+      setIsSubmitting(false);
+    }
   };
 
   if (success) {
@@ -167,7 +159,7 @@ export default function ResetPassword() {
                     className="field__input"
                     type={showPassword ? 'text' : 'password'}
                     name="password"
-                    placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+                    placeholder="Mật khẩu mới (8-32 ký tự, gồm chữ hoa, chữ thường và số)"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -212,7 +204,7 @@ export default function ResetPassword() {
                     className="field__input"
                     type={showConfirmPassword ? 'text' : 'password'}
                     name="confirmPassword"
-                    placeholder="Nhập lại mật khẩu mới"
+                    placeholder="Nhập lại mật khẩu mới (8-32 ký tự, gồm chữ hoa, chữ thường và số)"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
@@ -250,7 +242,17 @@ export default function ResetPassword() {
                 </div>
               </label>
 
-              <button className="btn btn--primary" type="submit">Đặt lại mật khẩu</button>
+              <button 
+                className="btn btn--primary" 
+                type="submit"
+                disabled={isSubmitting}
+                style={{
+                  opacity: isSubmitting ? 0.6 : 1,
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isSubmitting ? 'Đang xử lý...' : 'Đặt lại mật khẩu'}
+              </button>
             </form>
 
             <div className="auth__signup">
@@ -264,4 +266,3 @@ export default function ResetPassword() {
     </div>
   );
 }
-

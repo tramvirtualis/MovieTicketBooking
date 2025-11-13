@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8080/api/auth';
+const API_BASE_URL = 'http://localhost:8080/api';
 
 // Tạo axios instance với cấu hình mặc định
 const axiosInstance = axios.create({
@@ -15,16 +15,12 @@ const axiosInstance = axios.create({
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Xử lý lỗi từ server
     if (error.response) {
-      // Server trả về response nhưng có status code lỗi (4xx, 5xx)
       const errorMessage = error.response.data?.message || error.response.data?.error || 'Có lỗi xảy ra';
       return Promise.reject(new Error(errorMessage));
     } else if (error.request) {
-      // Request được gửi nhưng không nhận được response
       return Promise.reject(new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.'));
     } else {
-      // Lỗi khác
       return Promise.reject(new Error(error.message || 'Có lỗi xảy ra'));
     }
   }
@@ -32,13 +28,13 @@ axiosInstance.interceptors.response.use(
 
 export const authService = {
   /**
-   * Gửi OTP đến email
+   * Gửi OTP đến email (cho đăng ký)
    * @param {string} email - Email người dùng
    * @returns {Promise<Object>} Response từ server
    */
   sendOtp: async (email) => {
     try {
-      const response = await axiosInstance.post('/send-otp', { email });
+      const response = await axiosInstance.post('/auth/send-otp', { email });
       
       return {
         success: true,
@@ -59,7 +55,7 @@ export const authService = {
    */
   register: async (formData) => {
     try {
-      const response = await axiosInstance.post('/register', formData);
+      const response = await axiosInstance.post('/auth/register', formData);
       
       return {
         success: true,
@@ -74,14 +70,14 @@ export const authService = {
   },
 
   /**
-   * Đăng nhập (placeholder cho tương lai)
+   * Đăng nhập
    * @param {string} username - Tên đăng nhập
    * @param {string} password - Mật khẩu
    * @returns {Promise<Object>} Response từ server
    */
   login: async (username, password) => {
     try {
-      const response = await axiosInstance.post('/login', { username, password });
+      const response = await axiosInstance.post('/auth/login', { username, password });
       
       return {
         success: true,
@@ -91,6 +87,123 @@ export const authService = {
       return {
         success: false,
         error: error.message || 'Đăng nhập thất bại',
+      };
+    }
+  },
+
+  // ============= FORGOT PASSWORD APIs =============
+
+  /**
+   * Gửi OTP để đặt lại mật khẩu
+   * @param {string} email - Email người dùng
+   * @returns {Promise<Object>} Response từ server
+   */
+  sendForgotPasswordOtp: async (email) => {
+    try {
+      const response = await axiosInstance.post('/forgot-password/send-otp', { email });
+      
+      return {
+        success: true,
+        data: response.data,
+        message: response.data.message || 'Mã OTP đã được gửi đến email của bạn',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể gửi OTP',
+      };
+    }
+  },
+
+  /**
+   * Gửi lại OTP
+   * @param {string} email - Email người dùng
+   * @returns {Promise<Object>} Response từ server
+   */
+  resendForgotPasswordOtp: async (email) => {
+    try {
+      const response = await axiosInstance.post('/forgot-password/resend-otp', { email });
+      
+      return {
+        success: true,
+        data: response.data,
+        message: response.data.message || 'Mã OTP mới đã được gửi',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể gửi lại OTP',
+      };
+    }
+  },
+
+  /**
+   * Xác thực OTP
+   * @param {string} email - Email người dùng
+   * @param {string} otp - Mã OTP 6 chữ số
+   * @returns {Promise<Object>} Response từ server (bao gồm token)
+   */
+  verifyForgotPasswordOtp: async (email, otp) => {
+    try {
+      const response = await axiosInstance.post('/forgot-password/verify-otp', { email, otp });
+      
+      return {
+        success: true,
+        data: response.data,
+        token: response.data.token,
+        email: response.data.email,
+        message: response.data.message || 'Xác thực OTP thành công',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Mã OTP không đúng hoặc đã hết hạn',
+      };
+    }
+  },
+
+  /**
+   * Đặt lại mật khẩu
+   * @param {string} token - Token từ verify OTP
+   * @param {string} newPassword - Mật khẩu mới
+   * @returns {Promise<Object>} Response từ server
+   */
+  resetPassword: async (token, newPassword) => {
+    try {
+      const response = await axiosInstance.post('/forgot-password/reset-password', { 
+        token, 
+        newPassword 
+      });
+      
+      return {
+        success: true,
+        data: response.data,
+        message: response.data.message || 'Đặt lại mật khẩu thành công',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể đặt lại mật khẩu',
+      };
+    }
+  },
+
+  /**
+   * Kiểm tra thời gian còn lại của OTP
+   * @returns {Promise<Object>} Response từ server
+   */
+  getOtpRemainingTime: async () => {
+    try {
+      const response = await axiosInstance.get('/forgot-password/otp-remaining-time');
+      
+      return {
+        success: true,
+        remainingSeconds: response.data.remainingSeconds || 0,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        remainingSeconds: 0,
       };
     }
   },
