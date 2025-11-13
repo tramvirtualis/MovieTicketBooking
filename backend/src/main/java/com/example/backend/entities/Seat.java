@@ -19,8 +19,8 @@ public class Seat {
     @Enumerated(EnumType.STRING)
     private SeatType type;
 
-    private String row;
-    private Integer column;
+    private String seatRow;
+    private Integer seatColumn;
 
     @ManyToOne
     @JoinColumn(name = "cinema_room_id")
