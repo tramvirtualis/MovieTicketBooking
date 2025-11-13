@@ -209,9 +209,13 @@ export default function SignUp() {
                     onChange={handleInputChange}
                     minLength={2}
                     maxLength={100}
-                    onInvalid={(e) =>
-                      e.target.setCustomValidity('Họ và tên phải từ 2 đến 100 ký tự')
-                    }
+                    onInvalid={(e) => {
+                      if (!e.target.value.trim()) {
+                        e.target.setCustomValidity('Vui lòng nhập họ và tên');
+                      } else {
+                        e.target.setCustomValidity('Họ và tên phải từ 2 đến 100 ký tự');
+                      }
+                    }}
                     required
                   />
                   {errors.fullName && <span className="field__error">{errors.fullName}</span>}
@@ -227,11 +231,15 @@ export default function SignUp() {
                     onChange={handleInputChange}
                     min="1900-01-01"
                     max={maxDob}
-                    onInvalid={(e) =>
-                      e.target.setCustomValidity(
-                        'Vui lòng chọn ngày sinh hợp lệ (tối thiểu 13 tuổi và không ở tương lai)'
-                      )
-                    }
+                    onInvalid={(e) => {
+                      if (!e.target.value) {
+                        e.target.setCustomValidity('Vui lòng chọn ngày sinh');
+                      } else {
+                        e.target.setCustomValidity(
+                          'Vui lòng chọn ngày sinh hợp lệ (tối thiểu 13 tuổi và không ở tương lai)'
+                        );
+                      }
+                    }}
                     required
                   />
                   {errors.dob && <span className="field__error">{errors.dob}</span>}
@@ -249,11 +257,15 @@ export default function SignUp() {
                     value={formData.mobile}
                     onChange={handleInputChange}
                     pattern="^(0(3|5|7|8|9))[0-9]{8}$"
-                    onInvalid={(e) =>
-                      e.target.setCustomValidity(
-                        'Số điện thoại không hợp lệ (VD: 0901234567)'
-                      )
-                    }
+                    onInvalid={(e) => {
+                      if (!e.target.value.trim()) {
+                        e.target.setCustomValidity('Vui lòng nhập số điện thoại');
+                      } else {
+                        e.target.setCustomValidity(
+                          'Số điện thoại không hợp lệ (VD: 0901234567)'
+                        );
+                      }
+                    }}
                     required
                   />
                   {errors.mobile && <span className="field__error">{errors.mobile}</span>}
@@ -271,11 +283,15 @@ export default function SignUp() {
                     minLength={4}
                     maxLength={32}
                     pattern="^[a-zA-Z0-9_]+$"
-                    onInvalid={(e) =>
-                      e.target.setCustomValidity(
-                        'Tên đăng nhập phải 4-32 ký tự và chỉ gồm chữ, số, dấu gạch dưới'
-                      )
-                    }
+                    onInvalid={(e) => {
+                      if (!e.target.value.trim()) {
+                        e.target.setCustomValidity('Vui lòng nhập tên đăng nhập');
+                      } else {
+                        e.target.setCustomValidity(
+                          'Tên đăng nhập phải 4-32 ký tự và chỉ gồm chữ, số, dấu gạch dưới'
+                        );
+                      }
+                    }}
                     required
                   />
                   {errors.username && <span className="field__error">{errors.username}</span>}
@@ -291,9 +307,13 @@ export default function SignUp() {
                   placeholder="Nhập email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  onInvalid={(e) =>
-                    e.target.setCustomValidity('Email không hợp lệ, vui lòng kiểm tra lại')
-                  }
+                  onInvalid={(e) => {
+                    if (!e.target.value.trim()) {
+                      e.target.setCustomValidity('Vui lòng nhập email');
+                    } else {
+                      e.target.setCustomValidity('Email không hợp lệ, vui lòng kiểm tra lại');
+                    }
+                  }}
                   required
                 />
                 {errors.email && <span className="field__error">{errors.email}</span>}
@@ -313,11 +333,15 @@ export default function SignUp() {
                     minLength={8}
                     maxLength={32}
                     pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,32}$"
-                    onInvalid={(e) =>
-                      e.target.setCustomValidity(
-                        'Mật khẩu phải 8-32 ký tự và chứa ít nhất 1 chữ hoa, 1 chữ thường, 1 số'
-                      )
-                    }
+                    onInvalid={(e) => {
+                      if (!e.target.value) {
+                        e.target.setCustomValidity('Vui lòng nhập mật khẩu');
+                      } else {
+                        e.target.setCustomValidity(
+                          'Mật khẩu phải 8-32 ký tự và chứa ít nhất 1 chữ hoa, 1 chữ thường, 1 số'
+                        );
+                      }
+                    }}
                     style={{ paddingRight: '44px' }}
                   />
                   <button
@@ -357,9 +381,13 @@ export default function SignUp() {
                     required
                     minLength={8}
                     maxLength={32}
-                    onInvalid={(e) =>
-                      e.target.setCustomValidity('Vui lòng nhập lại mật khẩu giống trường phía trên')
-                    }
+                    onInvalid={(e) => {
+                      if (!e.target.value) {
+                        e.target.setCustomValidity('Vui lòng nhập lại mật khẩu');
+                      } else {
+                        e.target.setCustomValidity('Vui lòng nhập lại mật khẩu giống trường phía trên');
+                      }
+                    }}
                     style={{ paddingRight: '44px' }}
                   />
                   <button
@@ -399,11 +427,15 @@ export default function SignUp() {
                       onChange={handleInputChange}
                       required
                       inputMode="numeric"
-                      pattern="^\d{6}$"
+                      pattern="[0-9]{6}"
                       maxLength={6}
-                      onInvalid={(e) =>
-                        e.target.setCustomValidity('Mã OTP phải gồm 6 chữ số')
-                      }
+                      onInvalid={(e) => {
+                        if (!e.target.value.trim()) {
+                          e.target.setCustomValidity('Vui lòng nhập mã OTP');
+                        } else {
+                          e.target.setCustomValidity('Mã OTP phải gồm 6 chữ số');
+                        }
+                      }}
                     />
                     {errors.otp && <span className="field__error">{errors.otp}</span>}
                   </div>

@@ -7,25 +7,34 @@ export default function SignIn() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState({ type: '', text: '' });
+
+  const showMessage = (type, text) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage({ type: '', text: '' }), 5000);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMessage('');
+    setMessage({ type: '', text: '' });
 
     const result = await authService.login(username, password);
 
     if (result.success) {
-      setMessage('Đăng nhập thành công!');
+      showMessage('success', 'Đăng nhập thành công!');
       const user = result.data;
     
       localStorage.setItem('user', JSON.stringify(user));
     
-      // Redirect theo role
-      if (user.role === 'ADMIN') window.location.href = '/admin';
-      else if (user.role === 'MANAGER') window.location.href = '/manager';
-      else window.location.href = '/';
+      // Redirect theo role sau 1 giây để người dùng thấy thông báo
+      setTimeout(() => {
+        if (user.role === 'ADMIN') window.location.href = '/admin';
+        else if (user.role === 'MANAGER') window.location.href = '/manager';
+        else window.location.href = '/';
+      }, 1000);
+    } else {
+      showMessage('error', result.error || 'Tên đăng nhập hoặc mật khẩu không đúng');
     }
     
     setLoading(false);
@@ -48,6 +57,19 @@ export default function SignIn() {
             <h2 className="auth__title">Đăng nhập</h2>
             <p className="auth__subtitle">Truy cập quyền lợi và ưu đãi Cinesmart</p>
 
+            {message.text && (
+              <div style={{
+                padding: '12px',
+                marginBottom: '16px',
+                borderRadius: '4px',
+                backgroundColor: message.type === 'success' ? '#1a472a' : '#4a1a1a',
+                color: message.type === 'success' ? '#4ade80' : '#f87171',
+                border: `1px solid ${message.type === 'success' ? '#22c55e' : '#ef4444'}`
+              }}>
+                {message.text}
+              </div>
+            )}
+
             <form className="auth__form" onSubmit={handleSubmit} autoComplete="on">
               <label className="field">
                 <span className="field__label">Tên đăng nhập</span>
@@ -57,7 +79,11 @@ export default function SignIn() {
                   name="username"
                   placeholder="Nhập tên đăng nhập"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    e.target.setCustomValidity('');
+                  }}
+                  onInvalid={(e) => e.target.setCustomValidity('Vui lòng nhập tên đăng nhập')}
                   required
                 />
               </label>
@@ -71,7 +97,11 @@ export default function SignIn() {
                     name="password"
                     placeholder="Nhập mật khẩu"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      e.target.setCustomValidity('');
+                    }}
+                    onInvalid={(e) => e.target.setCustomValidity('Vui lòng nhập mật khẩu')}
                     required
                     style={{ paddingRight: '44px' }}
                   />
@@ -107,12 +137,6 @@ export default function SignIn() {
                   </button>
                 </div>
               </label>
-
-              {message && (
-                <p style={{ color: result?.success ? 'green' : 'red', marginTop: '10px' }}>
-                  {message}
-                </p>
-              )}
 
               <div className="auth__forgot">
                 <a href="#forgot">Quên mật khẩu?</a>

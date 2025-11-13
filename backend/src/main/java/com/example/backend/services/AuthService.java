@@ -300,12 +300,12 @@ public class AuthService {
     public LoginResponseDTO login(String username, String password) throws Exception {
         Optional<User> userOpt = userRepository.findByUsername(username);
         if (userOpt.isEmpty()) {
-            throw new Exception("Invalid username or password");
+            throw new Exception("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
         User user = userOpt.get();
         if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new Exception("Invalid username or password");
+            throw new Exception("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
         String role;

@@ -104,11 +104,22 @@ export const authService = {
       };
     } catch (error) {
       // Nếu backend trả về lỗi với message
-      let message = 'Đăng nhập thất bại.';
+      let message = 'Tên đăng nhập hoặc mật khẩu không đúng';
       if (error.response && error.response.data && error.response.data.message) {
-        message = error.response.data.message;
+        const backendMessage = error.response.data.message;
+        // Nếu message là tiếng Anh, chuyển sang tiếng Việt
+        if (backendMessage === 'Invalid username or password') {
+          message = 'Tên đăng nhập hoặc mật khẩu không đúng';
+        } else {
+          message = backendMessage;
+        }
       } else if (error.message) {
-        message = error.message;
+        // Nếu error.message là tiếng Anh, chuyển sang tiếng Việt
+        if (error.message === 'Invalid username or password' || error.message.includes('Invalid')) {
+          message = 'Tên đăng nhập hoặc mật khẩu không đúng';
+        } else {
+          message = error.message;
+        }
       }
   
       return {
