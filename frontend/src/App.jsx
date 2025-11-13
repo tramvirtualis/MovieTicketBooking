@@ -3,6 +3,7 @@ import Home from './pages/Home.jsx';
 import SignIn from './pages/SignIn.jsx';
 import SignUp from './pages/SignUp.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 import MovieDetail from './pages/MovieDetail.jsx';
 import Schedule from './pages/Schedule.jsx';
 import Cinemas from './pages/Cinemas.jsx';
@@ -76,6 +77,7 @@ export default function App() {
   if (pathname === '/signup' || pathname === '/register') return <SignUp />;
   if (pathname === '/signin' || pathname === '/login') return <SignIn />;
   if (pathname === '/forgot' || pathname === '/forgot-password') return <ForgotPassword />;
+  if (pathname === '/reset' || pathname === '/reset-password') return <ResetPassword />;
   if (pathname === '/booking-history') return <BookingHistory />;
   if (pathname === '/orders') return <Orders />;
   if (pathname === '/profile') return <Profile />;
@@ -87,6 +89,8 @@ export default function App() {
     if (hash === '#food-drinks' || hash === '#food-and-drinks') return <FoodAndDrinks />;
     if (hash === '#order-food' || hash === '#food-drinks-with-ticket') return <FoodAndDrinksWithTicket />;
     if (hash === '#checkout') return <Checkout />;
+    // Check booking-history before booking to avoid conflict
+    if (hash === '#booking-history') return <BookingHistory />;
     if (hash.startsWith('#booking') || hash.startsWith('#book-ticket')) return <BookTicket />;
     if (hash.startsWith('#cinema')) return <CinemaDetail />;
     if (hash === '#schedule') return <Schedule />;
@@ -94,7 +98,7 @@ export default function App() {
     if (hash === '#register') return <SignUp />;
     if (hash === '#signin') return <SignIn />;
     if (hash === '#forgot' || hash === '#forgot-password') return <ForgotPassword />;
-    if (hash === '#booking-history') return <BookingHistory />;
+    if (hash.startsWith('#reset') || hash.startsWith('#reset-password')) return <ResetPassword />;
     if (hash === '#orders') return <Orders />;
     if (hash === '#profile') return <Profile />;
     if (hash === '#library') return <Library />;
@@ -109,6 +113,8 @@ export default function App() {
   if (hash === '#food-drinks' || hash === '#food-and-drinks') return <FoodAndDrinks />;
   if (hash === '#order-food' || hash === '#food-drinks-with-ticket') return <FoodAndDrinksWithTicket />;
   if (hash === '#checkout') return <Checkout />;
+  // Check booking-history before booking to avoid conflict
+  if (hash === '#booking-history') return <BookingHistory />;
   if (hash.startsWith('#booking') || hash.startsWith('#book-ticket')) return <BookTicket />;
   if (hash.startsWith('#cinema')) return <CinemaDetail />;
   if (hash === '#schedule') return <Schedule />;
@@ -116,7 +122,7 @@ export default function App() {
   if (hash === '#register') return <SignUp />;
   if (hash === '#signin') return <SignIn />;
   if (hash === '#forgot' || hash === '#forgot-password') return <ForgotPassword />;
-  if (hash === '#booking-history') return <BookingHistory />;
+  if (hash.startsWith('#reset') || hash.startsWith('#reset-password')) return <ResetPassword />;
   if (hash === '#orders') return <Orders />;
   if (hash === '#profile') return <Profile />;
   if (hash === '#library') return <Library />;

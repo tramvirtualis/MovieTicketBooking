@@ -19,6 +19,7 @@ const cinemaData = {
         origin: 'Mỹ',
         audio: 'Phụ Đề',
         poster: inception,
+        description: 'Trong tương lai gần, một tay trộm hành tinh thức lenh, nơi Predator nợ nần – kẻ bị săn đuổi có cơ hội nhận lại tự do – tìm thấy một mục tiêu không ngờ tới là một bé gái bản lĩnh.',
         showtimes: {
           STANDARD: ['12:00', '15:00', '18:15', '20:10'],
           DELUXE: ['09:00']
@@ -33,6 +34,7 @@ const cinemaData = {
         origin: 'Mỹ',
         audio: 'Phụ Đề',
         poster: interstellar,
+        description: 'Một nhóm nhà thám hiểm không gian đi qua một lỗ sâu đục để vượt qua những hạn chế về du hành không gian của con người và thực hiện một chuyến du hành xuyên thiên hà.',
         showtimes: {
           STANDARD: ['12:30', '23:10'],
           DELUXE: ['15:15']
@@ -47,6 +49,7 @@ const cinemaData = {
         origin: 'Mỹ',
         audio: 'Phụ Đề',
         poster: darkKnightRises,
+        description: 'Tám năm sau sự kiện của The Dark Knight, Batman bị buộc phải quay trở lại từ lưu vong để bảo vệ Gotham City khỏi Bane, một kẻ khủng bố hung bạo.',
         showtimes: {
           STANDARD: ['08:20', '17:20', '20:40', '22:50']
         }
@@ -62,7 +65,8 @@ const cinemaData = {
         origin: 'Nhật Bản',
         audio: 'Phụ Đề',
         poster: driveMyCar,
-        releaseDate: '15/11/2025'
+        releaseDate: '15/11/2025',
+        description: 'Một đạo diễn sân khấu góa vợ chấp nhận một dự án ở Hiroshima, nơi anh gặp một người phụ nữ trẻ với quá khứ đầy bí ẩn.'
       }
     ]
   }
@@ -80,7 +84,6 @@ export default function CinemaDetail() {
   const province = query.province || 'TP.HCM';
   const cinema = cinemaData[cinemaName] || cinemaData['Quốc Thanh'];
   const [activeTab, setActiveTab] = useState('now-showing');
-  const [selectedDate, setSelectedDate] = useState('07/11/2025');
 
   return (
     <div className="min-h-screen cinema-mood">
@@ -137,23 +140,31 @@ export default function CinemaDetail() {
                       <div className="cinema-movie-card__rating-desc">
                         {movie.rating}: Phim dành cho khán giả từ đủ {movie.rating.replace('T', '')} tuổi trở lên ({movie.rating.replace('T', '')}+)
                       </div>
-                      <div className="cinema-movie-card__showtimes">
-                        <div className="cinema-movie-card__date-selector">
-                          <span style={{ color: '#c9c4c5', fontSize: '13px' }}>Thứ Sáu, {selectedDate}</span>
+                      {movie.description && (
+                        <div className="cinema-movie-card__description" style={{ marginTop: '12px', color: '#c9c4c5', fontSize: '14px', lineHeight: '1.6' }}>
+                          {movie.description}
                         </div>
-                        {Object.entries(movie.showtimes).map(([format, times]) => (
-                          <div key={format} className="cinema-movie-card__format">
-                            <div className="cinema-movie-card__format-label">{format}</div>
-                            <div className="cinema-movie-card__times">
-                              {times.map((time) => (
-                                <a key={time} href="#booking" className="cinema-time-btn">
-                                  {time}
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                        <a href="#schedule" className="cinema-movie-card__more-link">Xem thêm lịch chiếu</a>
+                      )}
+                      <div style={{ marginTop: '16px' }}>
+                        <a 
+                          href={`#movie?title=${encodeURIComponent(movie.title)}`} 
+                          className="cinema-movie-card__more-link"
+                          style={{ 
+                            display: 'inline-block',
+                            padding: '10px 20px',
+                            backgroundColor: '#e83b41',
+                            color: '#fff',
+                            textDecoration: 'none',
+                            borderRadius: '4px',
+                            fontWeight: 600,
+                            fontSize: '14px',
+                            transition: 'background-color 0.3s'
+                          }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = '#c92e33'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = '#e83b41'}
+                        >
+                          Đặt vé
+                        </a>
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import { QRCodeSVG } from 'qrcode.react';
 import interstellar from '../assets/images/interstellar.jpg';
 import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
@@ -72,8 +73,12 @@ const bookings = [
 
 export default function BookingHistory() {
   const [filterStatus, setFilterStatus] = useState('all'); // all, completed, upcoming, cancelled
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
 
   const filteredBookings = bookings.filter((booking) => {
+    // Exclude cancelled bookings
+    if (booking.status === 'cancelled') return false;
     if (filterStatus === 'all') return true;
     return booking.status === filterStatus;
   });
@@ -148,12 +153,6 @@ export default function BookingHistory() {
                 onClick={() => setFilterStatus('upcoming')}
               >
                 Sắp chiếu
-              </button>
-              <button
-                className={`booking-filter-tab ${filterStatus === 'cancelled' ? 'booking-filter-tab--active' : ''}`}
-                onClick={() => setFilterStatus('cancelled')}
-              >
-                Đã hủy
               </button>
             </div>
 
@@ -269,11 +268,15 @@ export default function BookingHistory() {
 
                       {booking.status === 'upcoming' && (
                         <div className="booking-card__actions" style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
-                          <button className="btn btn--primary" style={{ fontSize: '14px', padding: '10px 20px' }}>
+                          <button 
+                            className="btn btn--primary" 
+                            style={{ fontSize: '14px', padding: '10px 20px' }}
+                            onClick={() => {
+                              setSelectedBooking(booking);
+                              setShowTicketModal(true);
+                            }}
+                          >
                             Xem lại vé
-                          </button>
-                          <button className="btn btn--ghost" style={{ fontSize: '14px', padding: '10px 20px' }}>
-                            Hủy vé
                           </button>
                         </div>
                       )}
@@ -285,6 +288,211 @@ export default function BookingHistory() {
           </div>
         </section>
       </main>
+
+      {/* Ticket Modal */}
+      {showTicketModal && selectedBooking && (
+        <div 
+          className="modal-overlay" 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '20px'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowTicketModal(false);
+              setSelectedBooking(null);
+            }
+          }}
+        >
+          <div 
+            className="ticket-modal"
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '16px',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Ticket Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #e83b41 0%, #c92e33 100%)',
+              padding: '24px',
+              borderRadius: '16px 16px 0 0',
+              color: '#fff',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '32px', fontWeight: 800, marginBottom: '8px' }}>
+                VÉ XEM PHIM
+              </div>
+              <div style={{ fontSize: '14px', opacity: 0.9 }}>
+                Cinesmart Cinema
+              </div>
+            </div>
+
+            {/* Ticket Content */}
+            <div style={{ padding: '24px' }}>
+              {/* Movie Info */}
+              <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+                <h2 style={{ 
+                  fontSize: '24px', 
+                  fontWeight: 800, 
+                  color: '#1a1415',
+                  margin: '0 0 8px'
+                }}>
+                  {selectedBooking.movie.title}
+                </h2>
+                <div style={{ fontSize: '14px', color: '#666', marginBottom: '16px' }}>
+                  {selectedBooking.cinema}
+                </div>
+              </div>
+
+              {/* Ticket Details Grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '16px',
+                marginBottom: '24px',
+                padding: '16px',
+                backgroundColor: '#f5f5f5',
+                borderRadius: '12px'
+              }}>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Ngày chiếu</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1415' }}>{selectedBooking.date}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Giờ chiếu</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1415' }}>{selectedBooking.time}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Định dạng</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1415' }}>{selectedBooking.format}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Ghế</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1415' }}>{selectedBooking.seats.join(', ')}</div>
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Tổng tiền</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#e83b41' }}>
+                    {formatPrice(selectedBooking.price)}
+                  </div>
+                </div>
+              </div>
+
+              {/* QR Code */}
+              <div style={{
+                textAlign: 'center',
+                padding: '20px',
+                backgroundColor: '#fff',
+                border: '2px dashed #ddd',
+                borderRadius: '12px',
+                marginBottom: '24px'
+              }}>
+                <div style={{ fontSize: '14px', color: '#666', marginBottom: '12px', fontWeight: 600 }}>
+                  Mã QR Code - Vui lòng quét tại rạp
+                </div>
+                <div style={{
+                  display: 'inline-block',
+                  padding: '16px',
+                  backgroundColor: '#fff',
+                  borderRadius: '8px',
+                  border: '1px solid #eee'
+                }}>
+                  <QRCodeSVG
+                    value={JSON.stringify({
+                      bookingId: selectedBooking.id,
+                      movie: selectedBooking.movie.title,
+                      cinema: selectedBooking.cinema,
+                      date: selectedBooking.date,
+                      time: selectedBooking.time,
+                      seats: selectedBooking.seats,
+                      format: selectedBooking.format
+                    })}
+                    size={200}
+                    level="H"
+                    includeMargin={true}
+                  />
+                </div>
+                <div style={{ fontSize: '12px', color: '#999', marginTop: '12px' }}>
+                  Booking ID: {selectedBooking.id}
+                </div>
+              </div>
+
+              {/* Booking Info */}
+              <div style={{
+                padding: '16px',
+                backgroundColor: '#f9f9f9',
+                borderRadius: '8px',
+                fontSize: '12px',
+                color: '#666',
+                textAlign: 'center'
+              }}>
+                <div style={{ marginBottom: '4px' }}>
+                  Ngày đặt: {selectedBooking.bookingDate}
+                </div>
+                <div style={{ marginTop: '8px', fontSize: '11px', color: '#999' }}>
+                  Vui lòng đến rạp trước giờ chiếu 15 phút
+                </div>
+              </div>
+            </div>
+
+            {/* Ticket Footer */}
+            <div 
+              className="ticket-modal__footer"
+              style={{
+                padding: '16px 24px',
+                borderTop: '1px solid #eee',
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '12px'
+              }}
+            >
+              <button
+                className="btn btn--primary"
+                onClick={() => {
+                  // Print ticket
+                  window.print();
+                }}
+                style={{
+                  fontSize: '14px',
+                  padding: '10px 24px',
+                  fontWeight: 600
+                }}
+              >
+                In vé
+              </button>
+              <button
+                className="btn btn--ghost"
+                onClick={() => {
+                  setShowTicketModal(false);
+                  setSelectedBooking(null);
+                }}
+                style={{
+                  fontSize: '14px',
+                  padding: '10px 24px',
+                  fontWeight: 600
+                }}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

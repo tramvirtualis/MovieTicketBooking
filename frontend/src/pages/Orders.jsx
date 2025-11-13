@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import interstellar from '../assets/images/interstellar.jpg';
@@ -103,11 +103,24 @@ const orders = [
 
 export default function Orders() {
   const [filterStatus, setFilterStatus] = useState('all'); // all, completed, pending
+  const [currentPage, setCurrentPage] = useState(1);
+  const ordersPerPage = 5;
 
   const filteredOrders = orders.filter((order) => {
     if (filterStatus === 'all') return true;
     return order.status === filterStatus;
   });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
+  const startIndex = (currentPage - 1) * ordersPerPage;
+  const endIndex = startIndex + ordersPerPage;
+  const currentOrders = filteredOrders.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatus]);
 
   const getStatusLabel = (status) => {
     switch (status) {
@@ -187,7 +200,7 @@ export default function Orders() {
             </div>
 
             {/* Orders List */}
-            {filteredOrders.length === 0 ? (
+            {currentOrders.length === 0 ? (
               <div style={{ 
                 textAlign: 'center', 
                 padding: '60px 20px',
@@ -200,8 +213,9 @@ export default function Orders() {
                 <p style={{ fontSize: '16px', margin: 0 }}>Chưa có đơn hàng nào trong mục này</p>
               </div>
             ) : (
-              <div className="orders-list">
-                {filteredOrders.map((order) => (
+              <>
+                <div className="orders-list">
+                  {currentOrders.map((order) => (
                   <div key={order.orderId} className="order-card">
                     <div className="order-card__header">
                       <div className="order-card__header-left">
@@ -346,17 +360,44 @@ export default function Orders() {
                           <span className="order-card__footer-value">{order.bookingDate}</span>
                         </div>
                       </div>
-                      {order.status === 'pending' && (
-                        <div className="order-card__actions">
-                          <button className="btn btn--primary" style={{ fontSize: '14px', padding: '10px 20px' }}>
-                            Xem chi tiết
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="movie-reviews-pagination" style={{ marginTop: '32px', justifyContent: 'center' }}>
+                    <button
+                      className="movie-reviews-pagination__btn"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                      </svg>
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        className={`movie-reviews-pagination__btn movie-reviews-pagination__btn--number ${currentPage === page ? 'movie-reviews-pagination__btn--active' : ''}`}
+                        onClick={() => setCurrentPage(page)}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      className="movie-reviews-pagination__btn"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>

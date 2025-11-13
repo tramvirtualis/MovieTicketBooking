@@ -1,4 +1,16 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from 'recharts';
 
 // Manager Dashboard focuses on cinemas within the manager's complexes only.
 // It provides full-featured cinema management (rooms, interactive seat layout).
@@ -45,6 +57,168 @@ const SAMPLE_MOVIES = [
   { movieId: 2, title: 'Interstellar', duration: 169, formats: ['2D'], languages: ['VIETSUB'] },
   { movieId: 3, title: 'The Dark Knight', duration: 152, formats: ['2D'], languages: ['VIETSUB'] },
   { movieId: 4, title: 'Drive My Car', duration: 179, formats: ['2D'], languages: ['VIETSUB'] }
+];
+
+// Full movies data for viewing
+const initialMovies = [
+  {
+    movieId: 1,
+    title: 'Inception',
+    genre: 'ACTION',
+    duration: 148,
+    releaseDate: '2010-07-16',
+    ageRating: '13+',
+    actor: 'Leonardo DiCaprio, Marion Cotillard, Tom Hardy',
+    director: 'Christopher Nolan',
+    description: 'A skilled thief is given a chance at redemption if he can perform an impossible task: Inception, planting an idea in someone\'s mind.',
+    trailerURL: 'https://www.youtube.com/watch?v=YoHD9XEInc0',
+    poster: 'https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg',
+    status: 'NOW_SHOWING',
+    languages: ['VIETSUB', 'VIETNAMESE_DUB'],
+    formats: ['2D', '3D']
+  },
+  {
+    movieId: 2,
+    title: 'Interstellar',
+    genre: 'SCI-FI',
+    duration: 169,
+    releaseDate: '2014-11-07',
+    ageRating: '13+',
+    actor: 'Matthew McConaughey, Anne Hathaway, Jessica Chastain',
+    director: 'Christopher Nolan',
+    description: 'A team of explorers travel through a wormhole in space in an attempt to ensure humanity\'s survival.',
+    trailerURL: 'https://www.youtube.com/watch?v=zSWdZVtXT7E',
+    poster: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
+    status: 'NOW_SHOWING',
+    languages: ['VIETSUB'],
+    formats: ['2D']
+  },
+  {
+    movieId: 3,
+    title: 'The Dark Knight',
+    genre: 'ACTION',
+    duration: 152,
+    releaseDate: '2008-07-18',
+    ageRating: '16+',
+    actor: 'Christian Bale, Heath Ledger, Aaron Eckhart',
+    director: 'Christopher Nolan',
+    description: 'Batman must accept one of the greatest psychological and physical tests of his ability to fight injustice.',
+    trailerURL: 'https://www.youtube.com/watch?v=EXeTwQWrcwY',
+    poster: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
+    status: 'NOW_SHOWING',
+    languages: ['VIETSUB'],
+    formats: ['2D']
+  },
+  {
+    movieId: 4,
+    title: 'Drive My Car',
+    genre: 'DRAMA',
+    duration: 179,
+    releaseDate: '2021-08-20',
+    ageRating: '13+',
+    actor: 'Hidetoshi Nishijima, Tōko Miura, Masaki Okada',
+    director: 'Ryusuke Hamaguchi',
+    description: 'A widowed actor who directs theatre productions embarks on a road trip with a young female chauffeur.',
+    trailerURL: 'https://www.youtube.com/watch?v=6BPKPb_RTwI',
+    poster: 'https://image.tmdb.org/t/p/w500/lXi2YKI3m30qtX9cB5GPz8b3uaw.jpg',
+    status: 'NOW_SHOWING',
+    languages: ['VIETSUB'],
+    formats: ['2D']
+  },
+  {
+    movieId: 5,
+    title: 'Wicked',
+    genre: 'FANTASY',
+    duration: 165,
+    releaseDate: '2024-11-27',
+    ageRating: '13+',
+    actor: 'Cynthia Erivo, Ariana Grande, Jonathan Bailey',
+    director: 'Jon M. Chu',
+    description: 'The untold story of the witches of Oz.',
+    trailerURL: 'https://www.youtube.com/watch?v=Y5BeTH2c3WA',
+    poster: 'https://image.tmdb.org/t/p/w500/9azEue8jX6n8WcN6iYG3PaY5E9R.jpg',
+    status: 'COMING_SOON',
+    languages: ['VIETSUB'],
+    formats: ['2D']
+  },
+];
+
+// Sample bookings for booking management (will be filtered by managerComplexIds)
+const initialBookingOrders = [
+  {
+    bookingId: 1001,
+    user: { name: 'Nguyễn Văn A', email: 'a@example.com', phone: '0909000001' },
+    movieId: 1,
+    movieTitle: 'Inception',
+    cinemaComplexId: 1,
+    cinemaName: 'Cinestar Quốc Thanh',
+    roomId: 1,
+    roomName: 'Phòng 1',
+    showtime: '2025-11-11T19:30:00',
+    seats: ['E7', 'E8'],
+    pricePerSeat: 120000,
+    totalAmount: 240000,
+    status: 'PAID',
+    paymentMethod: 'VNPAY'
+  },
+  {
+    bookingId: 1002,
+    user: { name: 'Trần Thị B', email: 'b@example.com', phone: '0909000002' },
+    movieId: 2,
+    movieTitle: 'Interstellar',
+    cinemaComplexId: 2,
+    cinemaName: 'Cinestar Hai Bà Trưng',
+    roomId: 3,
+    roomName: 'Phòng 1',
+    showtime: '2025-11-12T21:00:00',
+    seats: ['B5'],
+    pricePerSeat: 180000,
+    totalAmount: 180000,
+    status: 'PAID',
+    paymentMethod: 'MOMO'
+  },
+  {
+    bookingId: 1004,
+    user: { name: 'Phạm Thị D', email: 'd@example.com', phone: '0909000004' },
+    movieId: 4,
+    movieTitle: 'Drive My Car',
+    cinemaComplexId: 1,
+    cinemaName: 'Cinestar Quốc Thanh',
+    roomId: 1,
+    roomName: 'Phòng 1',
+    showtime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    seats: ['F5', 'F6'],
+    pricePerSeat: 120000,
+    totalAmount: 240000,
+    status: 'PAID',
+    paymentMethod: 'VNPAY'
+  },
+  {
+    bookingId: 1005,
+    user: { name: 'Hoàng Văn E', email: 'e@example.com', phone: '0909000005' },
+    movieId: 1,
+    movieTitle: 'Inception',
+    cinemaComplexId: 2,
+    cinemaName: 'Cinestar Hai Bà Trưng',
+    roomId: 3,
+    roomName: 'Phòng 1',
+    showtime: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    seats: ['C3', 'C4', 'C5'],
+    pricePerSeat: 180000,
+    totalAmount: 540000,
+    status: 'PAID',
+    paymentMethod: 'MOMO'
+  },
+];
+
+// Sample price table: price by RoomType x SeatType
+const initialPrices = [
+  { id: 1, roomType: '2D', seatType: 'NORMAL', price: 90000 },
+  { id: 2, roomType: '2D', seatType: 'VIP', price: 120000 },
+  { id: 3, roomType: '2D', seatType: 'COUPLE', price: 200000 },
+  { id: 4, roomType: '3D', seatType: 'NORMAL', price: 120000 },
+  { id: 5, roomType: '3D', seatType: 'VIP', price: 150000 },
+  { id: 6, roomType: 'DELUXE', seatType: 'VIP', price: 180000 }
 ];
 
 // Same sample with a couple of complexes; manager will be filtered against these IDs
@@ -925,6 +1099,926 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange 
   );
 }
 
+// Manager Dashboard View Component (read-only stats)
+function ManagerDashboardView({ orders, movies, cinemas, managerComplexIds }) {
+  const scopedOrders = useMemo(() => {
+    return (orders || []).filter(order => managerComplexIds.includes(order.cinemaComplexId));
+  }, [orders, managerComplexIds]);
+
+  const stats = useMemo(() => {
+    const totalRevenue = scopedOrders
+      .filter(o => o.status === 'PAID')
+      .reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+    const totalTickets = scopedOrders
+      .filter(o => o.status === 'PAID')
+      .reduce((sum, order) => sum + (order.seats?.length || 0), 0);
+    const activeMovies = (movies || []).filter(m => m.status === 'NOW_SHOWING').length;
+    const totalBookings = scopedOrders.length;
+
+    return [
+      { label: 'Tổng doanh thu', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalRevenue), icon: 'money', color: '#4caf50' },
+      { label: 'Tổng vé bán', value: totalTickets.toString(), icon: 'ticket', color: '#2196f3' },
+      { label: 'Phim đang chiếu', value: activeMovies.toString(), icon: 'film', color: '#ff9800' },
+      { label: 'Tổng đơn đặt', value: totalBookings.toString(), icon: 'bookings', color: '#e83b41' },
+    ];
+  }, [scopedOrders, movies]);
+
+  const getIcon = (iconName) => {
+    switch (iconName) {
+      case 'money':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23"/>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        );
+      case 'ticket':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
+            <path d="M6 9v6M18 9v6"/>
+          </svg>
+        );
+      case 'film':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2"/>
+            <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
+          </svg>
+        );
+      case 'bookings':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const recentBookings = useMemo(() => {
+    return scopedOrders
+      .filter(o => o.status === 'PAID')
+      .slice(0, 5)
+      .map(order => ({
+        id: order.bookingId,
+        customer: order.user?.name || 'Unknown',
+        movie: order.movieTitle,
+        cinema: order.cinemaName,
+        amount: order.totalAmount,
+        date: new Date(order.showtime).toLocaleString('vi-VN')
+      }));
+  }, [scopedOrders]);
+
+  return (
+    <div>
+      <div className="admin-stats-grid">
+        {stats.map((stat, idx) => (
+          <div key={idx} className="admin-stat-card">
+            <div className="admin-stat-card__icon" style={{ color: stat.color }}>
+              {getIcon(stat.icon)}
+            </div>
+            <div className="admin-stat-card__content">
+              <div className="admin-stat-card__value">{stat.value}</div>
+              <div className="admin-stat-card__label">{stat.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="admin-dashboard-grid">
+        <div className="admin-card">
+          <div className="admin-card__header">
+            <h2 className="admin-card__title">Đặt vé gần đây</h2>
+          </div>
+          <div className="admin-card__content">
+            <div className="admin-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Khách hàng</th>
+                    <th>Phim</th>
+                    <th>Rạp</th>
+                    <th>Số tiền</th>
+                    <th>Ngày</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentBookings.length > 0 ? (
+                    recentBookings.map((booking) => (
+                      <tr key={booking.id}>
+                        <td>{booking.customer}</td>
+                        <td>{booking.movie}</td>
+                        <td>{booking.cinema}</td>
+                        <td>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(booking.amount)}</td>
+                        <td>{booking.date}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="5" style={{ textAlign: 'center', color: '#c9c4c5', padding: '20px' }}>
+                        Không có dữ liệu
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Manager Movie View Component (read-only)
+function ManagerMovieView({ movies }) {
+  return (
+    <div className="admin-card">
+      <div className="admin-card__header">
+        <h2 className="admin-card__title">Danh sách phim</h2>
+      </div>
+      <div className="admin-card__content">
+        <div className="admin-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Poster</th>
+                <th>Tên phim</th>
+                <th>Thể loại</th>
+                <th>Thời lượng</th>
+                <th>Độ tuổi</th>
+                <th>Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(movies || []).map((movie) => (
+                <tr key={movie.movieId}>
+                  <td>
+                    <img src={movie.poster} alt={movie.title} style={{ width: '60px', height: '90px', objectFit: 'cover', borderRadius: '4px' }} />
+                  </td>
+                  <td>{movie.title}</td>
+                  <td>{movie.genre}</td>
+                  <td>{movie.duration} phút</td>
+                  <td>{movie.ageRating}</td>
+                  <td>
+                    <span className="movie-status-badge" style={{ 
+                      backgroundColor: movie.status === 'NOW_SHOWING' ? '#4caf50' : movie.status === 'COMING_SOON' ? '#ff9800' : '#9e9e9e'
+                    }}>
+                      {movie.status === 'NOW_SHOWING' ? 'Đang chiếu' : movie.status === 'COMING_SOON' ? 'Sắp chiếu' : 'Đã kết thúc'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Manager Price View Component (read-only)
+function ManagerPriceView({ prices }) {
+  const ROOM_TYPES = ['2D', '3D', 'DELUXE'];
+  const SEAT_TYPES = ['NORMAL', 'VIP', 'COUPLE'];
+
+  const formatCurrency = (v) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v);
+
+  return (
+    <div className="admin-card">
+      <div className="admin-card__header">
+        <h2 className="admin-card__title">Bảng giá</h2>
+      </div>
+      <div className="admin-card__content">
+        <div className="admin-table" style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={{ padding: '16px', textAlign: 'left', borderBottom: '2px solid rgba(255,255,255,0.1)' }}>
+                  Loại ghế / Loại phòng
+                </th>
+                {ROOM_TYPES.map(rt => (
+                  <th key={rt} style={{ padding: '16px', textAlign: 'center', borderBottom: '2px solid rgba(255,255,255,0.1)' }}>
+                    {rt}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {SEAT_TYPES.map(st => (
+                <tr key={st}>
+                  <td style={{ padding: '16px', fontWeight: '600', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    {st}
+                  </td>
+                  {ROOM_TYPES.map(rt => {
+                    const price = (prices || []).find(p => p.roomType === rt && p.seatType === st);
+                    return (
+                      <td key={`${rt}-${st}`} style={{ padding: '16px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        {price ? formatCurrency(price.price) : '-'}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Manager Booking Management Component (filtered by managerComplexIds)
+function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, managerComplexIds }) {
+  const [orders] = useState(initialOrders);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCinema, setFilterCinema] = useState('');
+  const [filterMovie, setFilterMovie] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sortField, setSortField] = useState('bookingId');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [selected, setSelected] = useState(null);
+
+  const scopedCinemas = useMemo(() => {
+    return (cinemas || []).filter(c => managerComplexIds.includes(c.complexId));
+  }, [cinemas, managerComplexIds]);
+
+  const filteredOrders = useMemo(() => {
+    return (orders || []).filter(order => {
+      if (!managerComplexIds.includes(order.cinemaComplexId)) return false;
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        const matches = 
+          (order.user?.name || '').toLowerCase().includes(term) ||
+          (order.user?.phone || '').includes(term) ||
+          (order.movieTitle || '').toLowerCase().includes(term) ||
+          (order.cinemaName || '').toLowerCase().includes(term);
+        if (!matches) return false;
+      }
+      if (filterCinema && order.cinemaComplexId !== Number(filterCinema)) return false;
+      if (filterMovie && order.movieId !== Number(filterMovie)) return false;
+      if (filterStatus) {
+        const orderDate = new Date(order.showtime);
+        const now = new Date();
+        const isActive = orderDate > now && order.status === 'PAID';
+        if (filterStatus === 'ACTIVE' && !isActive) return false;
+        if (filterStatus === 'EXPIRED' && isActive) return false;
+      }
+      if (dateFrom) {
+        const from = new Date(dateFrom);
+        from.setHours(0, 0, 0, 0);
+        if (new Date(order.showtime) < from) return false;
+      }
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        if (new Date(order.showtime) > to) return false;
+      }
+      return true;
+    });
+  }, [orders, searchTerm, filterCinema, filterMovie, filterStatus, dateFrom, dateTo, managerComplexIds]);
+
+  const sorted = useMemo(() => {
+    const sortedList = [...filteredOrders];
+    sortedList.sort((a, b) => {
+      let aVal, bVal;
+      switch (sortField) {
+        case 'bookingId': aVal = a.bookingId; bVal = b.bookingId; break;
+        case 'customer': aVal = a.user?.name || ''; bVal = b.user?.name || ''; break;
+        case 'movie': aVal = a.movieTitle || ''; bVal = b.movieTitle || ''; break;
+        case 'showtime': aVal = new Date(a.showtime).getTime(); bVal = new Date(b.showtime).getTime(); break;
+        case 'amount': aVal = a.totalAmount || 0; bVal = b.totalAmount || 0; break;
+        case 'status': 
+          const aDate = new Date(a.showtime);
+          const bDate = new Date(b.showtime);
+          const now = new Date();
+          aVal = aDate > now && a.status === 'PAID' ? 'ACTIVE' : 'EXPIRED';
+          bVal = bDate > now && b.status === 'PAID' ? 'ACTIVE' : 'EXPIRED';
+          break;
+        default: return 0;
+      }
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sortedList;
+  }, [filteredOrders, sortField, sortOrder]);
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) return <span style={{ opacity: 0.3 }}>↕</span>;
+    return sortOrder === 'asc' ? '↑' : '↓';
+  };
+
+  const derivedStatus = (order) => {
+    const orderDate = new Date(order.showtime);
+    const now = new Date();
+    return orderDate > now && order.status === 'PAID' ? 'ACTIVE' : 'EXPIRED';
+  };
+
+  const statusColor = (status) => status === 'ACTIVE' ? '#4caf50' : '#9e9e9e';
+
+  return (
+    <div className="admin-card">
+      <div className="admin-card__header">
+        <h2 className="admin-card__title">Quản lý đặt vé</h2>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="movie-search">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input className="movie-search__input" placeholder="Tìm tên KH, sđt, phim, rạp..." value={searchTerm} onChange={(e)=>setSearchTerm(e.target.value)} />
+          </div>
+          <select className="movie-filter" value={filterCinema} onChange={(e)=>setFilterCinema(e.target.value)}>
+            <option value="">Tất cả rạp</option>
+            {scopedCinemas.map(c => <option key={c.complexId} value={c.complexId}>#{c.complexId} - {c.name}</option>)}
+          </select>
+          <select className="movie-filter" value={filterMovie} onChange={(e)=>setFilterMovie(e.target.value)}>
+            <option value="">Tất cả phim</option>
+            {(movies || []).map(m => <option key={m.movieId} value={m.movieId}>{m.title}</option>)}
+          </select>
+          <select className="movie-filter" value={filterStatus} onChange={(e)=>setFilterStatus(e.target.value)}>
+            <option value="">Tất cả trạng thái</option>
+            <option value="ACTIVE">Còn hạn</option>
+            <option value="EXPIRED">Hết hạn</option>
+          </select>
+          <input type="date" className="movie-filter" value={dateFrom} onChange={(e)=>setDateFrom(e.target.value)} />
+          <input type="date" className="movie-filter" value={dateTo} onChange={(e)=>setDateTo(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="admin-card__content">
+        {sorted.length === 0 ? (
+          <div className="movie-empty">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <p>Không có đơn đặt vé</p>
+          </div>
+        ) : (
+          <div className="admin-table">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('bookingId')}>
+                    Mã <SortIcon field="bookingId" />
+                  </th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('customer')}>
+                    Khách hàng <SortIcon field="customer" />
+                  </th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('movie')}>
+                    Phim / Rạp / Phòng <SortIcon field="movie" />
+                  </th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('showtime')}>
+                    Suất <SortIcon field="showtime" />
+                  </th>
+                  <th>Ghế</th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('amount')}>
+                    Thanh toán <SortIcon field="amount" />
+                  </th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('status')}>
+                    Trạng thái <SortIcon field="status" />
+                  </th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map(o => (
+                  <tr key={o.bookingId}>
+                    <td>#{o.bookingId}</td>
+                    <td>
+                      <div className="movie-table-title">{o.user?.name || 'Unknown'}</div>
+                      <div className="movie-table-rating">{o.user?.email} • {o.user?.phone}</div>
+                    </td>
+                    <td>
+                      <div className="movie-table-title">{o.movieTitle}</div>
+                      <div className="movie-table-rating">{o.cinemaName} • {o.roomName}</div>
+                    </td>
+                    <td>{new Date(o.showtime).toLocaleString('vi-VN')}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {o.seats.map(s => (
+                          <span key={s} className="badge-rating" style={{ background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="movie-table-title">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(o.totalAmount)}</div>
+                      <div className="movie-table-rating">{o.paymentMethod}</div>
+                    </td>
+                    <td>
+                      <span className="movie-status-badge" style={{ backgroundColor: statusColor(derivedStatus(o)) }}>
+                        {derivedStatus(o) === 'ACTIVE' ? 'Còn hạn' : 'Hết hạn'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="movie-table-actions">
+                        <button className="movie-action-btn" title="Chi tiết" onClick={()=>setSelected(o)}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {selected && (
+        <div className="movie-modal-overlay" onClick={()=>setSelected(null)}>
+          <div className="movie-modal" onClick={(e)=>e.stopPropagation()}>
+            <div className="movie-modal__header">
+              <h2>Chi tiết đơn #{selected.bookingId}</h2>
+              <button className="movie-modal__close" onClick={()=>setSelected(null)}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="movie-modal__content">
+              <div className="admin-dashboard-grid">
+                <div className="admin-card">
+                  <div className="admin-card__header"><h3 className="admin-card__title">Thông tin</h3></div>
+                  <div className="admin-card__content">
+                    <div className="movie-table-title">{selected.user?.name}</div>
+                    <div className="movie-table-rating">{selected.user?.email} • {selected.user?.phone}</div>
+                    <div style={{ marginTop: 8 }}>{selected.movieTitle} • {selected.cinemaName} • {selected.roomName}</div>
+                    <div>Suất: {new Date(selected.showtime).toLocaleString('vi-VN')}</div>
+                  </div>
+                </div>
+                <div className="admin-card">
+                  <div className="admin-card__header"><h3 className="admin-card__title">Ghế & Thanh toán</h3></div>
+                  <div className="admin-card__content">
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                      {selected.seats.map(s => (
+                        <span key={s} className="badge-rating" style={{ background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                    <div>Giá vé: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.pricePerSeat)} / ghế</div>
+                    <div>Tổng: <strong>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.totalAmount)}</strong> • {selected.paymentMethod}</div>
+                    <div style={{ marginTop: 8 }}>
+                      Trạng thái:{' '}
+                      <span className="movie-status-badge" style={{ backgroundColor: statusColor(derivedStatus(selected)) }}>
+                        {derivedStatus(selected) === 'ACTIVE' ? 'Còn hạn' : 'Hết hạn'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="movie-modal__footer">
+              <button className="btn btn--ghost" onClick={()=>setSelected(null)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Manager Reports Component (filtered by managerComplexIds)
+function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
+  const [timeRange, setTimeRange] = useState('30');
+  const [selectedCinema, setSelectedCinema] = useState('all');
+  const [selectedMovie, setSelectedMovie] = useState('all');
+
+  const scopedCinemas = useMemo(() => {
+    return (cinemas || []).filter(c => managerComplexIds.includes(c.complexId));
+  }, [cinemas, managerComplexIds]);
+
+  const scopedOrders = useMemo(() => {
+    return (orders || []).filter(order => managerComplexIds.includes(order.cinemaComplexId));
+  }, [orders, managerComplexIds]);
+
+  const dateRange = useMemo(() => {
+    const endDate = new Date();
+    const startDate = new Date();
+    switch (timeRange) {
+      case '7':
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      case '30':
+        startDate.setDate(endDate.getDate() - 30);
+        break;
+      case '90':
+        startDate.setDate(endDate.getDate() - 90);
+        break;
+      default:
+        startDate.setFullYear(2020);
+    }
+    return { startDate, endDate };
+  }, [timeRange]);
+
+  const filteredOrders = useMemo(() => {
+    return scopedOrders.filter(order => {
+      if (order.status !== 'PAID') return false;
+      const orderDate = new Date(order.showtime);
+      if (orderDate < dateRange.startDate || orderDate > dateRange.endDate) return false;
+      if (selectedCinema !== 'all' && order.cinemaComplexId !== Number(selectedCinema)) return false;
+      if (selectedMovie !== 'all' && order.movieId !== Number(selectedMovie)) return false;
+      return true;
+    });
+  }, [scopedOrders, dateRange, selectedCinema, selectedMovie]);
+
+  const summaryStats = useMemo(() => {
+    const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+    const totalTickets = filteredOrders.reduce((sum, order) => sum + (order.seats?.length || 0), 0);
+    const activeMovies = (movies || []).filter(m => m.status === 'NOW_SHOWING').length;
+    const totalBookings = filteredOrders.length;
+
+    return {
+      totalRevenue,
+      totalTickets,
+      activeMovies,
+      totalBookings
+    };
+  }, [filteredOrders, movies]);
+
+  const revenueByMovie = useMemo(() => {
+    const movieRevenue = {};
+    filteredOrders.forEach(order => {
+      const movieId = order.movieId;
+      const movieTitle = order.movieTitle || movies.find(m => m.movieId === movieId)?.title || 'Unknown';
+      if (!movieRevenue[movieId]) {
+        movieRevenue[movieId] = { movieId, title: movieTitle, revenue: 0, tickets: 0 };
+      }
+      movieRevenue[movieId].revenue += order.totalAmount || 0;
+      movieRevenue[movieId].tickets += order.seats?.length || 0;
+    });
+    return Object.values(movieRevenue).sort((a, b) => b.revenue - a.revenue);
+  }, [filteredOrders, movies]);
+
+  const revenueByCinema = useMemo(() => {
+    const cinemaRevenue = {};
+    filteredOrders.forEach(order => {
+      const cinemaId = order.cinemaComplexId;
+      const cinemaName = order.cinemaName || scopedCinemas.find(c => c.complexId === cinemaId)?.name || 'Unknown';
+      if (!cinemaRevenue[cinemaId]) {
+        cinemaRevenue[cinemaId] = { cinemaId, name: cinemaName, revenue: 0, tickets: 0 };
+      }
+      cinemaRevenue[cinemaId].revenue += order.totalAmount || 0;
+      cinemaRevenue[cinemaId].tickets += order.seats?.length || 0;
+    });
+    return Object.values(cinemaRevenue).sort((a, b) => b.revenue - a.revenue);
+  }, [filteredOrders, scopedCinemas]);
+
+  const dailyRevenue = useMemo(() => {
+    const daily = {};
+    const days = [];
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+      const dateStr = date.toISOString().split('T')[0];
+      daily[dateStr] = 0;
+      days.push({
+        date: dateStr,
+        displayDate: date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
+        revenue: 0
+      });
+    }
+    filteredOrders.forEach(order => {
+      const orderDate = new Date(order.showtime);
+      orderDate.setHours(0, 0, 0, 0);
+      const dateStr = orderDate.toISOString().split('T')[0];
+      if (daily[dateStr] !== undefined) {
+        daily[dateStr] += order.totalAmount || 0;
+      }
+    });
+    return days.map(d => ({ ...d, revenue: daily[d.date] || 0 }));
+  }, [filteredOrders]);
+
+  const top5Movies = useMemo(() => {
+    return revenueByMovie
+      .sort((a, b) => b.tickets - a.tickets)
+      .slice(0, 5)
+      .map((movie, idx) => ({ ...movie, rank: idx + 1 }));
+  }, [revenueByMovie]);
+
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+    }).format(price);
+  };
+
+  const formatNumber = (num) => {
+    return new Intl.NumberFormat('vi-VN').format(num);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div className="admin-card">
+        <div className="admin-card__header">
+          <h2 className="admin-card__title">Bộ lọc</h2>
+        </div>
+        <div className="admin-card__content">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#c9c4c5' }}>
+                Khoảng thời gian
+              </label>
+              <select
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: 'rgba(20, 15, 16, 0.8)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="7">7 ngày qua</option>
+                <option value="30">30 ngày qua</option>
+                <option value="90">90 ngày qua</option>
+                <option value="all">Tất cả</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#c9c4c5' }}>
+                Rạp
+              </label>
+              <select
+                value={selectedCinema}
+                onChange={(e) => setSelectedCinema(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: 'rgba(20, 15, 16, 0.8)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="all">Tất cả rạp</option>
+                {scopedCinemas.map(c => (
+                  <option key={c.complexId} value={c.complexId}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#c9c4c5' }}>
+                Phim
+              </label>
+              <select
+                value={selectedMovie}
+                onChange={(e) => setSelectedMovie(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: 'rgba(20, 15, 16, 0.8)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="all">Tất cả phim</option>
+                {(movies || []).map(m => (
+                  <option key={m.movieId} value={m.movieId}>{m.title}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+        <div className="admin-stat-card">
+          <div className="admin-stat-card__icon" style={{ color: '#4caf50' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="1" x2="12" y2="23"/>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+          </div>
+          <div className="admin-stat-card__content">
+            <div className="admin-stat-card__value">{formatPrice(summaryStats.totalRevenue)}</div>
+            <div className="admin-stat-card__label">Tổng doanh thu</div>
+          </div>
+        </div>
+
+        <div className="admin-stat-card">
+          <div className="admin-stat-card__icon" style={{ color: '#2196f3' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
+              <path d="M6 9v6M18 9v6"/>
+            </svg>
+          </div>
+          <div className="admin-stat-card__content">
+            <div className="admin-stat-card__value">{formatNumber(summaryStats.totalTickets)}</div>
+            <div className="admin-stat-card__label">Tổng vé bán</div>
+          </div>
+        </div>
+
+        <div className="admin-stat-card">
+          <div className="admin-stat-card__icon" style={{ color: '#ff9800' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
+            </svg>
+          </div>
+          <div className="admin-stat-card__content">
+            <div className="admin-stat-card__value">{summaryStats.activeMovies}</div>
+            <div className="admin-stat-card__label">Phim đang chiếu</div>
+          </div>
+        </div>
+
+        <div className="admin-stat-card">
+          <div className="admin-stat-card__icon" style={{ color: '#e83b41' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+          </div>
+          <div className="admin-stat-card__content">
+            <div className="admin-stat-card__value">{formatNumber(summaryStats.totalBookings)}</div>
+            <div className="admin-stat-card__label">Tổng đơn đặt</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '24px' }}>
+        <div className="admin-card">
+          <div className="admin-card__header">
+            <h2 className="admin-card__title">Doanh thu theo phim</h2>
+          </div>
+          <div className="admin-card__content">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={revenueByMovie.slice(0, 10)}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                <XAxis 
+                  dataKey="title" 
+                  angle={-45}
+                  textAnchor="end"
+                  height={100}
+                  stroke="#c9c4c5"
+                  fontSize={12}
+                />
+                <YAxis 
+                  stroke="#c9c4c5"
+                  fontSize={12}
+                  tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#2d2627', 
+                    border: '1px solid #4a3f41',
+                    borderRadius: '8px',
+                    color: '#fff'
+                  }}
+                  formatter={(value) => formatPrice(value)}
+                />
+                <Legend />
+                <Bar dataKey="revenue" fill="#e83b41" name="Doanh thu" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="admin-card">
+          <div className="admin-card__header">
+            <h2 className="admin-card__title">Doanh thu theo rạp</h2>
+          </div>
+          <div className="admin-card__content">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={revenueByCinema}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                <XAxis 
+                  dataKey="name" 
+                  angle={-45}
+                  textAnchor="end"
+                  height={100}
+                  stroke="#c9c4c5"
+                  fontSize={12}
+                />
+                <YAxis 
+                  stroke="#c9c4c5"
+                  fontSize={12}
+                  tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#2d2627', 
+                    border: '1px solid #4a3f41',
+                    borderRadius: '8px',
+                    color: '#fff'
+                  }}
+                  formatter={(value) => formatPrice(value)}
+                />
+                <Legend />
+                <Bar dataKey="revenue" fill="#4caf50" name="Doanh thu" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="admin-card" style={{ gridColumn: '1 / -1' }}>
+          <div className="admin-card__header">
+            <h2 className="admin-card__title">Doanh thu theo ngày (30 ngày qua)</h2>
+          </div>
+          <div className="admin-card__content">
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={dailyRevenue}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                <XAxis 
+                  dataKey="displayDate" 
+                  stroke="#c9c4c5"
+                  fontSize={12}
+                />
+                <YAxis 
+                  stroke="#c9c4c5"
+                  fontSize={12}
+                  tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#2d2627', 
+                    border: '1px solid #4a3f41',
+                    borderRadius: '8px',
+                    color: '#fff'
+                  }}
+                  formatter={(value) => formatPrice(value)}
+                />
+                <Legend />
+                <Line 
+                  type="monotone" 
+                  dataKey="revenue" 
+                  stroke="#ffd159" 
+                  strokeWidth={2}
+                  name="Doanh thu"
+                  dot={{ fill: '#ffd159', r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      <div className="admin-card">
+        <div className="admin-card__header">
+          <h2 className="admin-card__title">Top 5 phim bán chạy</h2>
+        </div>
+        <div className="admin-card__content">
+          <div className="admin-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Hạng</th>
+                  <th>Phim</th>
+                  <th>Số vé</th>
+                  <th>Doanh thu</th>
+                </tr>
+              </thead>
+              <tbody>
+                {top5Movies.map((movie) => (
+                  <tr key={movie.movieId}>
+                    <td>
+                      <span style={{
+                        display: 'inline-block',
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        background: movie.rank === 1 ? '#ffd700' : movie.rank === 2 ? '#c0c0c0' : movie.rank === 3 ? '#cd7f32' : 'rgba(255,255,255,0.1)',
+                        color: '#fff',
+                        textAlign: 'center',
+                        lineHeight: '24px',
+                        fontSize: '12px',
+                        fontWeight: 700
+                      }}>
+                        {movie.rank}
+                      </span>
+                    </td>
+                    <td>{movie.title}</td>
+                    <td>{formatNumber(movie.tickets)}</td>
+                    <td style={{ color: '#4caf50', fontWeight: 600 }}>{formatPrice(movie.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ManagerDashboard() {
   // Determine which complexes the manager controls.
   // Priority: URL search param ?complexIds=1,2 then localStorage, else [1]
@@ -942,10 +2036,13 @@ export default function ManagerDashboard() {
     [managerComplexIds]
   );
 
-  // Minimal in-component state; we only expose cinemas section for managers
-  const [activeSection, setActiveSection] = useState('cinemas');
+  // State management
+  const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [cinemas, setCinemas] = useState(scopedCinemas);
+  const [movies] = useState(initialMovies);
+  const [orders] = useState(initialBookingOrders);
+  const [prices] = useState(initialPrices);
 
   return (
     <div className="admin-layout">
@@ -1002,6 +2099,28 @@ export default function ManagerDashboard() {
         </div>
         <nav className="admin-sidebar__nav">
           <button
+            className={`admin-nav-item ${activeSection === 'dashboard' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => setActiveSection('dashboard')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7"/>
+              <rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            <span>Dashboard</span>
+          </button>
+          <button
+            className={`admin-nav-item ${activeSection === 'movies' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => setActiveSection('movies')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
+            </svg>
+            <span>Danh sách phim</span>
+          </button>
+          <button
             className={`admin-nav-item ${activeSection === 'cinemas' ? 'admin-nav-item--active' : ''}`}
             onClick={() => setActiveSection('cinemas')}
           >
@@ -1010,6 +2129,29 @@ export default function ManagerDashboard() {
               <circle cx="12" cy="10" r="3"/>
             </svg>
             <span>Quản lý cụm rạp</span>
+          </button>
+          <button
+            className={`admin-nav-item ${activeSection === 'bookings' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => setActiveSection('bookings')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            <span>Quản lý đặt vé</span>
+          </button>
+          <button
+            className={`admin-nav-item ${activeSection === 'reports' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => setActiveSection('reports')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <span>Báo cáo</span>
           </button>
         </nav>
         <div className="admin-sidebar__footer">
@@ -1026,7 +2168,13 @@ export default function ManagerDashboard() {
       <div className={`admin-main ${!sidebarOpen ? 'admin-main--sidebar-closed' : ''}`}>
         <header className="admin-header">
           <div className="admin-header__left">
-            <h1 className="admin-header__title">Manager</h1>
+            <h1 className="admin-header__title">
+              {activeSection === 'dashboard' && 'Dashboard'}
+              {activeSection === 'movies' && 'Danh sách phim'}
+              {activeSection === 'cinemas' && 'Quản lý cụm rạp'}
+              {activeSection === 'bookings' && 'Quản lý đặt vé'}
+              {activeSection === 'reports' && 'Báo cáo'}
+            </h1>
           </div>
           <div className="admin-header__right">
             <div className="admin-header__user">
@@ -1046,8 +2194,39 @@ export default function ManagerDashboard() {
         </header>
 
         <main className="admin-content">
+          {activeSection === 'dashboard' && (
+            <ManagerDashboardView 
+              orders={orders}
+              movies={movies}
+              cinemas={cinemas}
+              managerComplexIds={managerComplexIds}
+            />
+          )}
+
+          {activeSection === 'movies' && (
+            <ManagerMovieView movies={movies} />
+          )}
+
           {activeSection === 'cinemas' && (
             <ManagerCinemaManagement cinemas={cinemas} onCinemasChange={setCinemas} />
+          )}
+
+          {activeSection === 'bookings' && (
+            <ManagerBookingManagement 
+              orders={orders}
+              cinemas={cinemas}
+              movies={movies}
+              managerComplexIds={managerComplexIds}
+            />
+          )}
+
+          {activeSection === 'reports' && (
+            <ManagerReports 
+              orders={orders}
+              movies={movies}
+              cinemas={cinemas}
+              managerComplexIds={managerComplexIds}
+            />
           )}
         </main>
       </div>

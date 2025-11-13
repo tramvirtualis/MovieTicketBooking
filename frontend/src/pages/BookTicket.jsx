@@ -49,9 +49,9 @@ const ROOM_TYPES = ['2D', '3D', 'DELUXE'];
 
 // Sample movies
 const movies = [
-  { movieId: 1, title: 'Inception', poster: 'https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg' },
-  { movieId: 2, title: 'Interstellar', poster: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg' },
-  { movieId: 3, title: 'The Dark Knight', poster: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg' },
+  { movieId: 1, title: 'Inception', poster: 'https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg', rating: 'T16' },
+  { movieId: 2, title: 'Interstellar', poster: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg', rating: 'T13' },
+  { movieId: 3, title: 'The Dark Knight', poster: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg', rating: 'T16' },
 ];
 
 // Sample cinemas with rooms
@@ -155,6 +155,9 @@ export default function BookTicket() {
   });
   const [paymentMethod, setPaymentMethod] = useState('vnpay');
   const [step, setStep] = useState(movieIdFromUrl && cinemaIdFromUrl && showtimeFromUrl ? 2 : 1); // Start at step 2 if params exist
+  const [showAgeConfirmModal, setShowAgeConfirmModal] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [pendingShowtime, setPendingShowtime] = useState(null);
 
   // Update state when URL params change
   useEffect(() => {
@@ -205,6 +208,7 @@ export default function BookTicket() {
             startTime: showtimeDate.toISOString(),
             endTime: new Date(showtimeDate.getTime() + 2 * 60 * 60 * 1000).toISOString() // +2 hours
           };
+          // Directly set showtime since age confirmation was already done on MovieDetail page
           setSelectedShowtime(mockShowtime);
           // Also update selected cinema and movie
           setSelectedCinema(String(cinema.complexId));
@@ -448,8 +452,8 @@ export default function BookTicket() {
               </h1>
             </div>
 
-            {/* Step 1: Select Movie, Cinema, Showtime - Only shown if no URL params */}
-            {step === 1 && !movieIdFromUrl && (
+            {/* Step 1: Select Movie, Cinema, Showtime */}
+            {step === 1 && (
               <div className="book-ticket-step">
                 <div className="book-ticket-form">
                   <div className="book-ticket-form__group">
@@ -503,9 +507,9 @@ export default function BookTicket() {
                               key={st.showtimeId}
                               className={`book-ticket-showtime-btn ${selectedShowtime?.showtimeId === st.showtimeId ? 'book-ticket-showtime-btn--active' : ''}`}
                               onClick={() => {
-                                setSelectedShowtime(st);
-                                setSelectedSeats([]);
-                                setStep(2);
+                                setPendingShowtime(st);
+                                setAgeConfirmed(false);
+                                setShowAgeConfirmModal(true);
                               }}
                             >
                               <div className="book-ticket-showtime-btn__time">
@@ -771,6 +775,168 @@ export default function BookTicket() {
           </div>
         </section>
       </main>
+
+      {/* Age Confirmation Modal */}
+      {showAgeConfirmModal && (
+        <div 
+          className="modal-overlay" 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowAgeConfirmModal(false);
+              setPendingShowtime(null);
+              setAgeConfirmed(false);
+            }
+          }}
+        >
+          <div 
+            className="modal-content"
+            style={{
+              backgroundColor: '#2d2627',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '500px',
+              width: '90%',
+              border: '1px solid #4a3f41'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ 
+              margin: '0 0 24px', 
+              fontSize: '24px', 
+              fontWeight: 800, 
+              color: '#fff',
+              textAlign: 'center'
+            }}>
+              Xác nhận độ tuổi
+            </h2>
+            
+            {pendingShowtime && (() => {
+              const movie = movies.find(m => m.movieId === Number(selectedMovie || movieIdFromUrl));
+              const rating = movie?.rating || 'T16';
+              const ageNumber = rating.replace('T', '');
+              
+              return (
+                <>
+                  <div style={{ 
+                    marginBottom: '24px',
+                    padding: '20px',
+                    backgroundColor: '#1a1415',
+                    borderRadius: '8px',
+                    border: '1px solid #4a3f41'
+                  }}>
+                    <div style={{ 
+                      fontSize: '16px', 
+                      color: '#fff', 
+                      marginBottom: '12px',
+                      fontWeight: 600
+                    }}>
+                      Phim: {movie?.title || 'N/A'}
+                    </div>
+                    <div style={{ 
+                      fontSize: '14px', 
+                      color: '#c9c4c5',
+                      lineHeight: '1.6'
+                    }}>
+                      <strong style={{ color: '#ffd159' }}>{rating}:</strong> Phim dành cho khán giả từ đủ {ageNumber} tuổi trở lên ({ageNumber}+)
+                    </div>
+                  </div>
+
+                  <div style={{ 
+                    marginBottom: '24px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px'
+                  }}>
+                    <input
+                      type="checkbox"
+                      id="age-confirm-checkbox"
+                      checked={ageConfirmed}
+                      onChange={(e) => setAgeConfirmed(e.target.checked)}
+                      style={{
+                        width: '20px',
+                        height: '20px',
+                        marginTop: '2px',
+                        cursor: 'pointer',
+                        accentColor: '#e83b41'
+                      }}
+                    />
+                    <label 
+                      htmlFor="age-confirm-checkbox"
+                      style={{
+                        fontSize: '14px',
+                        color: '#c9c4c5',
+                        lineHeight: '1.6',
+                        cursor: 'pointer',
+                        flex: 1
+                      }}
+                    >
+                      Tôi xác nhận rằng tôi đã đủ {ageNumber} tuổi trở lên và đủ điều kiện để xem phim này.
+                    </label>
+                  </div>
+
+                  <div style={{ 
+                    display: 'flex',
+                    gap: '12px',
+                    justifyContent: 'flex-end'
+                  }}>
+                    <button
+                      className="btn btn--ghost"
+                      onClick={() => {
+                        setShowAgeConfirmModal(false);
+                        setPendingShowtime(null);
+                        setAgeConfirmed(false);
+                        setHasShownAgeModal(false); // Reset để có thể hiển thị lại modal nếu cần
+                      }}
+                      style={{
+                        padding: '12px 24px',
+                        fontSize: '14px',
+                        fontWeight: 600
+                      }}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      className="btn btn--primary"
+                      onClick={() => {
+                        if (ageConfirmed && pendingShowtime) {
+                          setSelectedShowtime(pendingShowtime);
+                          setSelectedSeats([]);
+                          setStep(2);
+                          setShowAgeConfirmModal(false);
+                          setPendingShowtime(null);
+                          setAgeConfirmed(false);
+                        }
+                      }}
+                      disabled={!ageConfirmed}
+                      style={{
+                        padding: '12px 24px',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        opacity: ageConfirmed ? 1 : 0.5,
+                        cursor: ageConfirmed ? 'pointer' : 'not-allowed'
+                      }}
+                    >
+                      Tiếp tục
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

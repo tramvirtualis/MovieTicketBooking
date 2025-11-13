@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 
-export default function BookingModal({ isOpen, onClose, movieTitle, options }) {
+export default function BookingModal({ isOpen, onClose, movieTitle, options, onShowtimeClick }) {
   const today = useMemo(() => new Date(), []);
   const dates = useMemo(() => {
     const arr = [];
@@ -117,15 +117,22 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options }) {
                           format: format,
                           cinemaName: c.name
                         });
+                        const bookingUrl = `#booking?${bookingParams.toString()}`;
                         return (
-                          <a 
-                            key={t} 
-                            href={`#booking?${bookingParams.toString()}`} 
+                          <button
+                            key={t}
+                            onClick={() => {
+                              if (onShowtimeClick) {
+                                onShowtimeClick(bookingUrl);
+                              } else {
+                                window.location.href = bookingUrl;
+                              }
+                            }}
                             className="btn" 
-                            style={{ padding: '8px 12px', background: '#2d2627', border: '1px solid #4a3f41', color: '#fff' }}
+                            style={{ padding: '8px 12px', background: '#2d2627', border: '1px solid #4a3f41', color: '#fff', cursor: 'pointer' }}
                           >
                             {t}
-                          </a>
+                          </button>
                         );
                       })
                     )}

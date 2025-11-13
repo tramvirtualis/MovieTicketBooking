@@ -19,6 +19,7 @@ export default function MovieDetail() {
     formats: ['2D', '3D'],
     language: 'Khác',
     rating: 'T16',
+    status: query.status || 'NOW_SHOWING', // NOW_SHOWING, COMING_SOON, ENDED
     desc: 'Trong tương lai gần, một tay trộm hành tinh thức lenh, nơi Predator nợ nần – kẻ bị săn đuổi có cơ hội nhận lại tự do – tìm thấy một mục tiêu không ngờ tới là một bé gái bản lĩnh.',
     director: 'Christopher Nolan',
     cast: 'Leonardo DiCaprio, Joseph Gordon‑Levitt, Ellen Page',
@@ -32,6 +33,9 @@ export default function MovieDetail() {
   const [expandedReviews, setExpandedReviews] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const reviewsPerPage = 4;
+  const [showAgeConfirmModal, setShowAgeConfirmModal] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [pendingBookingUrl, setPendingBookingUrl] = useState(null);
 
   const reviews = [
     {
@@ -308,13 +312,15 @@ export default function MovieDetail() {
 
               {/* Action Buttons */}
               <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
-                <button className="btn btn--primary" onClick={() => setShowBooking(true)} style={{ fontSize: '16px', padding: '14px 24px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
-                    <path d="M6 9v6M18 9v6"/>
-                  </svg>
-                  Mua vé
-                </button>
+                {sample.status !== 'ENDED' && (
+                  <button className="btn btn--primary" onClick={() => setShowBooking(true)} style={{ fontSize: '16px', padding: '14px 24px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
+                      <path d="M6 9v6M18 9v6"/>
+                    </svg>
+                    Mua vé
+                  </button>
+                )}
                 <button className="btn btn--ghost" onClick={() => setShowTrailer(true)} style={{ fontSize: '16px', padding: '14px 24px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="5 3 19 12 5 21 5 3"/>
@@ -458,6 +464,12 @@ export default function MovieDetail() {
         isOpen={showBooking}
         onClose={() => setShowBooking(false)}
         movieTitle={sample.title}
+        onShowtimeClick={(bookingUrl) => {
+          setPendingBookingUrl(bookingUrl);
+          setAgeConfirmed(false);
+          setShowAgeConfirmModal(true);
+          setShowBooking(false); // Đóng modal chọn suất
+        }}
         options={{
           movieId: sample.movieId || 1,
           cinemas: [
@@ -479,6 +491,152 @@ export default function MovieDetail() {
           }
         }}
       />
+
+      {/* Age Confirmation Modal */}
+      {showAgeConfirmModal && (
+        <div 
+          className="modal-overlay" 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowAgeConfirmModal(false);
+              setPendingBookingUrl(null);
+              setAgeConfirmed(false);
+            }
+          }}
+        >
+          <div 
+            className="modal-content"
+            style={{
+              backgroundColor: '#2d2627',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '500px',
+              width: '90%',
+              border: '1px solid #4a3f41'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ 
+              margin: '0 0 24px', 
+              fontSize: '24px', 
+              fontWeight: 800, 
+              color: '#fff',
+              textAlign: 'center'
+            }}>
+              Xác nhận độ tuổi
+            </h2>
+            
+            <div style={{ 
+              marginBottom: '24px',
+              padding: '20px',
+              backgroundColor: '#1a1415',
+              borderRadius: '8px',
+              border: '1px solid #4a3f41'
+            }}>
+              <div style={{ 
+                fontSize: '16px', 
+                color: '#fff', 
+                marginBottom: '12px',
+                fontWeight: 600
+              }}>
+                Phim: {sample.title.replace(/\s*\(T\d+\)\s*/g, '')}
+              </div>
+              <div style={{ 
+                fontSize: '14px', 
+                color: '#c9c4c5',
+                lineHeight: '1.6'
+              }}>
+                <strong style={{ color: '#ffd159' }}>{sample.rating}:</strong> Phim dành cho khán giả từ đủ {sample.rating.replace('T', '')} tuổi trở lên ({sample.rating.replace('T', '')}+)
+              </div>
+            </div>
+
+            <div style={{ 
+              marginBottom: '24px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px'
+            }}>
+              <input
+                type="checkbox"
+                id="age-confirm-checkbox"
+                checked={ageConfirmed}
+                onChange={(e) => setAgeConfirmed(e.target.checked)}
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  marginTop: '2px',
+                  cursor: 'pointer',
+                  accentColor: '#e83b41'
+                }}
+              />
+              <label 
+                htmlFor="age-confirm-checkbox"
+                style={{
+                  fontSize: '14px',
+                  color: '#c9c4c5',
+                  lineHeight: '1.6',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                Tôi xác nhận rằng tôi đã đủ {sample.rating.replace('T', '')} tuổi trở lên và đủ điều kiện để xem phim này.
+              </label>
+            </div>
+
+            <div style={{ 
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                className="btn btn--ghost"
+                onClick={() => {
+                  setShowAgeConfirmModal(false);
+                  setPendingBookingUrl(null);
+                  setAgeConfirmed(false);
+                }}
+                style={{
+                  padding: '12px 24px',
+                  fontSize: '14px',
+                  fontWeight: 600
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                className="btn btn--primary"
+                onClick={() => {
+                  if (ageConfirmed && pendingBookingUrl) {
+                    window.location.href = pendingBookingUrl;
+                  }
+                }}
+                disabled={!ageConfirmed}
+                style={{
+                  padding: '12px 24px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  opacity: ageConfirmed ? 1 : 0.5,
+                  cursor: ageConfirmed ? 'pointer' : 'not-allowed'
+                }}
+              >
+                Tiếp tục
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Trailer Overlay */}
       {showTrailer && (
