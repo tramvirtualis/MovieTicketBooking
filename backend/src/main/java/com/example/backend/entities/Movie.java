@@ -1,13 +1,29 @@
 package com.example.backend.entities;
 
-import jakarta.persistence.*;
-import lombok.*;
 import java.time.LocalDate;
 import java.util.List;
 
+import com.example.backend.entities.enums.AgeRating;
 import com.example.backend.entities.enums.Genre;
 import com.example.backend.entities.enums.MovieStatus;
-import com.example.backend.entities.enums.AgeRating;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "movies")
@@ -22,8 +38,11 @@ public class Movie {
 
     private String title;
 
+    @ElementCollection(targetClass = Genre.class)
     @Enumerated(EnumType.STRING)
-    private Genre genre;
+    @CollectionTable(name = "movie_genres", joinColumns = @JoinColumn(name = "movie_id"))
+    @Column(name = "genre")
+    private List<Genre> genre;
 
     private Integer duration;
     private LocalDate releaseDate;
@@ -40,8 +59,8 @@ public class Movie {
     @Column(columnDefinition = "TEXT")
     private String trailerURL;
     
-    @Column(columnDefinition = "LONGTEXT")
-    private String poster; // Hỗ trợ URL dài hoặc base64 image
+    @Column(columnDefinition = "TEXT")
+    private String poster;
 
     @Enumerated(EnumType.STRING)
     private MovieStatus status;

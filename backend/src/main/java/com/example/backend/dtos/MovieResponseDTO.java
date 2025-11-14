@@ -20,7 +20,7 @@ import java.util.List;
 public class MovieResponseDTO {
     private Long movieId;
     private String title;
-    private Genre genre;
+    private List<Genre> genre;
     private Integer duration;
     private LocalDate releaseDate;
     private AgeRating ageRating;

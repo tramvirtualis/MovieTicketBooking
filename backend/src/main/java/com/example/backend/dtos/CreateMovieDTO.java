@@ -23,8 +23,8 @@ public class CreateMovieDTO {
     @Size(max = 255, message = "Tiêu đề phim không được vượt quá 255 ký tự")
     private String title;
 
-    @NotNull(message = "Thể loại phim không được để trống")
-    private Genre genre;
+    @NotEmpty(message = "Thể loại phim không được để trống")
+    private List<Genre> genre;
 
     @NotNull(message = "Thời lượng phim không được để trống")
     @Min(value = 1, message = "Thời lượng phim phải lớn hơn 0")

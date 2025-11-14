@@ -12,6 +12,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { movieService } from '../services/movieService';
+import { GENRES, MOVIE_STATUSES, AGE_RATINGS } from '../components/AdminDashboard/constants';
 
 // Add CSS animation for spinner and notification
 if (typeof document !== 'undefined') {
@@ -39,10 +40,8 @@ if (typeof document !== 'undefined') {
   }
 }
 
-// Enums from database
-const GENRES = ['ACTION', 'COMEDY', 'HORROR', 'DRAMA', 'ROMANCE', 'THRILLER', 'ANIMATION', 'FANTASY', 'SCI-FI', 'MUSICAL', 'FAMILY', 'DOCUMENTARY', 'ADVENTURE', 'SUPERHERO'];
-const MOVIE_STATUSES = ['COMING_SOON', 'NOW_SHOWING', 'ENDED'];
-const AGE_RATINGS = ['P', 'K', '13+', '16+', '18+'];
+// Enums from database (imported from constants.js)
+// GENRES, MOVIE_STATUSES, AGE_RATINGS are imported from constants
 const SEAT_TYPES = ['NORMAL', 'VIP', 'COUPLE'];
 const ROOM_TYPES = ['2D', '3D', 'DELUXE'];
 const PROVINCES = [
@@ -1174,7 +1173,7 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
-    genre: '',
+    genre: [], // Changed to array for multiple genres
     duration: '',
     releaseDate: '',
     ageRating: '',
@@ -1298,7 +1297,9 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     const matchesSearch = movie.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          movie.director.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          movie.actor.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesGenre = !filterGenre || movie.genre === filterGenre;
+    // Support both single genre (string) and multiple genres (array)
+    const movieGenres = Array.isArray(movie.genre) ? movie.genre : [movie.genre];
+    const matchesGenre = !filterGenre || movieGenres.includes(filterGenre);
     const matchesStatus = !filterStatus || movie.status === filterStatus;
     return matchesSearch && matchesGenre && matchesStatus;
   });
@@ -1341,7 +1342,7 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     setEditingMovie(null);
     setFormData({
       title: '',
-      genre: '',
+      genre: [], // Changed to array
       duration: '',
       releaseDate: '',
       ageRating: '',
@@ -1404,10 +1405,12 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     const mappedAgeRating = mapAgeRatingFromBackend(movie.ageRating);
     // Extract formats và languages từ movie
     const { formats, languages } = extractFormatsAndLanguages(movie);
+    // Handle genre: convert to array if it's a string (backward compatibility)
+    const movieGenres = Array.isArray(movie.genre) ? movie.genre : (movie.genre ? [movie.genre] : []);
     
     setFormData({
       title: movie.title,
-      genre: movie.genre,
+      genre: movieGenres, // Always array
       duration: movie.duration.toString(),
       releaseDate: movie.releaseDate,
       ageRating: mappedAgeRating, // Đã được map từ backend format
@@ -1434,8 +1437,8 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     if (!formData.title || formData.title.trim() === '') {
       errors.title = 'Tên phim không được để trống';
     }
-    if (!formData.genre || formData.genre === '') {
-      errors.genre = 'Thể loại không được để trống';
+    if (!formData.genre || formData.genre.length === 0) {
+      errors.genre = 'Vui lòng chọn ít nhất 1 thể loại';
     }
     if (!formData.duration || formData.duration === '' || parseInt(formData.duration) <= 0) {
       errors.duration = 'Thời lượng không được để trống và phải lớn hơn 0';
@@ -1499,7 +1502,7 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
       // Prepare movie data for API (map ageRating và formats to backend format)
       const movieData = {
         title: formData.title,
-        genre: formData.genre,
+        genre: formData.genre, // Already an array
         duration: parseInt(formData.duration),
         releaseDate: formData.releaseDate,
         ageRating: mapAgeRatingToBackend(formData.ageRating),
@@ -1589,7 +1592,10 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
 
   // Format genre for display
   const formatGenre = (genre) => {
-    return genre.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    if (!genre) return '';
+    // Replace underscores with spaces, then capitalize first letter of each word
+    // Special handling for SCI_FI -> Sci-Fi
+    return genre.replace(/_/g, '-').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   // Format status for display
@@ -1877,15 +1883,26 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
               <div className="movie-card__content">
                 <h3 className="movie-card__title">{movie.title}</h3>
                 <div className="movie-card__meta">
-                  <span className="movie-card__genre">{formatGenre(movie.genre)}</span>
-                  <span className="movie-card__rating">{movie.ageRating}</span>
-                  <span className="movie-card__duration">{movie.duration} phút</span>
-                  {(movie.formats || []).slice(0,2).map(f => (
-                    <span key={f} className="movie-card__rating">{f}</span>
-                  ))}
-                  {(movie.languages || []).slice(0,2).map(l => (
-                    <span key={l} className="movie-card__rating">{l}</span>
-                  ))}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '4px' }}>
+                    {(Array.isArray(movie.genre) ? movie.genre : [movie.genre]).slice(0, 3).map(g => (
+                      <span key={g} className="movie-card__genre">{formatGenre(g)}</span>
+                    ))}
+                    {(Array.isArray(movie.genre) ? movie.genre : [movie.genre]).length > 3 && (
+                      <span className="movie-card__genre" style={{ opacity: 0.7 }}>
+                        +{(Array.isArray(movie.genre) ? movie.genre : [movie.genre]).length - 3}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <span className="movie-card__rating">{movie.ageRating}</span>
+                    <span className="movie-card__duration">{movie.duration} phút</span>
+                    {(movie.formats || []).slice(0,2).map(f => (
+                      <span key={f} className="movie-card__rating">{f}</span>
+                    ))}
+                    {(movie.languages || []).slice(0,2).map(l => (
+                      <span key={l} className="movie-card__rating">{l}</span>
+                    ))}
+                  </div>
                 </div>
                 <div className="movie-card__director">Đạo diễn: {movie.director}</div>
               </div>
@@ -1919,7 +1936,22 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                     <div className="movie-table-title">{movie.title}</div>
                     <div className="movie-table-rating">{movie.ageRating}</div>
                   </td>
-                  <td>{formatGenre(movie.genre)}</td>
+                  <td>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {(Array.isArray(movie.genre) ? movie.genre : [movie.genre]).map(g => (
+                        <span key={g} style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          backgroundColor: 'rgba(123, 97, 255, 0.2)',
+                          color: '#fff',
+                          fontSize: '12px'
+                        }}>
+                          {formatGenre(g)}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
                   <td>{movie.director}</td>
                   <td>{movie.duration} phút</td>
                   <td>{(movie.formats || []).join(', ')}</td>
@@ -2073,28 +2105,102 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                       </div>
                     )}
                   </div>
-                  <div className="movie-form__group">
+                  <div className="movie-form__group" style={{ gridColumn: '1 / -1' }}>
                     <label>Thể loại <span className="required">*</span></label>
-                    <select
-                      value={formData.genre}
-                      onChange={(e) => {
-                        setFormData({ ...formData, genre: e.target.value });
-                        if (validationErrors.genre) {
-                          setValidationErrors({ ...validationErrors, genre: null });
-                        }
-                      }}
-                      style={{
-                        borderColor: validationErrors.genre ? '#ff5757' : undefined
-                      }}
-                    >
-                      <option value="">Chọn thể loại</option>
-                      {GENRES.map(genre => (
-                        <option key={genre} value={genre}>{formatGenre(genre)}</option>
-                      ))}
-                    </select>
+                    <div style={{
+                      border: `1px solid ${validationErrors.genre ? '#ff5757' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius: '8px',
+                      padding: '12px',
+                      backgroundColor: 'rgba(20, 15, 16, 0.5)',
+                      minHeight: '120px',
+                      maxHeight: '200px',
+                      overflowY: 'auto'
+                    }}>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                        gap: '10px'
+                      }}>
+                        {GENRES.map(genre => {
+                          const isSelected = formData.genre.includes(genre);
+                          return (
+                            <label
+                              key={genre}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '8px 12px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                backgroundColor: isSelected ? 'rgba(123, 97, 255, 0.2)' : 'transparent',
+                                border: `1px solid ${isSelected ? 'rgba(123, 97, 255, 0.5)' : 'rgba(255,255,255,0.1)'}`,
+                                transition: 'all 0.2s',
+                                userSelect: 'none'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!isSelected) {
+                                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!isSelected) {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                                }
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  const newGenres = e.target.checked
+                                    ? [...formData.genre, genre]
+                                    : formData.genre.filter(g => g !== genre);
+                                  setFormData({ ...formData, genre: newGenres });
+                                  if (validationErrors.genre) {
+                                    setValidationErrors({ ...validationErrors, genre: null });
+                                  }
+                                }}
+                                style={{
+                                  width: '18px',
+                                  height: '18px',
+                                  cursor: 'pointer',
+                                  accentColor: '#7b61ff'
+                                }}
+                              />
+                              <span style={{
+                                fontSize: '14px',
+                                color: isSelected ? '#fff' : 'rgba(255,255,255,0.8)',
+                                fontWeight: isSelected ? 500 : 400
+                              }}>
+                                {formatGenre(genre)}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                     {validationErrors.genre && (
                       <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '4px' }}>
                         {validationErrors.genre}
+                      </div>
+                    )}
+                    {formData.genre.length > 0 && (
+                      <div style={{
+                        marginTop: '8px',
+                        fontSize: '12px',
+                        color: 'rgba(255,255,255,0.6)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M9 12l2 2 4-4"/>
+                          <circle cx="12" cy="12" r="10"/>
+                        </svg>
+                        Đã chọn {formData.genre.length} thể loại: {formData.genre.map(g => formatGenre(g)).join(', ')}
                       </div>
                     )}
                   </div>

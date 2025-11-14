@@ -22,7 +22,7 @@ public class UpdateMovieDTO {
     @Size(max = 255, message = "Tiêu đề phim không được vượt quá 255 ký tự")
     private String title;
 
-    private Genre genre;
+    private List<Genre> genre;
 
     @Min(value = 1, message = "Thời lượng phim phải lớn hơn 0")
     private Integer duration;
