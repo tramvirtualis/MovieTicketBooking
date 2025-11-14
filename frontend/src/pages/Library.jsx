@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 
@@ -213,15 +214,11 @@ export default function Library() {
                 <div className="library-grid">
                   {favorites.map((movie) => (
                     <div key={movie.id} className="library-card library-card--favorite">
-                      <a href={`#movie?title=${encodeURIComponent(movie.title)}`} className="library-card__link">
+                      <Link to={`/movie/${encodeURIComponent(movie.title)}`} className="library-card__link">
                         <div className="library-card__poster">
                           <img src={movie.poster} alt={movie.title} />
                           <div className="library-card__overlay">
-                            <div className="library-card__icon">
-                              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                              </svg>
-                            </div>
+                           
                           </div>
                           <div className="library-card__badge library-card__badge--favorite">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -237,7 +234,7 @@ export default function Library() {
                             <span>{movie.genre}</span>
                           </div>
                         </div>
-                      </a>
+                      </Link>
                       <button
                         className="library-card__remove"
                         onClick={(e) => {
@@ -280,15 +277,17 @@ export default function Library() {
                     
                     return (
                       <div key={movie.id} className="library-review-card">
-                        <a href={`#movie?title=${encodeURIComponent(movie.title)}`} className="library-review-card__poster-link">
+                        <Link to={`/movie/${encodeURIComponent(movie.title)}`} className="library-review-card__poster-link">
                           <div className="library-review-card__poster">
                             <img src={movie.poster} alt={movie.title} />
                           </div>
-                        </a>
+                        </Link>
                         <div className="library-review-card__content">
                           <div className="library-review-card__header">
                             <div className="library-review-card__title-section">
-                              <h3 className="library-review-card__title">{movie.title}</h3>
+                              <Link to={`/movie/${encodeURIComponent(movie.title)}`} className="library-review-card__title-link">
+                                <h3 className="library-review-card__title">{movie.title}</h3>
+                              </Link>
                               <div className="library-review-card__meta">
                                 <span>{movie.year}</span>
                                 <span>•</span>

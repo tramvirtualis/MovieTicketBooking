@@ -44,6 +44,8 @@
 @import './components/food-cart-modal.css';
 @import './components/print-styles.css';
 @import './components/cards.css';
+@import './components/checkout-payment.css';
+@import './components/checkout-voucher.css';
 
 /* Import Pages */
 @import './pages/auth.css';

@@ -102,47 +102,14 @@ const orders = [
 ];
 
 export default function Orders() {
-  const [filterStatus, setFilterStatus] = useState('all'); // all, completed, pending
   const [currentPage, setCurrentPage] = useState(1);
   const ordersPerPage = 5;
 
-  const filteredOrders = orders.filter((order) => {
-    if (filterStatus === 'all') return true;
-    return order.status === filterStatus;
-  });
-
   // Calculate pagination
-  const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
+  const totalPages = Math.ceil(orders.length / ordersPerPage);
   const startIndex = (currentPage - 1) * ordersPerPage;
   const endIndex = startIndex + ordersPerPage;
-  const currentOrders = filteredOrders.slice(startIndex, endIndex);
-
-  // Reset to page 1 when filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterStatus]);
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'completed':
-        return 'Hoàn thành';
-      case 'pending':
-        return 'Đang xử lý';
-      default:
-        return status;
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'completed':
-        return '#4caf50';
-      case 'pending':
-        return '#ffd159';
-      default:
-        return '#9e9e9e';
-    }
-  };
+  const currentOrders = orders.slice(startIndex, endIndex);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -172,31 +139,9 @@ export default function Orders() {
                 <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
                 <path d="M9 12h6M9 16h6"/>
               </svg>
-              <h1 className="section__title text-[clamp(28px,4vw,36px)] m-0 font-extrabold tracking-tight">
+              <h1 className="section__title text-[clamp(28px,4vw,36px)] m-0 font-extrabold tracking-tight" style={{ fontFamily: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif' }}>
                 Đơn hàng
               </h1>
-            </div>
-
-            {/* Filter Tabs */}
-            <div className="flex gap-2.5 mb-7 flex-wrap">
-              <button
-                className={`booking-filter-tab ${filterStatus === 'all' ? 'booking-filter-tab--active' : ''}`}
-                onClick={() => setFilterStatus('all')}
-              >
-                Tất cả
-              </button>
-              <button
-                className={`booking-filter-tab ${filterStatus === 'completed' ? 'booking-filter-tab--active' : ''}`}
-                onClick={() => setFilterStatus('completed')}
-              >
-                Hoàn thành
-              </button>
-              <button
-                className={`booking-filter-tab ${filterStatus === 'pending' ? 'booking-filter-tab--active' : ''}`}
-                onClick={() => setFilterStatus('pending')}
-              >
-                Đang xử lý
-              </button>
             </div>
 
             {/* Orders List */}
@@ -227,16 +172,6 @@ export default function Orders() {
                         </div>
                       </div>
                       <div className="order-card__header-right">
-                        <span 
-                          className="order-status"
-                          style={{ 
-                            backgroundColor: getStatusColor(order.status) + '20',
-                            color: getStatusColor(order.status),
-                            border: `1px solid ${getStatusColor(order.status)}40`
-                          }}
-                        >
-                          {getStatusLabel(order.status)}
-                        </span>
                         <div className="order-card__total">
                           {formatPrice(order.totalAmount)}
                         </div>

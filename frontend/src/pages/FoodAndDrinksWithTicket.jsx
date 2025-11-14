@@ -193,6 +193,11 @@ export default function FoodAndDrinksWithTicket() {
 
   const menuItems = getMenuItems();
 
+  const getItemQuantity = (itemId) => {
+    const cartItem = cart.find(item => item.id === itemId);
+    return cartItem ? cartItem.quantity : 0;
+  };
+
   const addToCart = (item) => {
     const existingItem = cart.find(cartItem => cartItem.id === item.id);
     if (existingItem) {
@@ -204,7 +209,23 @@ export default function FoodAndDrinksWithTicket() {
     } else {
       setCart([...cart, { ...item, quantity: 1 }]);
     }
-    setShowCart(true);
+  };
+
+  const updateItemQuantity = (item, newQuantity) => {
+    if (newQuantity <= 0) {
+      setCart(cart.filter(cartItem => cartItem.id !== item.id));
+    } else {
+      const existingItem = cart.find(cartItem => cartItem.id === item.id);
+      if (existingItem) {
+        setCart(cart.map(cartItem => 
+          cartItem.id === item.id 
+            ? { ...cartItem, quantity: newQuantity }
+            : cartItem
+        ));
+      } else {
+        setCart([...cart, { ...item, quantity: newQuantity }]);
+      }
+    }
   };
 
   const updateQuantity = (itemId, newQuantity) => {
@@ -231,6 +252,18 @@ export default function FoodAndDrinksWithTicket() {
       items: cart,
       cinema: cinemas.find(c => c.id === selectedCinema),
       totalAmount: getTotalAmount()
+    };
+    localStorage.setItem('checkoutCart', JSON.stringify(cartData));
+    // Keep pendingBooking in localStorage for checkout page
+    navigate('/checkout');
+  };
+
+  const handleSkip = () => {
+    // Skip all food items and go to checkout with empty cart
+    const cartData = {
+      items: [],
+      cinema: cinemas.find(c => c.id === selectedCinema),
+      totalAmount: 0
     };
     localStorage.setItem('checkoutCart', JSON.stringify(cartData));
     // Keep pendingBooking in localStorage for checkout page
@@ -314,73 +347,219 @@ export default function FoodAndDrinksWithTicket() {
                   </div>
                 ) : (
                   <div className="food-menu-grid">
-                    {menuItems.map((item) => (
-                      <div key={item.id} className="food-item-card">
-                        <div className="food-item-card__image">
-                          <img src={item.image} alt={item.name} />
-                          {item.category === 'Combo' && item.originalPrice && (
-                            <div className="food-item-card__badge">
-                              <span className="food-item-card__badge-text">Tiết kiệm</span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="food-item-card__content">
-                          <div className="food-item-card__category">{item.category}</div>
-                          <h3 className="food-item-card__title">{item.name}</h3>
-                          <p className="food-item-card__description">{item.description}</p>
-                          <div className="food-item-card__footer">
-                            {item.originalPrice && (
-                              <div className="food-item-card__price-old">
-                                {formatPrice(item.originalPrice)}
+                    {menuItems.map((item) => {
+                      const quantity = getItemQuantity(item.id);
+                      return (
+                        <div key={item.id} className="food-item-card">
+                          <div className="food-item-card__image">
+                            <img src={item.image} alt={item.name} />
+                            {item.category === 'Combo' && item.originalPrice && (
+                              <div className="food-item-card__badge">
+                                <span className="food-item-card__badge-text">Tiết kiệm</span>
                               </div>
                             )}
-                            <div className="food-item-card__price">
-                              {formatPrice(item.price)}
-                              {item.priceWithTicket && (
-                                <span style={{ fontSize: '11px', color: '#4caf50', marginLeft: '4px', fontWeight: 600 }}>
-                                  (Kèm vé)
+                          </div>
+                          <div className="food-item-card__content">
+                            <div className="food-item-card__category">{item.category}</div>
+                            <h3 className="food-item-card__title">{item.name}</h3>
+                            <p className="food-item-card__description">{item.description}</p>
+                            <div className="food-item-card__footer">
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                                {item.originalPrice && (
+                                  <div className="food-item-card__price-old">
+                                    {formatPrice(item.originalPrice)}
+                                  </div>
+                                )}
+                                <div className="food-item-card__price">
+                                  {formatPrice(item.price)}
+                                  {item.priceWithTicket && (
+                                    <span style={{ fontSize: '11px', color: '#4caf50', marginLeft: '4px', fontWeight: 600 }}>
+                                      (Kèm vé)
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                background: quantity > 0 ? 'rgba(123, 97, 255, 0.2)' : 'rgba(123, 97, 255, 0.1)',
+                                borderRadius: '8px',
+                                padding: '4px',
+                                border: quantity > 0 ? '1px solid rgba(123, 97, 255, 0.4)' : '1px solid rgba(123, 97, 255, 0.2)',
+                                minWidth: '100px',
+                                justifyContent: 'center'
+                              }}>
+                                <button
+                                  onClick={() => updateItemQuantity(item, quantity - 1)}
+                                  disabled={quantity === 0}
+                                  style={{
+                                    background: quantity > 0 ? 'rgba(123, 97, 255, 0.4)' : 'rgba(123, 97, 255, 0.2)',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    width: '32px',
+                                    height: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: quantity > 0 ? 'pointer' : 'not-allowed',
+                                    color: quantity > 0 ? '#fff' : 'rgba(255,255,255,0.4)',
+                                    fontSize: '18px',
+                                    fontWeight: 600,
+                                    transition: 'all 0.2s',
+                                    opacity: quantity > 0 ? 1 : 0.5
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (quantity > 0) {
+                                      e.currentTarget.style.background = 'rgba(123, 97, 255, 0.6)';
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (quantity > 0) {
+                                      e.currentTarget.style.background = 'rgba(123, 97, 255, 0.4)';
+                                    }
+                                  }}
+                                >
+                                  -
+                                </button>
+                                <span style={{
+                                  minWidth: '36px',
+                                  textAlign: 'center',
+                                  fontSize: '16px',
+                                  fontWeight: 600,
+                                  color: quantity > 0 ? '#fff' : 'rgba(255,255,255,0.6)'
+                                }}>
+                                  {quantity}
                                 </span>
-                              )}
+                                <button
+                                  onClick={() => updateItemQuantity(item, quantity + 1)}
+                                  style={{
+                                    background: 'rgba(123, 97, 255, 0.4)',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    width: '32px',
+                                    height: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    color: '#fff',
+                                    fontSize: '18px',
+                                    fontWeight: 600,
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(123, 97, 255, 0.6)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(123, 97, 255, 0.4)';
+                                  }}
+                                >
+                                  +
+                                </button>
+                              </div>
                             </div>
-                            <button 
-                              className="food-item-card__add-btn"
-                              title="Thêm vào giỏ"
-                              aria-label="Thêm vào giỏ"
-                              onClick={() => addToCart(item)}
-                            >
-                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="9" cy="21" r="1"/>
-                                <circle cx="20" cy="21" r="1"/>
-                                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-                              </svg>
-                            </button>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
-                {/* Continue to Checkout Button */}
+                {/* Skip Button */}
                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: '32px', marginBottom: '32px' }}>
                   <button
                     className="btn btn--primary"
-                    onClick={() => {
-                      // If cart is empty, still allow to proceed to checkout with just tickets
-                      const cartData = {
-                        items: cart,
-                        cinema: cinemas.find(c => c.id === selectedCinema),
-                        totalAmount: getTotalAmount()
-                      };
-                      localStorage.setItem('checkoutCart', JSON.stringify(cartData));
-                      navigate('/checkout');
+                    onClick={handleSkip}
+                    style={{ 
+                      padding: '14px 32px', 
+                      minWidth: '200px', 
+                      fontSize: '16px', 
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center'
                     }}
-                    style={{ padding: '14px 32px', minWidth: '200px', fontSize: '16px', fontWeight: 600 }}
                   >
-                    Tiếp tục đến thanh toán
+                    Bỏ qua
                   </button>
                 </div>
               </>
+            )}
+
+            {/* Floating Cart Button */}
+            {cart.length > 0 && (
+              <div style={{
+                position: 'fixed',
+                bottom: '24px',
+                right: '24px',
+                zIndex: 1000
+              }}>
+                <button
+                  onClick={() => setShowCart(true)}
+                  style={{
+                    background: 'linear-gradient(135deg, #7b61ff 0%, #6b51e8 100%)',
+                    border: 'none',
+                    borderRadius: '16px',
+                    padding: '16px 24px',
+                    color: '#fff',
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 8px 24px rgba(123, 97, 255, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    transition: 'all 0.3s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 12px 32px rgba(123, 97, 255, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(123, 97, 255, 0.4)';
+                  }}
+                >
+                  <div style={{
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="9" cy="21" r="1"/>
+                      <circle cx="20" cy="21" r="1"/>
+                      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                    </svg>
+                    {cart.length > 0 && (
+                      <span style={{
+                        position: 'absolute',
+                        top: '-8px',
+                        right: '-8px',
+                        background: '#e83b41',
+                        borderRadius: '50%',
+                        width: '20px',
+                        height: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px',
+                        fontWeight: 700
+                      }}>
+                        {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                    <span>Giỏ hàng</span>
+                    <span style={{ fontSize: '14px', opacity: 0.9 }}>
+                      {formatPrice(getTotalAmount())}
+                    </span>
+                  </div>
+                </button>
+              </div>
             )}
           </div>
         </section>
@@ -463,7 +642,16 @@ export default function FoodAndDrinksWithTicket() {
                       <span>Tổng cộng:</span>
                       <span className="food-cart-modal__total-amount">{formatPrice(getTotalAmount())}</span>
                     </div>
-                    <button className="btn btn--primary food-cart-checkout-btn" onClick={handleCheckout}>
+                    <button 
+                      className="btn btn--primary food-cart-checkout-btn" 
+                      onClick={handleCheckout}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'center'
+                      }}
+                    >
                       Tiếp tục đến thanh toán
                     </button>
                   </div>

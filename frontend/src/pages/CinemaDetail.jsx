@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import interstellar from '../assets/images/interstellar.jpg';
@@ -76,6 +76,7 @@ const cinemaData = {
 export default function CinemaDetail() {
   const { name } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const query = useMemo(() => {
     return Object.fromEntries(searchParams.entries());
   }, [searchParams]);
@@ -146,8 +147,8 @@ export default function CinemaDetail() {
                         </div>
                       )}
                       <div style={{ marginTop: '16px' }}>
-                        <a 
-                          href={`#movie?title=${encodeURIComponent(movie.title)}`} 
+                        <button 
+                          onClick={() => navigate(`/movie/${movie.id || encodeURIComponent(movie.title)}`)}
                           className="cinema-movie-card__more-link"
                           style={{ 
                             display: 'inline-block',
@@ -155,16 +156,18 @@ export default function CinemaDetail() {
                             backgroundColor: '#e83b41',
                             color: '#fff',
                             textDecoration: 'none',
+                            border: 'none',
                             borderRadius: '4px',
                             fontWeight: 600,
                             fontSize: '14px',
+                            cursor: 'pointer',
                             transition: 'background-color 0.3s'
                           }}
                           onMouseEnter={(e) => e.target.style.backgroundColor = '#c92e33'}
                           onMouseLeave={(e) => e.target.style.backgroundColor = '#e83b41'}
                         >
                           Đặt vé
-                        </a>
+                        </button>
                       </div>
                     </div>
                   </div>

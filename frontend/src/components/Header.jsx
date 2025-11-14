@@ -158,7 +158,7 @@ export default function Header({ children }) {
                     Thư viện phim
                   </Link>
                   <Link to="/booking-history" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
-                    Lịch sử đặt vé
+                    Vé của tôi
                   </Link>
                   <div className="user-dropdown__divider"></div>
                   <button

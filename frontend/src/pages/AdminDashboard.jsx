@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { movieService } from '../services/movieService';
 import { GENRES, MOVIE_STATUSES, AGE_RATINGS } from '../components/AdminDashboard/constants';
+import FoodBeverageManagement from '../components/AdminDashboard/FoodBeverageManagement';
 
 // Add CSS animation for spinner and notification
 if (typeof document !== 'undefined') {
@@ -427,6 +428,82 @@ const initialPrices = [
   { id: 4, roomType: '3D', seatType: 'NORMAL', price: 120000 },
   { id: 5, roomType: '3D', seatType: 'VIP', price: 150000 },
   { id: 6, roomType: 'DELUXE', seatType: 'VIP', price: 180000 }
+];
+
+// Sample food & beverage items
+const initialFoodBeverages = [
+  {
+    id: 1,
+    name: 'Bắp rang bơ',
+    category: 'FOOD',
+    description: 'Bắp rang bơ thơm ngon, giòn tan',
+    price: 45000,
+    image: 'https://images.unsplash.com/photo-1574267432553-4b4628081c14?q=80&w=800&auto=format&fit=crop',
+    status: 'AVAILABLE'
+  },
+  {
+    id: 2,
+    name: 'Coca Cola',
+    category: 'BEVERAGE',
+    description: 'Nước ngọt có ga Coca Cola 500ml',
+    price: 35000,
+    image: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?q=80&w=800&auto=format&fit=crop',
+    status: 'AVAILABLE'
+  },
+  {
+    id: 3,
+    name: 'Combo Phim 2',
+    category: 'COMBO',
+    description: '1 bắp + 2 nước ngọt',
+    price: 110000,
+    image: 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?q=80&w=800&auto=format&fit=crop',
+    status: 'AVAILABLE'
+  },
+  {
+    id: 4,
+    name: 'Hot Dog',
+    category: 'FOOD',
+    description: 'Xúc xích Đức thơm ngon',
+    price: 55000,
+    image: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?q=80&w=800&auto=format&fit=crop',
+    status: 'AVAILABLE'
+  },
+  {
+    id: 5,
+    name: 'Pepsi',
+    category: 'BEVERAGE',
+    description: 'Nước ngọt có ga Pepsi 500ml',
+    price: 35000,
+    image: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?q=80&w=800&auto=format&fit=crop',
+    status: 'AVAILABLE'
+  },
+  {
+    id: 6,
+    name: 'Combo Phim 3',
+    category: 'COMBO',
+    description: '1 bắp + 1 nước + 1 hot dog',
+    price: 130000,
+    image: 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?q=80&w=800&auto=format&fit=crop',
+    status: 'AVAILABLE'
+  },
+  {
+    id: 7,
+    name: 'Khoai tây chiên',
+    category: 'FOOD',
+    description: 'Khoai tây chiên giòn, nóng hổi',
+    price: 50000,
+    image: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?q=80&w=800&auto=format&fit=crop',
+    status: 'AVAILABLE'
+  },
+  {
+    id: 8,
+    name: '7Up',
+    category: 'BEVERAGE',
+    description: 'Nước ngọt có ga 7Up 500ml',
+    price: 35000,
+    image: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?q=80&w=800&auto=format&fit=crop',
+    status: 'UNAVAILABLE'
+  }
 ];
 
 // Sample vouchers data
@@ -4468,6 +4545,7 @@ export default function AdminDashboard() {
   const [vouchers, setVouchers] = useState(initialVouchers);
   const [orders, setOrders] = useState(initialBookingOrders);
   const [prices, setPrices] = useState(initialPrices);
+  const [foodBeverages, setFoodBeverages] = useState(initialFoodBeverages);
 
   const getIcon = (iconName) => {
     switch (iconName) {
@@ -4641,6 +4719,17 @@ export default function AdminDashboard() {
             <span>Quản lý voucher</span>
           </button>
           <button
+            className={`admin-nav-item ${activeSection === 'foodbeverages' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => setActiveSection('foodbeverages')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <path d="M16 10a4 4 0 0 1-8 0"/>
+            </svg>
+            <span>Đồ ăn & Nước uống</span>
+          </button>
+          <button
             className={`admin-nav-item ${activeSection === 'reports' ? 'admin-nav-item--active' : ''}`}
             onClick={() => setActiveSection('reports')}
           >
@@ -4677,6 +4766,7 @@ export default function AdminDashboard() {
               {activeSection === 'bookings' && 'Quản lý đặt vé'}
               {activeSection === 'users' && 'Quản lý người dùng'}
               {activeSection === 'vouchers' && 'Quản lý voucher'}
+              {activeSection === 'foodbeverages' && 'Quản lý đồ ăn & nước uống'}
               {activeSection === 'reports' && 'Báo cáo'}
             </h1>
           </div>
@@ -4833,6 +4923,10 @@ export default function AdminDashboard() {
 
           {activeSection === 'vouchers' && (
             <VoucherManagement vouchers={vouchers} users={users} onVouchersChange={setVouchers} />
+          )}
+
+          {activeSection === 'foodbeverages' && (
+            <FoodBeverageManagement items={foodBeverages} onItemsChange={setFoodBeverages} />
           )}
 
               {activeSection === 'prices' && (

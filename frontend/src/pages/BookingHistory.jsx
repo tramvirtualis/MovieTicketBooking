@@ -72,15 +72,18 @@ const bookings = [
 ];
 
 export default function BookingHistory() {
-  const [filterStatus, setFilterStatus] = useState('all'); // all, completed, upcoming, cancelled
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [activeTab, setActiveTab] = useState('upcoming'); // 'upcoming' hoặc 'completed'
 
+  // Filter bookings theo tab
   const filteredBookings = bookings.filter((booking) => {
-    // Exclude cancelled bookings
     if (booking.status === 'cancelled') return false;
-    if (filterStatus === 'all') return true;
-    return booking.status === filterStatus;
+    if (activeTab === 'upcoming') {
+      return booking.status === 'upcoming';
+    } else {
+      return booking.status === 'completed';
+    }
   });
 
   const getStatusLabel = (status) => {
@@ -129,30 +132,24 @@ export default function BookingHistory() {
                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                 <path d="M8 7h8M8 11h8M8 15h4"/>
               </svg>
-              <h1 className="section__title text-[clamp(28px,4vw,36px)] m-0 font-extrabold tracking-tight">
-                Lịch sử đặt vé
+              <h1 className="section__title text-[clamp(28px,4vw,36px)] m-0 font-extrabold tracking-tight" style={{ fontFamily: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif' }}>
+                Vé của tôi
               </h1>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex gap-2.5 mb-7 flex-wrap">
+            {/* Tabs */}
+            <div className="flex gap-3 mb-6">
               <button
-                className={`booking-filter-tab ${filterStatus === 'all' ? 'booking-filter-tab--active' : ''}`}
-                onClick={() => setFilterStatus('all')}
+                className={`booking-filter-tab ${activeTab === 'upcoming' ? 'booking-filter-tab--active' : ''}`}
+                onClick={() => setActiveTab('upcoming')}
               >
-                Tất cả
+                Vé sắp chiếu
               </button>
               <button
-                className={`booking-filter-tab ${filterStatus === 'completed' ? 'booking-filter-tab--active' : ''}`}
-                onClick={() => setFilterStatus('completed')}
+                className={`booking-filter-tab ${activeTab === 'completed' ? 'booking-filter-tab--active' : ''}`}
+                onClick={() => setActiveTab('completed')}
               >
-                Đã xem
-              </button>
-              <button
-                className={`booking-filter-tab ${filterStatus === 'upcoming' ? 'booking-filter-tab--active' : ''}`}
-                onClick={() => setFilterStatus('upcoming')}
-              >
-                Sắp chiếu
+                Vé đã xem
               </button>
             </div>
 
@@ -295,7 +292,8 @@ export default function BookingHistory() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -312,13 +310,13 @@ export default function BookingHistory() {
           <div 
             className="ticket-modal"
             style={{
-              backgroundColor: '#fff',
+              backgroundColor: '#ffffff',
               borderRadius: '16px',
               maxWidth: '600px',
               width: '100%',
               maxHeight: '90vh',
               overflow: 'auto',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -350,7 +348,7 @@ export default function BookingHistory() {
                 }}>
                   {selectedBooking.movie.title}
                 </h2>
-                <div style={{ fontSize: '14px', color: '#666', marginBottom: '16px' }}>
+                <div style={{ fontSize: '14px', color: '#333', marginBottom: '16px', fontWeight: 500 }}>
                   {selectedBooking.cinema}
                 </div>
               </div>
@@ -361,28 +359,29 @@ export default function BookingHistory() {
                 gridTemplateColumns: '1fr 1fr',
                 gap: '16px',
                 marginBottom: '24px',
-                padding: '16px',
-                backgroundColor: '#f5f5f5',
-                borderRadius: '12px'
+                padding: '20px',
+                backgroundColor: '#fafafa',
+                borderRadius: '12px',
+                border: '1px solid #e0e0e0'
               }}>
                 <div>
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Ngày chiếu</div>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1415' }}>{selectedBooking.date}</div>
+                  <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px', fontWeight: 600 }}>Ngày chiếu</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#000' }}>{selectedBooking.date}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Giờ chiếu</div>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1415' }}>{selectedBooking.time}</div>
+                  <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px', fontWeight: 600 }}>Giờ chiếu</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#000' }}>{selectedBooking.time}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Định dạng</div>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1415' }}>{selectedBooking.format}</div>
+                  <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px', fontWeight: 600 }}>Định dạng</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#000' }}>{selectedBooking.format}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Ghế</div>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1415' }}>{selectedBooking.seats.join(', ')}</div>
+                  <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px', fontWeight: 600 }}>Ghế</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#000' }}>{selectedBooking.seats.join(', ')}</div>
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Tổng tiền</div>
+                  <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px', fontWeight: 600 }}>Tổng tiền</div>
                   <div style={{ fontSize: '20px', fontWeight: 800, color: '#e83b41' }}>
                     {formatPrice(selectedBooking.price)}
                   </div>
@@ -398,7 +397,7 @@ export default function BookingHistory() {
                 borderRadius: '12px',
                 marginBottom: '24px'
               }}>
-                <div style={{ fontSize: '14px', color: '#666', marginBottom: '12px', fontWeight: 600 }}>
+                <div style={{ fontSize: '14px', color: '#333', marginBottom: '12px', fontWeight: 600 }}>
                   Mã QR Code - Vui lòng quét tại rạp
                 </div>
                 <div style={{
@@ -423,7 +422,7 @@ export default function BookingHistory() {
                     includeMargin={true}
                   />
                 </div>
-                <div style={{ fontSize: '12px', color: '#999', marginTop: '12px' }}>
+                <div style={{ fontSize: '12px', color: '#555', marginTop: '12px', fontWeight: 500 }}>
                   Booking ID: {selectedBooking.id}
                 </div>
               </div>
@@ -431,16 +430,17 @@ export default function BookingHistory() {
               {/* Booking Info */}
               <div style={{
                 padding: '16px',
-                backgroundColor: '#f9f9f9',
+                backgroundColor: '#f5f5f5',
                 borderRadius: '8px',
-                fontSize: '12px',
-                color: '#666',
-                textAlign: 'center'
+                fontSize: '13px',
+                color: '#333',
+                textAlign: 'center',
+                fontWeight: 500
               }}>
                 <div style={{ marginBottom: '4px' }}>
                   Ngày đặt: {selectedBooking.bookingDate}
                 </div>
-                <div style={{ marginTop: '8px', fontSize: '11px', color: '#999' }}>
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#555' }}>
                   Vui lòng đến rạp trước giờ chiếu 15 phút
                 </div>
               </div>

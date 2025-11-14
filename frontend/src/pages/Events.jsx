@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import Header from '../components/Header.jsx';
 
 // Get vouchers from AdminDashboard (stored in localStorage)
 const getPublicVouchers = () => {
@@ -145,6 +146,7 @@ export default function Events() {
 
   return (
     <div className="events-page">
+      <Header />
       <div className="container">
         <header className="events-hero">
           <div>

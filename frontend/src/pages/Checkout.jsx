@@ -3,10 +3,48 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 
+// Get saved vouchers from localStorage
+const getSavedVouchers = () => {
+  try {
+    const saved = localStorage.getItem('savedVouchers');
+    if (saved) {
+      const savedIds = JSON.parse(saved);
+      const allVouchers = localStorage.getItem('adminVouchers');
+      if (allVouchers) {
+        const vouchers = JSON.parse(allVouchers);
+        // savedIds is an object like {voucherId: true}, so check if the voucherId exists as a key
+        return vouchers.filter(v => savedIds[v.voucherId] === true && v.isPublic && v.status);
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load saved vouchers', e);
+  }
+  return [];
+};
+
+const isVoucherActive = (voucher) => {
+  const now = Date.now();
+  const start = new Date(voucher.startDate).getTime();
+  const end = new Date(voucher.endDate + 'T23:59:59').getTime();
+  return now >= start && now <= end;
+};
+
+const formatCurrency = (value) =>
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+
+const formatDiscountBadge = (voucher) =>
+  voucher.discountType === 'PERCENT'
+    ? `-${voucher.discountValue}%`
+    : `-${formatCurrency(voucher.discountValue)}`;
+
 export default function Checkout() {
   const navigate = useNavigate();
   const [cartData, setCartData] = useState(null);
   const [bookingData, setBookingData] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('vnpay');
+  const [selectedVoucher, setSelectedVoucher] = useState(null);
+  const [availableVouchers, setAvailableVouchers] = useState([]);
+  const [showVoucherList, setShowVoucherList] = useState(false);
   
   // Sample customer data (would come from database/auth in real app)
   const customerInfo = {
@@ -25,6 +63,10 @@ export default function Checkout() {
     if (savedBooking) {
       setBookingData(JSON.parse(savedBooking));
     }
+    
+    // Load available vouchers
+    const vouchers = getSavedVouchers();
+    setAvailableVouchers(vouchers.filter(v => isVoucherActive(v)));
     
     // Redirect back if no cart and no booking
     if (!savedCart && !savedBooking) {
@@ -48,10 +90,43 @@ export default function Checkout() {
     navigate('/orders');
   };
 
-  const getTotalAmount = () => {
+  const getSubtotal = () => {
     const foodTotal = cartData?.totalAmount || 0;
     const ticketTotal = bookingData?.totalPrice || 0;
     return foodTotal + ticketTotal;
+  };
+
+  const calculateDiscount = (voucher, subtotal) => {
+    if (!voucher || subtotal < (voucher.minOrder || voucher.minOrderAmount || 0)) {
+      return 0;
+    }
+
+    if (voucher.discountType === 'PERCENT') {
+      const discount = (subtotal * voucher.discountValue) / 100;
+      const maxDiscount = voucher.maxDiscount || voucher.maxDiscountAmount || Infinity;
+      return Math.min(discount, maxDiscount);
+    } else {
+      return Math.min(voucher.discountValue, subtotal);
+    }
+  };
+
+  const getDiscountAmount = () => {
+    if (!selectedVoucher) return 0;
+    return calculateDiscount(selectedVoucher, getSubtotal());
+  };
+
+  const getTotalAmount = () => {
+    const subtotal = getSubtotal();
+    const discount = getDiscountAmount();
+    return Math.max(0, subtotal - discount);
+  };
+
+  const handleVoucherSelect = (voucher) => {
+    if (selectedVoucher?.voucherId === voucher.voucherId) {
+      setSelectedVoucher(null);
+    } else {
+      setSelectedVoucher(voucher);
+    }
   };
 
   if (!cartData && !bookingData) {
@@ -115,6 +190,168 @@ export default function Checkout() {
                       <span className="text-sm font-medium text-[#c9c4c5]">Email:</span>
                       <span className="text-white font-semibold">{customerInfo.email}</span>
                     </div>
+                  </div>
+                </div>
+
+                {/* Voucher Selection Card */}
+                <div className="bg-gradient-to-br from-[#2d2627] to-[#1a1415] border border-[#4a3f41] rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#ffd159]">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                        <line x1="12" y1="22.08" x2="12" y2="12"/>
+                      </svg>
+                      Voucher
+                    </h2>
+                    {!selectedVoucher && availableVouchers.length > 0 && (
+                      <button
+                        onClick={() => setShowVoucherList(!showVoucherList)}
+                        className="checkout-voucher-toggle-btn"
+                      >
+                        {showVoucherList ? 'Ẩn voucher' : 'Thêm voucher'}
+                        <svg 
+                          width="16" 
+                          height="16" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="2"
+                          style={{ transform: showVoucherList ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 300ms ease' }}
+                        >
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Selected Voucher Display */}
+                  {selectedVoucher && (
+                    <div className="checkout-voucher-selected">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <span className="checkout-voucher-item__badge">{formatDiscountBadge(selectedVoucher)}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="checkout-voucher-item__code">{selectedVoucher.code}</div>
+                            <div className="checkout-voucher-item__name text-sm">{selectedVoucher.name}</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedVoucher(null);
+                            setShowVoucherList(false);
+                          }}
+                          className="checkout-voucher-remove-btn"
+                          title="Bỏ chọn voucher"
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Voucher List */}
+                  {showVoucherList && availableVouchers.length > 0 && (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 mt-4">
+                      {availableVouchers.map((voucher) => {
+                        const isSelected = selectedVoucher?.voucherId === voucher.voucherId;
+                        const canUse = getSubtotal() >= (voucher.minOrder || voucher.minOrderAmount || 0);
+                        return (
+                          <div
+                            key={voucher.voucherId}
+                            onClick={() => {
+                              if (canUse) {
+                                handleVoucherSelect(voucher);
+                                setShowVoucherList(false);
+                              }
+                            }}
+                            className={`checkout-voucher-item ${isSelected ? 'checkout-voucher-item--selected' : ''} ${!canUse ? 'checkout-voucher-item--disabled' : ''}`}
+                            style={{ cursor: canUse ? 'pointer' : 'not-allowed' }}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="checkout-voucher-item__radio">
+                                <input
+                                  type="radio"
+                                  checked={isSelected}
+                                  onChange={() => {}}
+                                  disabled={!canUse}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="checkout-voucher-item__badge">{formatDiscountBadge(voucher)}</span>
+                                  <span className="checkout-voucher-item__code">{voucher.code}</span>
+                                </div>
+                                <div className="checkout-voucher-item__name">{voucher.name}</div>
+                                {!canUse && (
+                                  <div className="checkout-voucher-item__warning text-xs text-[#ff5258] mt-1">
+                                    Đơn tối thiểu: {formatCurrency(voucher.minOrder || voucher.minOrderAmount || 0)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {availableVouchers.length === 0 && (
+                    <div className="text-center py-4 text-[#c9c4c5] text-sm">
+                      Bạn chưa có voucher nào. <a href="/events" className="text-[#ffd159] hover:underline">Xem voucher</a>
+                    </div>
+                  )}
+                </div>
+
+                {/* Payment Method Card */}
+                <div className="bg-gradient-to-br from-[#2d2627] to-[#1a1415] border border-[#4a3f41] rounded-xl p-6">
+                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#ffd159]">
+                      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                      <line x1="1" y1="10" x2="23" y2="10"/>
+                    </svg>
+                    Phương thức thanh toán
+                  </h2>
+                  <div className="checkout-payment-methods">
+                    <label className="checkout-payment-method">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="vnpay"
+                        checked={paymentMethod === 'vnpay'}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                      />
+                      <div className="checkout-payment-method__content">
+                        <span>VNPay</span>
+                      </div>
+                    </label>
+                    <label className="checkout-payment-method">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="momo"
+                        checked={paymentMethod === 'momo'}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                      />
+                      <div className="checkout-payment-method__content">
+                        <span>MoMo</span>
+                      </div>
+                    </label>
+                    <label className="checkout-payment-method">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="cash"
+                        checked={paymentMethod === 'cash'}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                      />
+                      <div className="checkout-payment-method__content">
+                        <span>Tiền mặt</span>
+                      </div>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -196,9 +433,19 @@ export default function Checkout() {
                     )}
                   </div>
                   
-                  {/* Total */}
-                  <div className="pt-4 border-t border-[#4a3f41] mb-6">
-                    <div className="flex justify-between items-center">
+                  {/* Price Breakdown */}
+                  <div className="pt-4 border-t border-[#4a3f41] mb-6 space-y-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-[#c9c4c5]">Tạm tính:</span>
+                      <span className="text-white font-semibold">{formatPrice(getSubtotal())}</span>
+                    </div>
+                    {selectedVoucher && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-[#c9c4c5]">Giảm giá ({selectedVoucher.code}):</span>
+                        <span className="text-[#4caf50] font-semibold">-{formatPrice(getDiscountAmount())}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-2 border-t border-[#4a3f41]">
                       <span className="text-lg font-semibold text-white">Tổng cộng:</span>
                       <span className="text-2xl font-extrabold text-[#ffd159]">{formatPrice(getTotalAmount())}</span>
                     </div>

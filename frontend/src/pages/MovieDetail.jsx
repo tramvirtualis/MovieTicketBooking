@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
@@ -11,6 +11,19 @@ export default function MovieDetail() {
   const query = useMemo(() => {
     return Object.fromEntries(searchParams.entries());
   }, [searchParams]);
+
+  // Handle hash navigation for backward compatibility
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#movie')) {
+      const hashParams = new URLSearchParams(hash.substring(6)); // Remove '#movie'
+      const title = hashParams.get('title');
+      if (title && !id) {
+        // Navigate to proper route if we have title from hash but no id param
+        navigate(`/movie/${encodeURIComponent(title)}`, { replace: true });
+      }
+    }
+  }, [id, navigate]);
 
   const sample = {
     id: 'inception',
