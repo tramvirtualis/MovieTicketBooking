@@ -644,3 +644,4 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
 
 export default CinemaManagement;
 
+

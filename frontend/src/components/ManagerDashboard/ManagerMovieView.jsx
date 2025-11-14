@@ -49,3 +49,4 @@ function ManagerMovieView({ movies }) {
 
 export default ManagerMovieView;
 
+

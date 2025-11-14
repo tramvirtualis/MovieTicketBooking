@@ -5,6 +5,7 @@ import interstellar from '../assets/images/interstellar.jpg';
 import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
 import driveMyCar from '../assets/images/drive-my-car.jpg';
+import { updateCustomerProfile } from '../services/customer.js';
 
 const PROVINCES = [
   'Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Hải Phòng', 'An Giang', 'Bà Rịa - Vũng Tàu',
@@ -18,18 +19,24 @@ const PROVINCES = [
   'Thừa Thiên Huế', 'Tiền Giang', 'Trà Vinh', 'Tuyên Quang', 'Vĩnh Long', 'Vĩnh Phúc', 'Yên Bái'
 ];
 
-// Initial user data
+
+const storedUser = JSON.parse(localStorage.getItem('user')) || {};
+
+// Map dữ liệu từ localStorage để khớp với cấu trúc backend
 const initialUserData = {
-  name: 'Nguyễn Văn A',
-  email: 'nguyenvana@example.com',
-  phone: '0901234567',
-  dob: '1995-05-15',
-  joinDate: '2023-01-15',
-  addressDescription: '123 Đường ABC, Phường XYZ, Quận 1',
-  addressProvince: 'Hồ Chí Minh',
-  totalBookings: 24,
-  totalSpent: 2880000,
-  favoriteMovies: 8,
+  userId: storedUser.userId || "",
+  name: storedUser.name || "",
+  email: storedUser.email || "",
+  phone: storedUser.phone || "",
+  dob: storedUser.dob || "",
+  joinDate: storedUser.joinDate || "",
+  address: {
+    description: storedUser.address?.description || "",
+    province: storedUser.address?.province || ""
+  },
+  totalBookings: storedUser.totalBookings || 0,
+  totalSpent: storedUser.totalSpent || 0,
+  favoriteMovies: storedUser.favoriteMovies || 0,
 };
 
 const vouchers = [
@@ -93,19 +100,27 @@ export default function Profile() {
   const [userData, setUserData] = useState(initialUserData);
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+  
+  // State cho form edit - giữ nguyên tên field để dễ mapping với API
   const [editData, setEditData] = useState({
     name: initialUserData.name,
     email: initialUserData.email,
     phone: initialUserData.phone,
     dob: initialUserData.dob,
-    addressDescription: initialUserData.addressDescription,
-    addressProvince: initialUserData.addressProvince,
+    addressDescription: initialUserData.address.description,
+    addressProvince: initialUserData.address.province,
   });
+
+  const showMessage = (type, text) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage({ type: '', text: '' }), 5000);
+  };
 
   const stats = [
     { label: 'Tổng số vé đã mua', value: userData.totalBookings, icon: 'ticket' },
     { label: 'Tổng chi tiêu', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(userData.totalSpent), icon: 'money' },
-    { label: 'Thành viên từ', value: new Date(userData.joinDate).toLocaleDateString('vi-VN'), icon: 'calendar' },
+    { label: 'Thành viên từ', value: userData.joinDate ? new Date(userData.joinDate).toLocaleDateString('vi-VN') : '-', icon: 'calendar' },
   ];
 
   const getIcon = (iconName) => {
@@ -144,10 +159,62 @@ export default function Profile() {
     }
   };
 
+  const handleSaveChanges = async () => {
+    try {
+      // Gọi API với đúng payload format
+      const updatedUser = await updateCustomerProfile(userData.userId, {
+        name: editData.name,
+        email: editData.email,
+        phone: editData.phone,
+        dob: editData.dob,
+        addressDescription: editData.addressDescription,
+        addressProvince: editData.addressProvince,
+      });
+  
+      // Backend trả về Customer object với address
+      // Format date nếu cần
+      const formatDate = (date) => {
+        if (!date) return "";
+        if (typeof date === 'string') return date;
+        // Nếu là LocalDate từ backend, format thành YYYY-MM-DD
+        return date;
+      };
+  
+      // Map dữ liệu từ backend response
+      // Backend trả về Customer object với userId, name, email, phone, dob, address
+      const updatedUserData = {
+        userId: updatedUser.userId || userData.userId,
+        name: updatedUser.name || editData.name || "",
+        email: updatedUser.email || editData.email || "",
+        phone: updatedUser.phone || editData.phone || "",
+        dob: formatDate(updatedUser.dob) || editData.dob || "",
+        joinDate: userData.joinDate || "", // Giữ nguyên joinDate cũ (không có trong response)
+        address: {
+          description: updatedUser.address?.description || editData.addressDescription || "",
+          province: updatedUser.address?.province || editData.addressProvince || "",
+        },
+        totalBookings: userData.totalBookings || 0, // Giữ nguyên stats cũ (không có trong response)
+        totalSpent: userData.totalSpent || 0,
+        favoriteMovies: userData.favoriteMovies || 0,
+      };
+  
+      // Cập nhật state và localStorage
+      setUserData(updatedUserData);
+      localStorage.setItem('user', JSON.stringify(updatedUserData));
+      setIsEditing(false);
+      
+      showMessage('success', 'Cập nhật thông tin thành công!');
+    } catch (err) {
+      console.error('Lỗi cập nhật profile:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Có lỗi xảy ra khi cập nhật thông tin';
+      showMessage('error', errorMessage);
+      setIsEditing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen cinema-mood">
       <Header />
-
       <main className="main">
         <section className="section">
           <div className="container">
@@ -220,7 +287,7 @@ export default function Profile() {
                       </div>
                     ))}
                   </div>
-
+                      
                   {/* Personal Information */}
                   <div className="profile-section">
                     <h2 className="profile-section__title">Thông tin cá nhân</h2>
@@ -240,19 +307,15 @@ export default function Profile() {
                       <div className="profile-info-item">
                         <span className="profile-info-item__label">Ngày sinh</span>
                         <span className="profile-info-item__value">
-                          {new Date(userData.dob).toLocaleDateString('vi-VN')}
+                          {userData.dob ? new Date(userData.dob).toLocaleDateString('vi-VN') : '-'}
                         </span>
                       </div>
                       <div className="profile-info-item col-span-full">
                         <span className="profile-info-item__label">Địa chỉ</span>
                         <span className="profile-info-item__value">
-                          {userData.addressDescription}, {userData.addressProvince}
-                        </span>
-                      </div>
-                      <div className="profile-info-item">
-                        <span className="profile-info-item__label">Tham gia từ</span>
-                        <span className="profile-info-item__value">
-                          {new Date(userData.joinDate).toLocaleDateString('vi-VN')}
+                          {[userData.address?.description, userData.address?.province]
+                            .filter(Boolean)
+                            .join(', ') || '-'}
                         </span>
                       </div>
                     </div>
@@ -374,13 +437,14 @@ export default function Profile() {
       {isEditing && (
         <div className="movie-modal-overlay" onClick={() => {
           setIsEditing(false);
+          // Reset form về giá trị hiện tại
           setEditData({
             name: userData.name,
             email: userData.email,
             phone: userData.phone,
             dob: userData.dob,
-            addressDescription: userData.addressDescription,
-            addressProvince: userData.addressProvince,
+            addressDescription: userData.address.description,
+            addressProvince: userData.address.province,
           });
         }}>
           <div className="movie-modal" onClick={(e) => e.stopPropagation()}>
@@ -388,13 +452,14 @@ export default function Profile() {
               <h2>Chỉnh sửa thông tin cá nhân</h2>
               <button className="movie-modal__close" onClick={() => {
                 setIsEditing(false);
+                // Reset form về giá trị hiện tại
                 setEditData({
                   name: userData.name,
                   email: userData.email,
                   phone: userData.phone,
                   dob: userData.dob,
-                  addressDescription: userData.addressDescription,
-                  addressProvince: userData.addressProvince,
+                  addressDescription: userData.address.description,
+                  addressProvince: userData.address.province,
                 });
               }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -467,22 +532,19 @@ export default function Profile() {
             <div className="movie-modal__footer">
               <button className="btn btn--ghost" onClick={() => {
                 setIsEditing(false);
+                // Reset form về giá trị hiện tại
                 setEditData({
                   name: userData.name,
                   email: userData.email,
                   phone: userData.phone,
                   dob: userData.dob,
-                  addressDescription: userData.addressDescription,
-                  addressProvince: userData.addressProvince,
+                  addressDescription: userData.address.description,
+                  addressProvince: userData.address.province,
                 });
               }}>
                 Hủy
               </button>
-              <button className="btn btn--primary" onClick={() => {
-                // In real app, save to API here
-                setUserData({ ...userData, ...editData });
-                setIsEditing(false);
-              }}>
+              <button className="btn btn--primary" onClick={handleSaveChanges}>
                 Lưu thay đổi
               </button>
             </div>
@@ -490,8 +552,18 @@ export default function Profile() {
         </div>
       )}
 
+      {/* Message Notification */}
+      {message.text && (
+        <div className={`fixed top-20 right-4 z-50 px-6 py-4 rounded-lg shadow-lg transition-all duration-300 ${
+          message.type === 'success' 
+            ? 'bg-green-500 text-white' 
+            : 'bg-red-500 text-white'
+        }`}>
+          {message.text}
+        </div>
+      )}
+
       <Footer />
     </div>
   );
 }
-

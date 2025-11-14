@@ -78,14 +78,15 @@ export const authService = {
   login: async (username, password) => {
     try {
       const response = await axiosInstance.post('/auth/login', { username, password });
-  
+      const userData = response.data;
       // Response thành công sẽ là object user + token
-      const { token, role } = response.data;
+      const { token, role } = userData;
   
       // Lưu JWT token vào localStorage
       if (token) {
         localStorage.setItem('jwt', token);
       }
+      localStorage.setItem('user', JSON.stringify(userData));
   
       // Chuyển hướng theo role
       if (role === 'ADMIN') {
@@ -95,8 +96,6 @@ export const authService = {
       } else {
         window.location.href = '/'; // CUSTOMER hoặc role khác
       }
-      
-      console.log(role);
       
       return {
         success: true,

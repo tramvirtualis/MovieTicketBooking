@@ -444,3 +444,4 @@ function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
 
 export default ManagerReports;
 
+

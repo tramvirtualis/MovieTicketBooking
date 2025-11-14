@@ -260,3 +260,4 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
 
 export default ManagerBookingManagement;
 
+

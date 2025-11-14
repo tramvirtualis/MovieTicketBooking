@@ -136,3 +136,4 @@ function ManagerDashboardView({ orders, movies, cinemas, managerComplexIds }) {
 
 export default ManagerDashboardView;
 
+

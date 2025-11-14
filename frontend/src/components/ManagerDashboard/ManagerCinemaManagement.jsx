@@ -850,3 +850,4 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange 
 
 export default ManagerCinemaManagement;
 
+

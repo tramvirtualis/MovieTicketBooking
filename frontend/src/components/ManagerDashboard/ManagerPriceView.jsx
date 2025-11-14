@@ -51,3 +51,4 @@ function ManagerPriceView({ prices }) {
 
 export default ManagerPriceView;
 
+
