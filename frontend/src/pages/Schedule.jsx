@@ -89,25 +89,20 @@ export default function Schedule() {
                 const c = getCinema(item.cinemaId);
                 return (
                   <div key={idx} className="card grid grid-cols-[160px_1fr] gap-4 p-3">
-                    <a href={`#movie?title=${encodeURIComponent(m?.title || '')}`}>
+                    <Link to={`/movie/${m?.id || encodeURIComponent(m?.title || '')}`}>
                       <img src={m?.poster} alt={m?.title} className="w-full h-[220px] object-cover rounded-lg" />
-                    </a>
+                    </Link>
                     <div>
                       <div className="card__title text-lg">{m?.title}</div>
                       <div className="card__meta mt-1">{c?.name}</div>
                       <div className="card__meta">{item.address}</div>
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {item.formats.map((f, i) => (
-                          f.times.map((t) => (
-                            <Link
-                              key={`${f.label}-${t}-${i}`}
-                              to={`/movie/${m?.id || encodeURIComponent(m?.title || '')}?showtime=${encodeURIComponent(t)}&format=${encodeURIComponent(f.label)}&cinema=${encodeURIComponent(c?.id || '')}`}
-                              className="inline-flex items-center justify-center px-6 py-2.5 bg-gradient-to-r from-[#e83b41] to-[#ff5258] hover:from-[#ff5258] hover:to-[#ff6b6b] text-white font-semibold text-sm rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
-                            >
-                              Đặt vé
-                            </Link>
-                          ))
-                        ))}
+                      <div className="mt-3">
+                        <Link
+                          to={`/movie/${m?.id || encodeURIComponent(m?.title || '')}?cinema=${encodeURIComponent(c?.id || '')}`}
+                          className="inline-flex items-center justify-center px-6 py-2.5 bg-gradient-to-r from-[#e83b41] to-[#ff5258] hover:from-[#ff5258] hover:to-[#ff6b6b] text-white font-semibold text-sm rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                        >
+                          Đặt vé
+                        </Link>
                       </div>
                     </div>
                   </div>

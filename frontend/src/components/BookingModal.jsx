@@ -50,14 +50,6 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
         </div>
 
         <div className="modal__filters">
-          <div className="chip-row">
-            {dates.map((d) => (
-              <button key={d.key} className={`chip ${date===d.key? 'chip--active': ''}`} onClick={() => setDate(d.key)}>
-                {d.label}
-              </button>
-            ))}
-          </div>
-
           <div className="mt-3.5">
             <span className="field__label block mb-2">Tỉnh/Thành phố</span>
             <div className="chip-row--wrap">
