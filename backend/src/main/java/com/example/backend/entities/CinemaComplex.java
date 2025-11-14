@@ -1,8 +1,6 @@
 package com.example.backend.entities;
-
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.util.List;
 
 @Entity
@@ -24,4 +22,12 @@ public class CinemaComplex {
 
     @OneToMany(mappedBy = "cinemaComplex", cascade = CascadeType.ALL)
     private List<CinemaRoom> rooms;
+
+    @ManyToMany(cascade = CascadeType.ALL)
+    @JoinTable(
+        name = "complex_food_combo",
+        joinColumns = @JoinColumn(name = "complex_id"),
+        inverseJoinColumns = @JoinColumn(name = "food_combo_id")
+    )
+    private List<FoodCombo> foodCombos;
 }

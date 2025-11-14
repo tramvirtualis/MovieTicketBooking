@@ -1,5 +1,4 @@
 package com.example.backend.entities;
-
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -14,7 +13,7 @@ public class FoodCombo {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long foodComboId;
-
+    
     private String name;
     private BigDecimal price;
     private String image;
