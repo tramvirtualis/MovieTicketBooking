@@ -1,5 +1,6 @@
 package com.example.backend.services;
 
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
@@ -298,32 +299,58 @@ public class AuthService {
     }
 
     public LoginResponseDTO login(String username, String password) throws Exception {
+
         Optional<User> userOpt = userRepository.findByUsername(username);
         if (userOpt.isEmpty()) {
             throw new Exception("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
         User user = userOpt.get();
+
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new Exception("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
-        String role;
-        if (user instanceof Admin) role = "ADMIN";
-        else if (user instanceof Manager) role = "MANAGER";
-        else role = "CUSTOMER";
+        String role = "";
+        String name = null;
+        LocalDate dob = null;
+        Long cinemaComplexId = null;
 
+        // Phân loại user & lấy dữ liệu tương ứng
+        if (user instanceof Admin) {
+            role = "ADMIN";
+        }
+        else if (user instanceof Manager) {
+            role = "MANAGER";
+            Manager m = (Manager) user;
+
+            if (m.getCinemaComplex() != null) {
+                cinemaComplexId = m.getCinemaComplex().getComplexId();
+            }
+        }
+        else if (user instanceof Customer) {
+            role = "CUSTOMER";
+            Customer c = (Customer) user;
+            name = c.getName();
+            dob = c.getDob();
+        }
+
+        // Tạo JWT
         String token = jwtUtils.generateJwtToken(username, role);
 
+        // Build Response
         return LoginResponseDTO.builder()
                 .userId(user.getUserId())
                 .username(user.getUsername())
+                .name(name)
+                .dob(dob)
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .status(user.getStatus())
                 .address(user.getAddress())
                 .role(role)
                 .token(token)
+                .cinemaComplexId(cinemaComplexId)
                 .build();
     }
 }
