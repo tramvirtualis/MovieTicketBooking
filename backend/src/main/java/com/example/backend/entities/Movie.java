@@ -33,9 +33,15 @@ public class Movie {
 
     private String actor;
     private String director;
+    
+    @Column(columnDefinition = "TEXT")
     private String description;
+    
+    @Column(columnDefinition = "TEXT")
     private String trailerURL;
-    private String poster;
+    
+    @Column(columnDefinition = "LONGTEXT")
+    private String poster; // Hỗ trợ URL dài hoặc base64 image
 
     @Enumerated(EnumType.STRING)
     private MovieStatus status;

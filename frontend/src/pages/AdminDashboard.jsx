@@ -11,6 +11,33 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
+import { movieService } from '../services/movieService';
+
+// Add CSS animation for spinner and notification
+if (typeof document !== 'undefined') {
+  const styleId = 'admin-spinner-animation';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes slideInRight {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
 
 // Enums from database
 const GENRES = ['ACTION', 'COMEDY', 'HORROR', 'DRAMA', 'ROMANCE', 'THRILLER', 'ANIMATION', 'FANTASY', 'SCI-FI', 'MUSICAL', 'FAMILY', 'DOCUMENTARY', 'ADVENTURE', 'SUPERHERO'];
@@ -830,9 +857,9 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
             </div>
           </div>
         </div>
-      </div>
-    );
-  };
+    </div>
+  );
+};
 
   return (
     <div className="cinema-management">
@@ -1143,6 +1170,8 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
   const [showModal, setShowModal] = useState(false);
   const [editingMovie, setEditingMovie] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     genre: '',
@@ -1160,10 +1189,101 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     formats: []
   });
   const [posterPreview, setPosterPreview] = useState('');
+  const [validationErrors, setValidationErrors] = useState({});
+  const [notification, setNotification] = useState(null);
 
-  // Sync with parent movies when they change
+  // Notification component
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000);
+  };
+
+  // Helper function to map ageRating from backend to frontend
+  const mapAgeRatingFromBackend = (ageRating) => {
+    const mapping = {
+      'AGE_13_PLUS': '13+',
+      'AGE_16_PLUS': '16+',
+      'AGE_18_PLUS': '18+',
+      'P': 'P',
+      'K': 'K'
+    };
+    return mapping[ageRating] || ageRating;
+  };
+
+  // Helper function to map ageRating from frontend to backend
+  const mapAgeRatingToBackend = (ageRating) => {
+    const mapping = {
+      '13+': 'AGE_13_PLUS',
+      '16+': 'AGE_16_PLUS',
+      '18+': 'AGE_18_PLUS',
+      'P': 'P',
+      'K': 'K'
+    };
+    return mapping[ageRating] || ageRating;
+  };
+
+  // Helper function to map RoomType from frontend to backend
+  const mapRoomTypeToBackend = (roomType) => {
+    const mapping = {
+      '2D': 'TYPE_2D',
+      '3D': 'TYPE_3D',
+      'DELUXE': 'DELUXE'
+    };
+    return mapping[roomType] || roomType;
+  };
+
+  // Load movies from API on mount
   useEffect(() => {
-    setMovies(initialMoviesList);
+    const loadMovies = async () => {
+      // Kiểm tra token trước
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        setError('Vui lòng đăng nhập để tiếp tục');
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await movieService.getAllMovies();
+        if (result.success) {
+          // Map ageRating, formats từ backend format sang frontend format
+          const mappedMovies = (result.data || []).map(movie => ({
+            ...movie,
+            ageRating: mapAgeRatingFromBackend(movie.ageRating),
+            formats: mapFormatsFromBackend(movie.formats),
+            languages: movie.languages || []
+          }));
+          setMovies(mappedMovies);
+          if (onMoviesChange) {
+            onMoviesChange(mappedMovies);
+          }
+        } else {
+          setError(result.error);
+          // Nếu lỗi là về authentication, có thể cần redirect
+          if (result.error.includes('đăng nhập') || result.error.includes('hết hạn')) {
+            setTimeout(() => {
+              window.location.href = '/signin';
+            }, 2000);
+          }
+        }
+      } catch (err) {
+        setError(err.message || 'Không thể tải danh sách phim');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadMovies();
+  }, []); // Only run on mount
+
+  // Sync with parent movies when they change (for backward compatibility)
+  useEffect(() => {
+    if (initialMoviesList && initialMoviesList.length > 0 && movies.length === 0) {
+      setMovies(initialMoviesList);
+    }
   }, [initialMoviesList]);
 
   // Update parent when movies change
@@ -1189,20 +1309,21 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     if (file) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        alert('Vui lòng chọn file hình ảnh');
+        showNotification('Vui lòng chọn file hình ảnh', 'error');
         return;
       }
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Kích thước file không được vượt quá 5MB');
+      // Tăng giới hạn file size lên 10MB để hỗ trợ ảnh chất lượng cao
+      if (file.size > 10 * 1024 * 1024) {
+        showNotification('Kích thước file không được vượt quá 10MB', 'error');
         return;
       }
       
       setFormData({ ...formData, posterFile: file, poster: '' });
       
-      // Create preview
+      // Create preview và lưu base64 để gửi lên server
       const reader = new FileReader();
       reader.onloadend = () => {
+        // Lưu base64 để có thể gửi lên server
         setPosterPreview(reader.result);
       };
       reader.readAsDataURL(file);
@@ -1235,18 +1356,61 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
       formats: []
     });
     setPosterPreview('');
+    setValidationErrors({}); // Clear validation errors
     setShowModal(true);
+  };
+
+  // Helper function to map RoomType from backend to frontend
+  const mapRoomTypeFromBackend = (roomType) => {
+    const mapping = {
+      'TYPE_2D': '2D',
+      'TYPE_3D': '3D',
+      'DELUXE': 'DELUXE',
+      '2D': '2D', // Fallback
+      '3D': '3D'  // Fallback
+    };
+    return mapping[roomType] || roomType;
+  };
+
+  // Helper function to map formats array from backend to frontend
+  const mapFormatsFromBackend = (formats) => {
+    if (!formats || !Array.isArray(formats)) return [];
+    return formats.map(f => mapRoomTypeFromBackend(f));
+  };
+
+  // Helper function to extract formats and languages from movie
+  const extractFormatsAndLanguages = (movie) => {
+    let formats = [];
+    let languages = [];
+
+    // Nếu movie có formats và languages trực tiếp từ backend (từ MovieResponseDTO)
+    if (movie.formats || movie.languages) {
+      formats = mapFormatsFromBackend(movie.formats);
+      languages = movie.languages || [];
+    }
+    // Nếu movie có versions (fallback - từ entity trực tiếp)
+    else if (movie.versions && Array.isArray(movie.versions) && movie.versions.length > 0) {
+      formats = [...new Set(movie.versions.map(v => mapRoomTypeFromBackend(v.roomType)))];
+      languages = [...new Set(movie.versions.map(v => v.language))];
+    }
+
+    return { formats, languages };
   };
 
   // Open edit movie modal
   const handleEditMovie = (movie) => {
     setEditingMovie(movie);
+    // Map ageRating từ backend format sang frontend format
+    const mappedAgeRating = mapAgeRatingFromBackend(movie.ageRating);
+    // Extract formats và languages từ movie
+    const { formats, languages } = extractFormatsAndLanguages(movie);
+    
     setFormData({
       title: movie.title,
       genre: movie.genre,
       duration: movie.duration.toString(),
       releaseDate: movie.releaseDate,
-      ageRating: movie.ageRating,
+      ageRating: mappedAgeRating, // Đã được map từ backend format
       actor: movie.actor,
       director: movie.director,
       description: movie.description,
@@ -1254,54 +1418,173 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
       poster: movie.poster,
       posterFile: null,
       status: movie.status,
-      languages: movie.languages || [],
-      formats: movie.formats || []
+      languages: languages,
+      formats: formats
     });
     setPosterPreview(movie.poster || '');
+    setValidationErrors({}); // Clear validation errors
     setShowModal(true);
   };
 
   // Save movie
-  const handleSaveMovie = () => {
-    if (!formData.title || !formData.genre || !formData.duration || !formData.releaseDate) {
-      alert('Vui lòng điền đầy đủ thông tin bắt buộc');
+  const handleSaveMovie = async () => {
+    // Validation đầy đủ các trường bắt buộc
+    const errors = {};
+    
+    if (!formData.title || formData.title.trim() === '') {
+      errors.title = 'Tên phim không được để trống';
+    }
+    if (!formData.genre || formData.genre === '') {
+      errors.genre = 'Thể loại không được để trống';
+    }
+    if (!formData.duration || formData.duration === '' || parseInt(formData.duration) <= 0) {
+      errors.duration = 'Thời lượng không được để trống và phải lớn hơn 0';
+    }
+    if (!formData.releaseDate || formData.releaseDate === '') {
+      errors.releaseDate = 'Ngày phát hành không được để trống';
+    }
+    if (!formData.ageRating || formData.ageRating === '') {
+      errors.ageRating = 'Độ tuổi không được để trống';
+    }
+    if (!formData.director || formData.director.trim() === '') {
+      errors.director = 'Đạo diễn không được để trống';
+    }
+    if (!formData.actor || formData.actor.trim() === '') {
+      errors.actor = 'Diễn viên không được để trống';
+    }
+    if (!formData.status || formData.status === '') {
+      errors.status = 'Trạng thái không được để trống';
+    }
+    // Note: formats và languages sẽ được xử lý sau khi backend hỗ trợ MovieVersion
+    // Tạm thời vẫn validate để đảm bảo người dùng chọn
+    if (!formData.formats || formData.formats.length === 0) {
+      errors.formats = 'Vui lòng chọn ít nhất 1 định dạng';
+    }
+    if (!formData.languages || formData.languages.length === 0) {
+      errors.languages = 'Vui lòng chọn ít nhất 1 ngôn ngữ';
+    }
+    // Validate poster - ít nhất phải có URL hoặc file upload
+    if (!posterPreview && (!formData.poster || formData.poster.trim() === '')) {
+      errors.poster = 'Vui lòng upload poster hoặc nhập URL poster';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      // Scroll to top của modal để người dùng thấy lỗi
+      const modalContent = document.querySelector('.movie-modal__content');
+      if (modalContent) {
+        modalContent.scrollTo({ top: 0, behavior: 'smooth' });
+      }
       return;
     }
 
-    // Use poster file preview if uploaded, otherwise use URL
-    const posterUrl = posterPreview || formData.poster;
+    // Clear validation errors nếu validation thành công
+    setValidationErrors({});
 
-    const movieData = {
-      ...formData,
-      duration: parseInt(formData.duration),
-      poster: posterUrl,
-      posterFile: undefined // Don't save file object
-    };
+    setLoading(true);
+    setError(null);
 
-    if (editingMovie) {
-      // Update existing movie
-      setMovies(movies.map(m => 
-        m.movieId === editingMovie.movieId 
-          ? { ...m, ...movieData }
-          : m
-      ));
-    } else {
-      // Add new movie
-      const newMovie = {
-        movieId: Math.max(...movies.map(m => m.movieId), 0) + 1,
-        ...movieData
+    try {
+      // Use poster: base64 từ file upload hoặc URL từ input
+      // Base64 có thể rất dài, không giới hạn độ dài
+      let posterValue = '';
+      if (posterPreview && posterPreview.startsWith('data:image')) {
+        // Nếu là base64 từ file upload, sử dụng trực tiếp
+        posterValue = posterPreview;
+      } else if (formData.poster) {
+        // Nếu là URL, sử dụng URL (có thể dài)
+        posterValue = formData.poster;
+      }
+
+      // Prepare movie data for API (map ageRating và formats to backend format)
+      const movieData = {
+        title: formData.title,
+        genre: formData.genre,
+        duration: parseInt(formData.duration),
+        releaseDate: formData.releaseDate,
+        ageRating: mapAgeRatingToBackend(formData.ageRating),
+        actor: formData.actor || '',
+        director: formData.director || '',
+        description: formData.description || '',
+        trailerURL: formData.trailerURL || '',
+        poster: posterValue, // Có thể là URL dài hoặc base64
+        status: formData.status,
+        formats: formData.formats.map(f => mapRoomTypeToBackend(f)), // Map 2D -> TYPE_2D, 3D -> TYPE_3D
+        languages: formData.languages // Languages đã đúng format (VIETSUB, VIETNAMESE, VIETDUB)
       };
-      setMovies([...movies, newMovie]);
+
+      let result;
+      if (editingMovie) {
+        // Update existing movie
+        result = await movieService.updateMovie(editingMovie.movieId, movieData);
+      } else {
+        // Create new movie
+        result = await movieService.createMovie(movieData);
+      }
+
+      if (result.success) {
+        // Reload movies from API
+        const moviesResult = await movieService.getAllMovies();
+        if (moviesResult.success) {
+          const mappedMovies = (moviesResult.data || []).map(movie => ({
+            ...movie,
+            ageRating: mapAgeRatingFromBackend(movie.ageRating),
+            formats: mapFormatsFromBackend(movie.formats),
+            languages: movie.languages || []
+          }));
+          setMovies(mappedMovies);
+          if (onMoviesChange) {
+            onMoviesChange(mappedMovies);
+          }
+        }
+        setShowModal(false);
+        setEditingMovie(null);
+        setPosterPreview('');
+        showNotification(result.message || (editingMovie ? 'Cập nhật phim thành công' : 'Tạo phim thành công'), 'success');
+      } else {
+        setError(result.error);
+        showNotification(result.error || 'Có lỗi xảy ra', 'error');
+      }
+    } catch (err) {
+      setError(err.message || 'Có lỗi xảy ra');
+      showNotification(err.message || 'Có lỗi xảy ra', 'error');
+    } finally {
+      setLoading(false);
     }
-    setShowModal(false);
-    setEditingMovie(null);
-    setPosterPreview('');
   };
 
   // Delete movie
-  const handleDeleteMovie = (movieId) => {
-    setMovies(movies.filter(m => m.movieId !== movieId));
-    setDeleteConfirm(null);
+  const handleDeleteMovie = async (movieId) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const result = await movieService.deleteMovie(movieId);
+      if (result.success) {
+        // Reload movies from API
+        const moviesResult = await movieService.getAllMovies();
+        if (moviesResult.success) {
+          const mappedMovies = (moviesResult.data || []).map(movie => ({
+            ...movie,
+            ageRating: mapAgeRatingFromBackend(movie.ageRating)
+          }));
+          setMovies(mappedMovies);
+          if (onMoviesChange) {
+            onMoviesChange(mappedMovies);
+          }
+        }
+        setDeleteConfirm(null);
+        showNotification(result.message || 'Xóa phim thành công', 'success');
+      } else {
+        setError(result.error);
+        showNotification(result.error || 'Có lỗi xảy ra', 'error');
+      }
+    } catch (err) {
+      setError(err.message || 'Có lỗi xảy ra');
+      showNotification(err.message || 'Có lỗi xảy ra', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Format genre for display
@@ -1330,7 +1613,158 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
   };
 
   return (
+    <>
+      {/* Notification Toast */}
+      {notification && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 10000,
+          padding: '16px 20px',
+          borderRadius: '12px',
+          background: notification.type === 'success' 
+            ? 'rgba(76, 175, 80, 0.95)' 
+            : 'rgba(244, 67, 54, 0.95)',
+          color: '#fff',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          minWidth: '300px',
+          maxWidth: '500px',
+          animation: 'slideInRight 0.3s ease-out',
+          border: `1px solid ${notification.type === 'success' ? 'rgba(76, 175, 80, 1)' : 'rgba(244, 67, 54, 1)'}`
+        }}>
+          <div style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            {notification.type === 'success' ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            )}
+          </div>
+          <div style={{ flex: 1, fontSize: '14px', fontWeight: 500 }}>
+            {notification.message}
+          </div>
+          <button
+            onClick={() => setNotification(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#fff',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              opacity: 0.8
+            }}
+            onMouseOver={(e) => e.target.style.opacity = '1'}
+            onMouseOut={(e) => e.target.style.opacity = '0.8'}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      )}
     <div className="movie-management">
+      {/* Error message - Improved UI */}
+      {error && (
+        <div style={{ 
+          padding: '16px 20px', 
+          background: 'linear-gradient(135deg, #e83b41 0%, #c62828 100%)', 
+          color: '#fff', 
+          borderRadius: '12px', 
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          boxShadow: '0 4px 12px rgba(232, 59, 65, 0.3)',
+          border: '1px solid rgba(255, 255, 255, 0.1)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span style={{ fontWeight: 500, fontSize: '14px' }}>{error}</span>
+          </div>
+          <button 
+            onClick={() => setError(null)}
+            style={{ 
+              background: 'rgba(255, 255, 255, 0.2)', 
+              border: 'none', 
+              color: '#fff', 
+              cursor: 'pointer',
+              fontSize: '20px',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              transition: 'background 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '32px',
+              height: '32px'
+            }}
+            onMouseOver={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.3)'}
+            onMouseOut={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.2)'}
+            title="Đóng"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Loading indicator - Improved UI */}
+      {loading && (
+        <div style={{ 
+          padding: '16px 20px', 
+          background: 'rgba(123, 97, 255, 0.1)', 
+          borderRadius: '12px', 
+          marginBottom: '20px',
+          textAlign: 'center',
+          color: '#c9c4c5',
+          border: '1px solid rgba(123, 97, 255, 0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px'
+        }}>
+          <svg 
+            width="20" 
+            height="20" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2"
+            style={{ 
+              animation: 'spin 1s linear infinite',
+              transformOrigin: 'center'
+            }}
+          >
+            <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+            <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+          </svg>
+          <span style={{ fontWeight: 500 }}>Đang tải dữ liệu...</span>
+        </div>
+      )}
+
       {/* Header with actions */}
       <div className="movie-management__header">
         <div className="movie-management__filters">
@@ -1527,14 +1961,52 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
         </div>
       )}
 
-      {/* Empty state */}
-      {filteredMovies.length === 0 && (
-        <div className="movie-empty">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      {/* Empty state - Improved UI */}
+      {!loading && filteredMovies.length === 0 && (
+        <div className="movie-empty" style={{
+          padding: '60px 20px',
+          textAlign: 'center',
+          color: '#c9c4c5'
+        }}>
+          <svg 
+            width="80" 
+            height="80" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="1.5"
+            style={{ 
+              marginBottom: '20px',
+              opacity: 0.5,
+              color: '#7b61ff'
+            }}
+          >
             <rect x="2" y="4" width="20" height="16" rx="2"/>
             <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
           </svg>
-          <p>Không tìm thấy phim nào</p>
+          <p style={{ 
+            fontSize: '16px', 
+            fontWeight: 500, 
+            marginBottom: '8px',
+            color: '#e6e1e2'
+          }}>
+            {searchTerm || filterGenre || filterStatus 
+              ? 'Không tìm thấy phim nào phù hợp với bộ lọc' 
+              : 'Chưa có phim nào trong hệ thống'}
+          </p>
+          {!searchTerm && !filterGenre && !filterStatus && (
+            <button 
+              className="btn btn--primary" 
+              onClick={handleAddMovie}
+              style={{ marginTop: '16px' }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Thêm phim đầu tiên
+            </button>
+          )}
         </div>
       )}
 
@@ -1559,27 +2031,72 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
             </div>
             <div className="movie-modal__content">
               <div className="movie-form">
+                {/* Validation errors summary */}
+                {Object.keys(validationErrors).length > 0 && (
+                  <div style={{
+                    padding: '12px 16px',
+                    marginBottom: '20px',
+                    backgroundColor: 'rgba(255, 87, 87, 0.1)',
+                    border: '1px solid rgba(255, 87, 87, 0.3)',
+                    borderRadius: '8px',
+                    color: '#ff5757',
+                    fontSize: '14px'
+                  }}>
+                    <div style={{ fontWeight: 600, marginBottom: '8px' }}>Vui lòng kiểm tra các trường sau:</div>
+                    <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                      {Object.values(validationErrors).map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="movie-form__row">
                   <div className="movie-form__group">
                     <label>Tên phim <span className="required">*</span></label>
                     <input
                       type="text"
                       value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, title: e.target.value });
+                        if (validationErrors.title) {
+                          setValidationErrors({ ...validationErrors, title: null });
+                        }
+                      }}
                       placeholder="Nhập tên phim"
+                      style={{
+                        borderColor: validationErrors.title ? '#ff5757' : undefined
+                      }}
                     />
+                    {validationErrors.title && (
+                      <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '4px' }}>
+                        {validationErrors.title}
+                      </div>
+                    )}
                   </div>
                   <div className="movie-form__group">
                     <label>Thể loại <span className="required">*</span></label>
                     <select
                       value={formData.genre}
-                      onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, genre: e.target.value });
+                        if (validationErrors.genre) {
+                          setValidationErrors({ ...validationErrors, genre: null });
+                        }
+                      }}
+                      style={{
+                        borderColor: validationErrors.genre ? '#ff5757' : undefined
+                      }}
                     >
                       <option value="">Chọn thể loại</option>
                       {GENRES.map(genre => (
                         <option key={genre} value={genre}>{formatGenre(genre)}</option>
                       ))}
                     </select>
+                    {validationErrors.genre && (
+                      <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '4px' }}>
+                        {validationErrors.genre}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="movie-form__row">
@@ -1588,18 +2105,44 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                     <input
                       type="number"
                       value={formData.duration}
-                      onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, duration: e.target.value });
+                        if (validationErrors.duration) {
+                          setValidationErrors({ ...validationErrors, duration: null });
+                        }
+                      }}
                       placeholder="VD: 120"
                       min="1"
+                      style={{
+                        borderColor: validationErrors.duration ? '#ff5757' : undefined
+                      }}
                     />
+                    {validationErrors.duration && (
+                      <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '4px' }}>
+                        {validationErrors.duration}
+                      </div>
+                    )}
                   </div>
                   <div className="movie-form__group">
                     <label>Ngày phát hành <span className="required">*</span></label>
                     <input
                       type="date"
                       value={formData.releaseDate}
-                      onChange={(e) => setFormData({ ...formData, releaseDate: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, releaseDate: e.target.value });
+                        if (validationErrors.releaseDate) {
+                          setValidationErrors({ ...validationErrors, releaseDate: null });
+                        }
+                      }}
+                      style={{
+                        borderColor: validationErrors.releaseDate ? '#ff5757' : undefined
+                      }}
                     />
+                    {validationErrors.releaseDate && (
+                      <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '4px' }}>
+                        {validationErrors.releaseDate}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="movie-form__row">
@@ -1607,29 +2150,55 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                     <label>Độ tuổi <span className="required">*</span></label>
                     <select
                       value={formData.ageRating}
-                      onChange={(e) => setFormData({ ...formData, ageRating: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, ageRating: e.target.value });
+                        if (validationErrors.ageRating) {
+                          setValidationErrors({ ...validationErrors, ageRating: null });
+                        }
+                      }}
+                      style={{
+                        borderColor: validationErrors.ageRating ? '#ff5757' : undefined
+                      }}
                     >
                       <option value="">Chọn độ tuổi</option>
                       {AGE_RATINGS.map(rating => (
                         <option key={rating} value={rating}>{rating}</option>
                       ))}
                     </select>
+                    {validationErrors.ageRating && (
+                      <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '4px' }}>
+                        {validationErrors.ageRating}
+                      </div>
+                    )}
                   </div>
                   <div className="movie-form__group">
                     <label>Trạng thái <span className="required">*</span></label>
                     <select
                       value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, status: e.target.value });
+                        if (validationErrors.status) {
+                          setValidationErrors({ ...validationErrors, status: null });
+                        }
+                      }}
+                      style={{
+                        borderColor: validationErrors.status ? '#ff5757' : undefined
+                      }}
                     >
                       {MOVIE_STATUSES.map(status => (
                         <option key={status} value={status}>{formatStatus(status)}</option>
                       ))}
                     </select>
+                    {validationErrors.status && (
+                      <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '4px' }}>
+                        {validationErrors.status}
+                      </div>
+                    )}
                   </div>
                 </div>
               <div className="movie-form__row">
                 <div className="movie-form__group">
-                  <label>Định dạng</label>
+                  <label>Định dạng <span className="required">*</span></label>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {MOVIE_FORMATS.map(fmt => {
                       const active = formData.formats.includes(fmt);
@@ -1637,13 +2206,41 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                         <button
                           type="button"
                           key={fmt}
-                          className={`view-mode-btn ${active ? 'active' : ''}`}
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             const exists = formData.formats.includes(fmt);
                             setFormData({
                               ...formData,
                               formats: exists ? formData.formats.filter(f => f !== fmt) : [...formData.formats, fmt]
                             });
+                            if (validationErrors.formats) {
+                              setValidationErrors({ ...validationErrors, formats: null });
+                            }
+                          }}
+                          style={{
+                            padding: '10px 16px',
+                            borderRadius: '8px',
+                            border: `2px solid ${active ? '#7b61ff' : 'rgba(255, 255, 255, 0.2)'}`,
+                            background: active ? 'rgba(123, 97, 255, 0.2)' : 'rgba(20, 15, 16, 0.8)',
+                            color: active ? '#fff' : '#c9c4c5',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: active ? 600 : 400,
+                            transition: 'all 0.2s',
+                            outline: 'none'
+                          }}
+                          onMouseOver={(e) => {
+                            if (!active) {
+                              e.target.style.background = 'rgba(123, 97, 255, 0.1)';
+                              e.target.style.borderColor = 'rgba(123, 97, 255, 0.5)';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (!active) {
+                              e.target.style.background = 'rgba(20, 15, 16, 0.8)';
+                              e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                            }
                           }}
                         >
                           {fmt}
@@ -1651,9 +2248,14 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                       );
                     })}
                   </div>
+                  {validationErrors.formats && (
+                    <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '8px' }}>
+                      {validationErrors.formats}
+                    </div>
+                  )}
                 </div>
                 <div className="movie-form__group">
-                  <label>Ngôn ngữ</label>
+                  <label>Ngôn ngữ <span className="required">*</span></label>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {LANGUAGES.map(lang => {
                       const active = formData.languages.includes(lang);
@@ -1661,13 +2263,41 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                         <button
                           type="button"
                           key={lang}
-                          className={`view-mode-btn ${active ? 'active' : ''}`}
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             const exists = formData.languages.includes(lang);
                             setFormData({
                               ...formData,
                               languages: exists ? formData.languages.filter(l => l !== lang) : [...formData.languages, lang]
                             });
+                            if (validationErrors.languages) {
+                              setValidationErrors({ ...validationErrors, languages: null });
+                            }
+                          }}
+                          style={{
+                            padding: '10px 16px',
+                            borderRadius: '8px',
+                            border: `2px solid ${active ? '#7b61ff' : 'rgba(255, 255, 255, 0.2)'}`,
+                            background: active ? 'rgba(123, 97, 255, 0.2)' : 'rgba(20, 15, 16, 0.8)',
+                            color: active ? '#fff' : '#c9c4c5',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: active ? 600 : 400,
+                            transition: 'all 0.2s',
+                            outline: 'none'
+                          }}
+                          onMouseOver={(e) => {
+                            if (!active) {
+                              e.target.style.background = 'rgba(123, 97, 255, 0.1)';
+                              e.target.style.borderColor = 'rgba(123, 97, 255, 0.5)';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (!active) {
+                              e.target.style.background = 'rgba(20, 15, 16, 0.8)';
+                              e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                            }
                           }}
                         >
                           {lang}
@@ -1675,26 +2305,59 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                       );
                     })}
                   </div>
+                  {validationErrors.languages && (
+                    <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '8px' }}>
+                      {validationErrors.languages}
+                    </div>
+                  )}
                 </div>
               </div>
+              <div className="movie-form__row">
                 <div className="movie-form__group">
                   <label>Đạo diễn <span className="required">*</span></label>
                   <input
                     type="text"
                     value={formData.director}
-                    onChange={(e) => setFormData({ ...formData, director: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, director: e.target.value });
+                      if (validationErrors.director) {
+                        setValidationErrors({ ...validationErrors, director: null });
+                      }
+                    }}
                     placeholder="Nhập tên đạo diễn"
+                    style={{
+                      borderColor: validationErrors.director ? '#ff5757' : undefined
+                    }}
                   />
+                  {validationErrors.director && (
+                    <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '4px' }}>
+                      {validationErrors.director}
+                    </div>
+                  )}
                 </div>
                 <div className="movie-form__group">
                   <label>Diễn viên <span className="required">*</span></label>
                   <input
                     type="text"
                     value={formData.actor}
-                    onChange={(e) => setFormData({ ...formData, actor: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, actor: e.target.value });
+                      if (validationErrors.actor) {
+                        setValidationErrors({ ...validationErrors, actor: null });
+                      }
+                    }}
                     placeholder="Nhập tên diễn viên (phân cách bằng dấu phẩy)"
+                    style={{
+                      borderColor: validationErrors.actor ? '#ff5757' : undefined
+                    }}
                   />
+                  {validationErrors.actor && (
+                    <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '4px' }}>
+                      {validationErrors.actor}
+                    </div>
+                  )}
                 </div>
+              </div>
                 <div className="movie-form__group">
                   <label>Mô tả</label>
                   <textarea
@@ -1702,17 +2365,37 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="Nhập mô tả phim"
                     rows="4"
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.95)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      color: '#1a1a1a',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      resize: 'vertical',
+                      outline: 'none',
+                      transition: 'border-color 0.2s'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#7b61ff'}
+                    onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)'}
                   />
                 </div>
                 <div className="movie-form__group">
-                  <label>Poster</label>
+                  <label>Poster <span className="required">*</span></label>
                   <div className="movie-poster-upload">
                     <div className="movie-poster-upload__options">
                       <label className="movie-poster-upload__btn">
                         <input
                           type="file"
                           accept="image/*"
-                          onChange={handlePosterUpload}
+                          onChange={(e) => {
+                            handlePosterUpload(e);
+                            if (validationErrors.poster) {
+                              setValidationErrors({ ...validationErrors, poster: null });
+                            }
+                          }}
                           style={{ display: 'none' }}
                         />
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1729,9 +2412,15 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                         onChange={(e) => {
                           setFormData({ ...formData, poster: e.target.value, posterFile: null });
                           setPosterPreview(e.target.value);
+                          if (validationErrors.poster) {
+                            setValidationErrors({ ...validationErrors, poster: null });
+                          }
                         }}
                         placeholder="Nhập URL poster"
                         className="movie-poster-upload__url"
+                        style={{
+                          borderColor: validationErrors.poster ? '#ff5757' : undefined
+                        }}
                       />
                     </div>
                     {(posterPreview || formData.poster) && (
@@ -1755,6 +2444,11 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                       </div>
                     )}
                   </div>
+                  {validationErrors.poster && (
+                    <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '8px' }}>
+                      {validationErrors.poster}
+                    </div>
+                  )}
                 </div>
                 <div className="movie-form__group">
                   <label>URL Trailer (YouTube)</label>
@@ -1814,6 +2508,7 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
         </div>
       )}
     </div>
+    </>
   );
 }
 
@@ -3893,6 +4588,43 @@ export default function AdminDashboard() {
                 </svg>
               </div>
             </div>
+            <button
+              onClick={() => {
+                localStorage.removeItem('jwt');
+                window.location.href = '/signin';
+              }}
+              style={{
+                padding: '10px 16px',
+                borderRadius: '8px',
+                background: 'rgba(232, 59, 65, 0.1)',
+                border: '1px solid rgba(232, 59, 65, 0.3)',
+                color: '#e83b41',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s',
+                marginLeft: '16px'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.background = 'rgba(232, 59, 65, 0.2)';
+                e.target.style.borderColor = 'rgba(232, 59, 65, 0.5)';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.background = 'rgba(232, 59, 65, 0.1)';
+                e.target.style.borderColor = 'rgba(232, 59, 65, 0.3)';
+              }}
+              title="Đăng xuất"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              Đăng xuất
+            </button>
           </div>
         </header>
 
