@@ -19,10 +19,8 @@ const PROVINCES = [
   'Thừa Thiên Huế', 'Tiền Giang', 'Trà Vinh', 'Tuyên Quang', 'Vĩnh Long', 'Vĩnh Phúc', 'Yên Bái'
 ];
 
-
 const storedUser = JSON.parse(localStorage.getItem('user')) || {};
 
-// Map dữ liệu từ localStorage để khớp với cấu trúc backend
 const initialUserData = {
   userId: storedUser.userId || "",
   name: storedUser.name || "",
@@ -102,7 +100,6 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   
-  // State cho form edit - giữ nguyên tên field để dễ mapping với API
   const [editData, setEditData] = useState({
     name: initialUserData.name,
     email: initialUserData.email,
@@ -112,9 +109,22 @@ export default function Profile() {
     addressProvince: initialUserData.address.province,
   });
 
+  const [formMessage, setFormMessage] = useState({ type: '', text: '' });
+
   const showMessage = (type, text) => {
     setMessage({ type, text });
     setTimeout(() => setMessage({ type: '', text: '' }), 5000);
+  };
+
+  const showFormMessage = (type, text) => {
+    setFormMessage({ type, text });
+    // Scroll to top of modal content
+    setTimeout(() => {
+      const modalContent = document.querySelector('.movie-modal__content');
+      if (modalContent) {
+        modalContent.scrollTop = 0;
+      }
+    }, 0);
   };
 
   const stats = [
@@ -161,7 +171,32 @@ export default function Profile() {
 
   const handleSaveChanges = async () => {
     try {
-      // Gọi API với đúng payload format
+      // Clear previous messages
+      setFormMessage({ type: '', text: '' });
+
+      // Validate: Tên không được để trống
+      if (!editData.name.trim()) {
+        showFormMessage('error', 'Vui lòng nhập họ và tên');
+        return;
+      }
+
+      // Validate: Tuổi phải từ 13 trở lên
+      if (editData.dob) {
+        const birthDate = new Date(editData.dob);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        
+        if (age < 13) {
+          showFormMessage('error', 'Bạn phải từ 13 tuổi trở lên');
+          return;
+        }
+      }
+
       const updatedUser = await updateCustomerProfile(userData.userId, {
         name: editData.name,
         email: editData.email,
@@ -171,44 +206,53 @@ export default function Profile() {
         addressProvince: editData.addressProvince,
       });
   
-      // Backend trả về Customer object với address
-      // Format date nếu cần
       const formatDate = (date) => {
         if (!date) return "";
         if (typeof date === 'string') return date;
-        // Nếu là LocalDate từ backend, format thành YYYY-MM-DD
         return date;
       };
   
-      // Map dữ liệu từ backend response
-      // Backend trả về Customer object với userId, name, email, phone, dob, address
       const updatedUserData = {
         userId: updatedUser.userId || userData.userId,
         name: updatedUser.name || editData.name || "",
         email: updatedUser.email || editData.email || "",
         phone: updatedUser.phone || editData.phone || "",
         dob: formatDate(updatedUser.dob) || editData.dob || "",
-        joinDate: userData.joinDate || "", // Giữ nguyên joinDate cũ (không có trong response)
+        joinDate: userData.joinDate || "",
         address: {
           description: updatedUser.address?.description || editData.addressDescription || "",
           province: updatedUser.address?.province || editData.addressProvince || "",
         },
-        totalBookings: userData.totalBookings || 0, // Giữ nguyên stats cũ (không có trong response)
+        totalBookings: userData.totalBookings || 0,
         totalSpent: userData.totalSpent || 0,
         favoriteMovies: userData.favoriteMovies || 0,
       };
   
-      // Cập nhật state và localStorage
       setUserData(updatedUserData);
       localStorage.setItem('user', JSON.stringify(updatedUserData));
-      setIsEditing(false);
       
-      showMessage('success', 'Cập nhật thông tin thành công!');
+      // Show success message but don't close form
+      showFormMessage('success', 'Cập nhật thông tin thành công!');
+      
+      // Auto close after 3 seconds
+      setTimeout(() => {
+        setIsEditing(false);
+        setFormMessage({ type: '', text: '' });
+      }, 3000);
     } catch (err) {
       console.error('Lỗi cập nhật profile:', err);
-      const errorMessage = err.response?.data?.message || err.message || 'Có lỗi xảy ra khi cập nhật thông tin';
-      showMessage('error', errorMessage);
-      setIsEditing(false);
+      let errorMessage = err.response?.data?.message || err.message || 'Có lỗi xảy ra khi cập nhật thông tin';
+      
+      // Xóa các prefix "email:", "dob:", "phone:" khỏi thông báo lỗi
+      errorMessage = errorMessage
+        .replace(/email:\s*/gi, '')
+        .replace(/dob:\s*/gi, '')
+        .replace(/phone:\s*/gi, '')
+        .replace(/name:\s*/gi, '')
+        .replace(/address:\s*/gi, '');
+      
+      // Show error message inside form, don't close form
+      showFormMessage('error', errorMessage);
     }
   };
 
@@ -236,19 +280,8 @@ export default function Profile() {
               <div className="profile-header__info">
                 <h1 className="profile-header__name">{userData.name}</h1>
                 <div className="profile-header__meta">
-                  <span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block align-middle mr-1.5">
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                      <polyline points="22,6 12,13 2,6"/>
-                    </svg>
-                    {userData.email}
-                  </span>
-                  <span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block align-middle mr-1.5">
-                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                    </svg>
-                    {userData.phone}
-                  </span>
+                  <span>{userData.email}</span>
+                  <span>{userData.phone}</span>
                 </div>
               </div>
             </div>
@@ -349,7 +382,6 @@ export default function Profile() {
                 </div>
               )}
 
-
               {activeTab === 'vouchers' && (
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -373,15 +405,12 @@ export default function Profile() {
                               alt={voucher.title}
                               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                             />
-                            {/* Gradient Overlay */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
                             
-                            {/* Discount Badge - Top Left */}
                             <div className="absolute top-3 left-3 bg-gradient-to-r from-[#e83b41] to-[#ff5258] text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-lg backdrop-blur-sm border border-white/20">
                               {discountBadge}
                             </div>
                             
-                            {/* Status Badge - Top Right */}
                             <div className={`absolute top-3 right-3 px-3 py-1.5 rounded-lg text-xs font-bold uppercase shadow-lg backdrop-blur-sm border ${
                               isAvailable 
                                 ? 'bg-[#4caf50] text-white border-white/20' 
@@ -393,12 +422,10 @@ export default function Profile() {
 
                           {/* Content Section */}
                           <div className="p-5 flex flex-col min-h-[200px]">
-                            {/* Title */}
                             <h3 className="text-lg font-bold text-white mb-3 line-clamp-2 leading-tight">
                               {voucher.title}
                             </h3>
 
-                            {/* Code and Expiry Chips */}
                             <div className="flex flex-wrap gap-2 mb-3">
                               <span className="inline-flex items-center px-3 py-1.5 bg-[#4a3f41]/60 border border-[#4a3f41] rounded-lg text-xs font-semibold text-[#ffd159]">
                                 Mã: {voucher.code}
@@ -408,12 +435,10 @@ export default function Profile() {
                               </span>
                             </div>
 
-                            {/* Description */}
                             <p className="text-sm text-[#c9c4c5] line-clamp-2 mb-4 flex-1">
                               {voucher.description}
                             </p>
 
-                            {/* Use Button - Centered */}
                             {isAvailable && (
                               <div className="mt-auto">
                                 <button className="w-full bg-gradient-to-r from-[#e83b41] to-[#ff5258] hover:from-[#ff5258] hover:to-[#ff6b6b] text-white text-xs font-bold py-2.5 px-4 rounded-lg transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg uppercase tracking-wide">
@@ -437,7 +462,7 @@ export default function Profile() {
       {isEditing && (
         <div className="movie-modal-overlay" onClick={() => {
           setIsEditing(false);
-          // Reset form về giá trị hiện tại
+          setFormMessage({ type: '', text: '' });
           setEditData({
             name: userData.name,
             email: userData.email,
@@ -452,7 +477,7 @@ export default function Profile() {
               <h2>Chỉnh sửa thông tin cá nhân</h2>
               <button className="movie-modal__close" onClick={() => {
                 setIsEditing(false);
-                // Reset form về giá trị hiện tại
+                setFormMessage({ type: '', text: '' });
                 setEditData({
                   name: userData.name,
                   email: userData.email,
@@ -469,6 +494,16 @@ export default function Profile() {
               </button>
             </div>
             <div className="movie-modal__content">
+              {/* Message inside form */}
+              {formMessage.text && (
+                <div className={`mb-4 px-4 py-3 rounded-lg font-semibold transition-all duration-300 ${
+                  formMessage.type === 'success' 
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/50' 
+                    : 'bg-red-500/20 text-red-400 border border-red-500/50'
+                }`}>
+                  {formMessage.text}
+                </div>
+              )}
               <div className="movie-form">
                 <div className="movie-form__group">
                   <label>Họ và tên <span className="required">*</span></label>
@@ -522,6 +557,7 @@ export default function Profile() {
                     value={editData.addressProvince}
                     onChange={(e) => setEditData({ ...editData, addressProvince: e.target.value })}
                   >
+                    <option value="">-- Chọn tỉnh/thành phố --</option>
                     {PROVINCES.map(p => (
                       <option key={p} value={p}>{p}</option>
                     ))}
@@ -532,7 +568,7 @@ export default function Profile() {
             <div className="movie-modal__footer">
               <button className="btn btn--ghost" onClick={() => {
                 setIsEditing(false);
-                // Reset form về giá trị hiện tại
+                setFormMessage({ type: '', text: '' });
                 setEditData({
                   name: userData.name,
                   email: userData.email,

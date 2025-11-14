@@ -3,6 +3,7 @@ package com.example.backend.entities;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
+import java.util.List;
 
 @Entity
 @Table(name = "order_combos")
@@ -19,9 +20,8 @@ public class OrderCombo {
     @JoinColumn(name = "order_id")
     private Order order;
 
-    @OneToOne
-    @JoinColumn(name = "food_combo_id", referencedColumnName = "foodComboId")
-    private FoodCombo foodCombo;
+    @OneToMany(mappedBy = "orderCombo")
+    private List<FoodCombo> foodCombos;
 
     private Integer quantity;
     private BigDecimal price;
