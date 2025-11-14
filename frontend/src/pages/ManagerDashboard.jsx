@@ -817,11 +817,11 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange 
 
       {/* Showtime Modal */}
       {showShowtimeModal && selectedRoom && (
-        <div className="movie-modal-overlay" onClick={() => setShowShowtimeModal(false)}>
+        <div className="movie-modal-overlay" onClick={() => { setShowShowtimeModal(false); setSelectedRoom(null); }}>
           <div className="movie-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '920px' }}>
             <div className="movie-modal__header">
               <h2>Lịch chiếu - {selectedRoom.roomName} • {selectedCinema?.name}</h2>
-              <button className="movie-modal__close" onClick={() => setShowShowtimeModal(false)}>
+              <button className="movie-modal__close" onClick={() => { setShowShowtimeModal(false); setSelectedRoom(null); }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
                   <line x1="6" y1="6" x2="18" y2="18"/>

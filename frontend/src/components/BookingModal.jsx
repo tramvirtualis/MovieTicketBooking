@@ -45,7 +45,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
     <div className="modal cinema-mood" role="dialog" aria-modal="true">
       <div className="modal__panel">
         <div className="modal__header">
-          <h3 className="section__title" style={{ margin: 0 }}>Chọn suất - {movieTitle}</h3>
+          <h3 className="section__title m-0">Chọn suất - {movieTitle}</h3>
           <button className="close" aria-label="Close" onClick={onClose}>×</button>
         </div>
 
@@ -58,8 +58,8 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
             ))}
           </div>
 
-          <div style={{ marginTop: '14px' }}>
-            <span className="field__label" style={{ display: 'block', marginBottom: '8px' }}>Tỉnh/Thành phố</span>
+          <div className="mt-3.5">
+            <span className="field__label block mb-2">Tỉnh/Thành phố</span>
             <div className="chip-row--wrap">
               {provinces.map((p) => (
                 <button key={p} className={`chip ${province===p? 'chip--active': ''}`} onClick={() => setProvince(p)}>
@@ -69,7 +69,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
             </div>
           </div>
 
-          <div className="grid-3" style={{ marginTop: '14px' }}>
+          <div className="grid-3 mt-3.5">
             <label className="field">
               <span className="field__label">Rạp</span>
               <select className="field__input" value={cinema} onChange={(e)=>setCinema(e.target.value)} disabled={filteredCinemas.length === 0}>

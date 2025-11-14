@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 
@@ -56,8 +57,8 @@ export default function Schedule() {
 
       <main className="main">
         <section className="section">
-          <div className="container" style={{ display: 'grid', gap: '16px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+          <div className="container grid gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <label className="field">
                 <span className="field__label">Ngày</span>
                 <input className="field__input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -82,29 +83,30 @@ export default function Schedule() {
               </label>
             </div>
 
-            <div style={{ display: 'grid', gap: '20px', marginTop: '8px' }}>
+            <div className="grid gap-5 mt-2">
               {filtered.map((item, idx) => {
                 const m = getMovie(item.movieId);
                 const c = getCinema(item.cinemaId);
                 return (
-                  <div key={idx} className="card" style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '16px', padding: '12px' }}>
+                  <div key={idx} className="card grid grid-cols-[160px_1fr] gap-4 p-3">
                     <a href={`#movie?title=${encodeURIComponent(m?.title || '')}`}>
-                      <img src={m?.poster} alt={m?.title} style={{ width: '100%', height: '220px', objectFit: 'cover', borderRadius: '8px' }} />
+                      <img src={m?.poster} alt={m?.title} className="w-full h-[220px] object-cover rounded-lg" />
                     </a>
                     <div>
-                      <div className="card__title" style={{ fontSize: '18px' }}>{m?.title}</div>
-                      <div className="card__meta" style={{ marginTop: '4px' }}>{c?.name}</div>
+                      <div className="card__title text-lg">{m?.title}</div>
+                      <div className="card__meta mt-1">{c?.name}</div>
                       <div className="card__meta">{item.address}</div>
-                      <div style={{ display: 'grid', gap: '8px', marginTop: '10px' }}>
+                      <div className="flex flex-wrap gap-2 mt-3">
                         {item.formats.map((f, i) => (
-                          <div key={i}>
-                            <div className="card__meta" style={{ marginBottom: '6px' }}>{f.label}</div>
-                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              {f.times.map((t) => (
-                                <a key={t} className="btn" href="#booking" style={{ padding: '8px 12px', background: '#2d2627', border: '1px solid #4a3f41', color: '#fff' }}>{t}</a>
-                              ))}
-                            </div>
-                          </div>
+                          f.times.map((t) => (
+                            <Link
+                              key={`${f.label}-${t}-${i}`}
+                              to={`/movie/${m?.id || encodeURIComponent(m?.title || '')}?showtime=${encodeURIComponent(t)}&format=${encodeURIComponent(f.label)}&cinema=${encodeURIComponent(c?.id || '')}`}
+                              className="inline-flex items-center justify-center px-6 py-2.5 bg-gradient-to-r from-[#e83b41] to-[#ff5258] hover:from-[#ff5258] hover:to-[#ff6b6b] text-white font-semibold text-sm rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                            >
+                              Đặt vé
+                            </Link>
+                          ))
                         ))}
                       </div>
                     </div>

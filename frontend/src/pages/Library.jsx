@@ -207,7 +207,7 @@ export default function Library() {
                   </svg>
                   <h3>Chưa có phim yêu thích</h3>
                   <p>Khám phá và thêm những bộ phim bạn yêu thích vào thư viện</p>
-                  <a href="#home" className="btn btn--primary">Khám phá phim</a>
+                  <a href="/" className="btn btn--primary">Khám phá phim</a>
                 </div>
               ) : (
                 <div className="library-grid">
@@ -235,9 +235,6 @@ export default function Library() {
                             <span>{movie.year}</span>
                             <span>•</span>
                             <span>{movie.genre}</span>
-                          </div>
-                          <div className="library-card__date">
-                            Thêm vào {formatDate(movie.addedDate)}
                           </div>
                         </div>
                       </a>
@@ -270,7 +267,7 @@ export default function Library() {
                   </svg>
                   <h3>Chưa có phim đã đánh giá</h3>
                   <p>Xem phim và đánh giá để xây dựng bộ sưu tập của bạn</p>
-                  <a href="#home" className="btn btn--primary">Khám phá phim</a>
+                  <a href="/" className="btn btn--primary">Khám phá phim</a>
                 </div>
               ) : (
                 <div className="library-reviews">

@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Footer from '../components/Footer.jsx';
 import authService from '../services/authService';
 
 export default function ResetPassword() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,22 +18,11 @@ export default function ResetPassword() {
 
   useEffect(() => {
     // Lấy token từ URL query parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl = urlParams.get('token');
+    const tokenFromUrl = searchParams.get('token');
     if (tokenFromUrl) {
       setToken(tokenFromUrl);
-    } else {
-      // Nếu không có token, có thể lấy từ hash
-      const hash = window.location.hash;
-      if (hash.includes('token=')) {
-        const hashParams = new URLSearchParams(hash.substring(hash.indexOf('?') + 1));
-        const tokenFromHash = hashParams.get('token');
-        if (tokenFromHash) {
-          setToken(tokenFromHash);
-        }
-      }
     }
-  }, []);
+  }, [searchParams]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -106,7 +98,7 @@ export default function ResetPassword() {
                 </p>
                 <button 
                   className="btn btn--primary" 
-                  onClick={() => { window.location.hash = '#signin'; }}
+                  onClick={() => navigate('/signin')}
                   style={{ width: '100%' }}
                 >
                   Đăng nhập ngay
@@ -133,7 +125,7 @@ export default function ResetPassword() {
 
         <section className="auth">
           <div className="auth__panel">
-            <button className="close" aria-label="Đóng" onClick={() => { window.location.hash = ''; }}>×</button>
+            <button className="close" aria-label="Đóng" onClick={() => navigate('/')}>×</button>
             <h2 className="auth__title">ĐẶT LẠI MẬT KHẨU</h2>
             <p className="auth__subtitle">Nhập mật khẩu mới cho tài khoản của bạn</p>
 
@@ -256,7 +248,7 @@ export default function ResetPassword() {
             </form>
 
             <div className="auth__signup">
-              <span>Nhớ lại mật khẩu? </span><a href="#signin">QUAY LẠI ĐĂNG NHẬP</a>
+              <span>Nhớ lại mật khẩu? </span><Link to="/signin">QUAY LẠI ĐĂNG NHẬP</Link>
             </div>
           </div>
         </section>

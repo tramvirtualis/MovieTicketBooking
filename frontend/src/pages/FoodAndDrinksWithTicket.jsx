@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 
@@ -126,6 +127,7 @@ Object.keys(cinemas).forEach((key, index) => {
 });
 
 export default function FoodAndDrinksWithTicket() {
+  const navigate = useNavigate();
   const [selectedCinema, setSelectedCinema] = useState('');
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
@@ -152,11 +154,11 @@ export default function FoodAndDrinksWithTicket() {
         }
       } else {
         // If no pending booking, redirect to normal food page
-        window.location.href = '#food-drinks';
+        navigate('/food-drinks');
       }
     } catch (e) {
       console.error('Failed to load pending booking', e);
-      window.location.href = '#food-drinks';
+      navigate('/food-drinks');
     }
   }, []);
 
@@ -232,7 +234,7 @@ export default function FoodAndDrinksWithTicket() {
     };
     localStorage.setItem('checkoutCart', JSON.stringify(cartData));
     // Keep pendingBooking in localStorage for checkout page
-    window.location.href = '#checkout';
+    navigate('/checkout');
   };
 
   if (!pendingBooking) {
@@ -371,7 +373,7 @@ export default function FoodAndDrinksWithTicket() {
                         totalAmount: getTotalAmount()
                       };
                       localStorage.setItem('checkoutCart', JSON.stringify(cartData));
-                      window.location.href = '#checkout';
+                      navigate('/checkout');
                     }}
                     style={{ padding: '14px 32px', minWidth: '200px', fontSize: '16px', fontWeight: 600 }}
                   >

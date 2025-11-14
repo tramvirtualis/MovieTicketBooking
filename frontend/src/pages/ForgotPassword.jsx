@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import Footer from '../components/Footer.jsx';
 import authService from '../services/authService';
 
 export default function ForgotPassword() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState(1); // 1: nhập email, 2: nhập OTP
@@ -41,7 +43,7 @@ export default function ForgotPassword() {
     
     if (result.success) {
       setStep(2);
-      setCountdown(60);
+      setCountdown(30);
       setIsResendDisabled(true);
     } else {
       setError(result.error || 'Có lỗi xảy ra');
@@ -53,7 +55,7 @@ export default function ForgotPassword() {
   const handleResendOTP = async () => {
     setError('');
     setIsResendDisabled(true);
-    setCountdown(60);
+    setCountdown(30);
 
     // Gọi API gửi lại OTP
     const result = await authService.resendForgotPasswordOtp(email);
@@ -82,7 +84,7 @@ export default function ForgotPassword() {
     if (result.success) {
       // Redirect đến trang reset password với token
       const token = result.token;
-      window.location.hash = `#reset-password?token=${token}&email=${encodeURIComponent(email)}`;
+      navigate(`/reset-password?token=${token}&email=${encodeURIComponent(email)}`);
     } else {
       setError(result.error || 'Mã OTP không đúng');
       setIsVerifying(false);
@@ -104,7 +106,7 @@ export default function ForgotPassword() {
 
           <section className="auth">
             <div className="auth__panel">
-              <button className="close" aria-label="Đóng" onClick={() => { window.location.hash = ''; }}>×</button>
+              <button className="close" aria-label="Đóng" onClick={() => navigate('/')}>×</button>
               <h2 className="auth__title">XÁC THỰC OTP</h2>
               <p className="auth__subtitle">
                 Chúng tôi đã gửi mã OTP đến email <strong>{email}</strong>. 
@@ -290,7 +292,7 @@ export default function ForgotPassword() {
             </form>
 
             <div className="auth__signup">
-              <span>Nhớ lại mật khẩu? </span><a href="#signin">QUAY LẠI ĐĂNG NHẬP</a>
+              <span>Nhớ lại mật khẩu? </span><Link to="/signin">QUAY LẠI ĐĂNG NHẬP</Link>
             </div>
           </div>
         </section>

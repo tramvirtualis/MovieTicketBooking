@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import NotificationBell from './NotificationBell';
 
 const cinemas = [
   { name: 'Quốc Thanh', province: 'TP.HCM' },
@@ -13,6 +15,7 @@ const cinemas = [
 ];
 
 export default function Header({ children }) {
+  const navigate = useNavigate();
   const [showCinemaDropdown, setShowCinemaDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [user, setUser] = useState(null); // lưu thông tin user
@@ -46,13 +49,13 @@ export default function Header({ children }) {
     localStorage.removeItem('user');
     localStorage.removeItem('jwt');
     setUser(null);
-    window.location.href = '/';
+    navigate('/');
   };
 
   return (
     <header className="site-header">
       <div className="container nav">
-        <a className="logo" href="#home">
+        <Link className="logo" to="/">
           <svg className="logo__icon" width="32" height="32" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -79,9 +82,9 @@ export default function Header({ children }) {
             <circle cx="26" cy="26" r="1.5" fill="rgba(255,255,255,0.6)"/>
           </svg>
           <span className="logo__text">cinesmart</span>
-        </a>
+        </Link>
         <nav className="menu">
-          <a href="#schedule">Lịch chiếu phim</a>
+          <Link to="/schedule">Lịch chiếu phim</Link>
           <div className="menu-dropdown" ref={dropdownRef} style={{ position: 'relative' }}>
             <button
               className="menu-link"
@@ -100,25 +103,28 @@ export default function Header({ children }) {
             {showCinemaDropdown && (
               <div className="cinema-dropdown">
                 {cinemas.map((cinema, idx) => (
-                  <a
+                  <Link
                     key={idx}
-                    href={`#cinema?name=${encodeURIComponent(cinema.name)}&province=${encodeURIComponent(cinema.province)}`}
+                    to={`/cinema/${encodeURIComponent(cinema.name)}?province=${encodeURIComponent(cinema.province)}`}
                     className="cinema-dropdown__item"
                     onClick={() => setShowCinemaDropdown(false)}
                   >
                     Cinestar {cinema.name} ({cinema.province})
-                  </a>
+                  </Link>
                 ))}
               </div>
             )}
           </div>
-          <a href="#food-drinks">Đồ ăn nước uống</a>
-          <a href="#events">Sự kiện và khuyến mãi</a>
+          <Link to="/food-drinks">Đồ ăn nước uống</Link>
+          <Link to="/events">Sự kiện và khuyến mãi</Link>
         </nav>
 
         <div className="actions">
-          {/* render optional header children (e.g., NotificationBell) */}
+          {/* render optional header children */}
           {children}
+          
+          {/* Notification Bell - Always visible when user is logged in */}
+          {user && <NotificationBell />}
           
           {user ? (
             <div className="user-menu" ref={userDropdownRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -141,19 +147,19 @@ export default function Header({ children }) {
               {/* Dropdown menu */}
               {showUserDropdown && (
                 <div className="user-dropdown">
-                  <a href="#profile" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
+                  <Link to="/profile" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
                     Trang cá nhân
-                  </a>
-                  <a href="#orders" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
+                  </Link>
+                  <Link to="/orders" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
                     Đơn hàng
-                  </a>
+                  </Link>
                   <div className="user-dropdown__divider"></div>
-                  <a href="#library" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
+                  <Link to="/library" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
                     Thư viện phim
-                  </a>
-                  <a href="#booking-history" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
+                  </Link>
+                  <Link to="/booking-history" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
                     Lịch sử đặt vé
-                  </a>
+                  </Link>
                   <div className="user-dropdown__divider"></div>
                   <button
                     className="user-dropdown__item user-dropdown__item--logout"
@@ -173,8 +179,8 @@ export default function Header({ children }) {
             </div>
           ) : (
             <>
-              <a className="btn btn--ghost" href="#register">Đăng ký</a>
-              <a className="btn btn--primary" href="#signin">Đăng nhập</a>
+              <Link className="btn btn--ghost" to="/register">Đăng ký</Link>
+              <Link className="btn btn--primary" to="/signin">Đăng nhập</Link>
             </>
           )}
         </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 
@@ -123,26 +124,16 @@ const bookedSeats = [
 ];
 
 export default function BookTicket() {
-  const [, forceUpdate] = useState({});
-
-  // Listen for hash changes to re-read URL params
-  useEffect(() => {
-    const handleHashChange = () => {
-      forceUpdate({});
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // Read parameters from URL
-  const hash = window.location.hash;
-  const urlParams = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');
-  const movieIdFromUrl = urlParams.get('movieId');
-  const cinemaIdFromUrl = urlParams.get('cinemaId');
-  const showtimeFromUrl = urlParams.get('showtime');
-  const dateFromUrl = urlParams.get('date');
-  const formatFromUrl = urlParams.get('format');
-  const cinemaNameFromUrl = urlParams.get('cinemaName');
+  const movieIdFromUrl = searchParams.get('movieId');
+  const cinemaIdFromUrl = searchParams.get('cinemaId');
+  const showtimeFromUrl = searchParams.get('showtime');
+  const dateFromUrl = searchParams.get('date');
+  const formatFromUrl = searchParams.get('format');
+  const cinemaNameFromUrl = searchParams.get('cinemaName');
 
   const [selectedMovie, setSelectedMovie] = useState(movieIdFromUrl || '');
   const [selectedCinema, setSelectedCinema] = useState(cinemaIdFromUrl || '');
@@ -431,7 +422,7 @@ export default function BookTicket() {
     }
     alert('Đặt vé thành công!');
     // Here you would save to database
-    window.location.href = '#orders';
+    navigate('/orders');
   };
 
   return (
@@ -590,7 +581,7 @@ export default function BookTicket() {
                               {formatPrice(totalPrice)}
                             </span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+                          <div className="book-ticket-seat-selection__continue">
                             <button
                               className="btn btn--primary"
                               onClick={() => {
@@ -607,11 +598,11 @@ export default function BookTicket() {
                                 };
                                 localStorage.setItem('pendingBooking', JSON.stringify(bookingInfo));
                                 // Navigate to food and drinks page
-                                window.location.href = '#order-food';
+                                navigate('/order-food');
                               }}
                               style={{ padding: '14px 32px', minWidth: '200px' }}
                             >
-                              Tiếp tục
+                              TIẾP TỤC
                             </button>
                           </div>
                         </div>
@@ -897,7 +888,6 @@ export default function BookTicket() {
                         setShowAgeConfirmModal(false);
                         setPendingShowtime(null);
                         setAgeConfirmed(false);
-                        setHasShownAgeModal(false); // Reset để có thể hiển thị lại modal nếu cần
                       }}
                       style={{
                         padding: '12px 24px',
@@ -909,23 +899,27 @@ export default function BookTicket() {
                     </button>
                     <button
                       className="btn btn--primary"
-                      onClick={() => {
-                        if (ageConfirmed && pendingShowtime) {
-                          setSelectedShowtime(pendingShowtime);
-                          setSelectedSeats([]);
-                          setStep(2);
-                          setShowAgeConfirmModal(false);
-                          setPendingShowtime(null);
-                          setAgeConfirmed(false);
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!ageConfirmed || !pendingShowtime) {
+                          alert('Vui lòng xác nhận độ tuổi để tiếp tục');
+                          return;
                         }
+                        setSelectedShowtime(pendingShowtime);
+                        setSelectedSeats([]);
+                        setStep(2);
+                        setShowAgeConfirmModal(false);
+                        setPendingShowtime(null);
+                        setAgeConfirmed(false);
                       }}
-                      disabled={!ageConfirmed}
                       style={{
                         padding: '12px 24px',
                         fontSize: '14px',
                         fontWeight: 600,
                         opacity: ageConfirmed ? 1 : 0.5,
-                        cursor: ageConfirmed ? 'pointer' : 'not-allowed'
+                        cursor: 'pointer',
+                        border: 'none'
                       }}
                     >
                       Tiếp tục

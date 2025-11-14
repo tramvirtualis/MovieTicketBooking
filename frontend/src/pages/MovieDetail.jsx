@@ -1,15 +1,16 @@
 import React, { useMemo, useState } from 'react';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import BookingModal from '../components/BookingModal.jsx';
 
 export default function MovieDetail() {
+  const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const query = useMemo(() => {
-    const h = window.location.hash || '';
-    const qIndex = h.indexOf('?');
-    const params = new URLSearchParams(qIndex >= 0 ? h.slice(qIndex + 1) : '');
-    return Object.fromEntries(params.entries());
-  }, []);
+    return Object.fromEntries(searchParams.entries());
+  }, [searchParams]);
 
   const sample = {
     id: 'inception',
@@ -617,18 +618,32 @@ export default function MovieDetail() {
               </button>
               <button
                 className="btn btn--primary"
-                onClick={() => {
-                  if (ageConfirmed && pendingBookingUrl) {
-                    window.location.href = pendingBookingUrl;
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!ageConfirmed || !pendingBookingUrl) {
+                    return;
                   }
+                  // Convert hash URL (#booking?params) to path URL (/booking?params)
+                  let bookingPath = pendingBookingUrl;
+                  if (bookingPath.startsWith('#')) {
+                    bookingPath = bookingPath.replace('#', '');
+                  }
+                  if (bookingPath.startsWith('booking')) {
+                    bookingPath = '/' + bookingPath;
+                  }
+                  navigate(bookingPath);
+                  setShowAgeConfirmModal(false);
+                  setPendingBookingUrl(null);
+                  setAgeConfirmed(false);
                 }}
-                disabled={!ageConfirmed}
                 style={{
                   padding: '12px 24px',
                   fontSize: '14px',
                   fontWeight: 600,
                   opacity: ageConfirmed ? 1 : 0.5,
-                  cursor: ageConfirmed ? 'pointer' : 'not-allowed'
+                  cursor: ageConfirmed ? 'pointer' : 'not-allowed',
+                  border: 'none'
                 }}
               >
                 Tiếp tục

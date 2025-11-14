@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import Footer from '../components/Footer.jsx';
 import authService from '../services/authService';
 
 export default function SignUp() {
+  const navigate = useNavigate();
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -152,7 +154,7 @@ export default function SignUp() {
     if (result.success) {
       showMessage('success', result.data.message || 'Đăng ký thành công! Đang chuyển hướng...');
       setTimeout(() => {
-        window.location.hash = '#signin';
+        navigate('/signin');
       }, 2000);
     } else {
       showMessage('error', result.error);
@@ -172,7 +174,7 @@ export default function SignUp() {
 
         <section className="auth">
           <div className="auth__panel auth__panel--wide">
-            <button className="close" aria-label="Đóng" onClick={() => { window.location.hash = ''; }}>×</button>
+            <button className="close" aria-label="Đóng" onClick={() => navigate('/')}>×</button>
             <h2 className="auth__title">Đăng ký</h2>
             <p className="auth__subtitle">Nhận ưu đãi và quyền lợi độc quyền từ Cinesmart</p>
 
@@ -405,7 +407,7 @@ export default function SignUp() {
             </form>
 
             <div className="auth__signup">
-              <span>Đã có tài khoản? </span><a href="#signin">ĐĂNG NHẬP</a>
+              <span>Đã có tài khoản? </span><Link to="/signin">ĐĂNG NHẬP</Link>
             </div>
           </div>
         </section>

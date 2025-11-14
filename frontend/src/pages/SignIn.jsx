@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import Footer from '../components/Footer.jsx';
 import authService from '../services/authService.js'; // ✅ import service bạn đã có
 
 export default function SignIn() {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -23,9 +25,9 @@ export default function SignIn() {
       localStorage.setItem('user', JSON.stringify(user));
     
       // Redirect theo role
-      if (user.role === 'ADMIN') window.location.href = '/admin';
-      else if (user.role === 'MANAGER') window.location.href = '/manager';
-      else window.location.href = '/';
+      if (user.role === 'ADMIN') navigate('/admin');
+      else if (user.role === 'MANAGER') navigate('/manager');
+      else navigate('/');
     }
     
     setLoading(false);
@@ -44,7 +46,7 @@ export default function SignIn() {
 
         <section className="auth">
           <div className="auth__panel">
-            <button className="close" aria-label="Close" onClick={() => { window.location.hash = ''; }}>×</button>
+            <button className="close" aria-label="Close" onClick={() => navigate('/')}>×</button>
             <h2 className="auth__title">Đăng nhập</h2>
             <p className="auth__subtitle">Truy cập quyền lợi và ưu đãi Cinesmart</p>
 
@@ -115,7 +117,7 @@ export default function SignIn() {
               )}
 
               <div className="auth__forgot">
-                <a href="#forgot">Quên mật khẩu?</a>
+                <Link to="/forgot">Quên mật khẩu?</Link>
               </div>
 
               <button className="btn btn--primary" type="submit" disabled={loading}>
@@ -131,7 +133,7 @@ export default function SignIn() {
             </form>
 
             <div className="auth__signup">
-              <span>NGƯỜI MỚI? </span><a href="#register">ĐĂNG KÝ</a>
+              <span>NGƯỜI MỚI? </span><Link to="/register">ĐĂNG KÝ</Link>
             </div>
           </div>
         </section>

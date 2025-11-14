@@ -166,19 +166,19 @@ export default function Orders() {
       <main className="main">
         <section className="section">
           <div className="container">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159' }}>
+            <div className="flex items-center gap-3 mb-6">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#ffd159]">
                 <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
                 <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
                 <path d="M9 12h6M9 16h6"/>
               </svg>
-              <h1 className="section__title" style={{ fontSize: 'clamp(28px, 4vw, 36px)', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}>
+              <h1 className="section__title text-[clamp(28px,4vw,36px)] m-0 font-extrabold tracking-tight">
                 Đơn hàng
               </h1>
             </div>
 
             {/* Filter Tabs */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '28px', flexWrap: 'wrap' }}>
+            <div className="flex gap-2.5 mb-7 flex-wrap">
               <button
                 className={`booking-filter-tab ${filterStatus === 'all' ? 'booking-filter-tab--active' : ''}`}
                 onClick={() => setFilterStatus('all')}
@@ -201,16 +201,12 @@ export default function Orders() {
 
             {/* Orders List */}
             {currentOrders.length === 0 ? (
-              <div style={{ 
-                textAlign: 'center', 
-                padding: '60px 20px',
-                color: '#c9c4c5'
-              }}>
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 20px', opacity: 0.5 }}>
+              <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-5 opacity-50">
                   <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
                   <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
                 </svg>
-                <p style={{ fontSize: '16px', margin: 0 }}>Chưa có đơn hàng nào trong mục này</p>
+                <p className="text-base m-0">Chưa có đơn hàng nào trong mục này</p>
               </div>
             ) : (
               <>
@@ -220,7 +216,7 @@ export default function Orders() {
                     <div className="order-card__header">
                       <div className="order-card__header-left">
                         <div className="order-card__id">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
                             <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
                             <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
                           </svg>
@@ -367,7 +363,7 @@ export default function Orders() {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                  <div className="movie-reviews-pagination" style={{ marginTop: '32px', justifyContent: 'center' }}>
+                  <div className="movie-reviews-pagination mt-8 justify-center">
                     <button
                       className="movie-reviews-pagination__btn"
                       onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}

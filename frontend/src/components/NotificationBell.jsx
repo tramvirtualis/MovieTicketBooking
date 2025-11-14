@@ -73,31 +73,55 @@ const NotificationBell = () => {
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative" ref={dropdownRef} style={{ position: 'relative' }}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-300 hover:text-white transition-colors"
+        className="relative p-2 text-[#e6e1e2] hover:text-white transition-colors"
         aria-label="Thông báo"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
           <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+          <span 
+            className="absolute top-0 right-0 bg-[#e83b41] text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center"
+            style={{
+              minWidth: '20px',
+              padding: '0 4px',
+              fontSize: '10px',
+              lineHeight: '1',
+              boxShadow: '0 2px 8px rgba(232, 59, 65, 0.5)'
+            }}
+          >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+        <div 
+          className="absolute right-0 mt-2 w-80 bg-[#2d2627] border border-[#4a3f41] rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col"
+          style={{
+            top: '100%',
+            marginTop: '8px',
+            zIndex: 200
+          }}
+        >
+          <div className="p-4 border-b border-[#4a3f41] flex items-center justify-between">
             <h3 className="text-white font-semibold">Thông báo</h3>
             {notifications.length > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                className="text-xs text-[#ffd159] hover:text-[#ffeb9e] transition-colors"
               >
                 Đánh dấu tất cả đã đọc
               </button>
@@ -106,7 +130,7 @@ const NotificationBell = () => {
 
           <div className="overflow-y-auto flex-1">
             {notifications.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">
+              <div className="p-8 text-center text-[#c9c4c5]">
                 <svg className="mx-auto mb-3 w-12 h-12 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
                   <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
@@ -118,7 +142,7 @@ const NotificationBell = () => {
                 {displayedNotifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className="p-4 border-b border-gray-800 hover:bg-gray-800 transition-colors group"
+                    className="p-4 border-b border-[#4a3f41] hover:bg-[#1a1415] transition-colors group"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -127,17 +151,17 @@ const NotificationBell = () => {
                             {notification.title}
                           </h4>
                           {!notification.isRead && (
-                            <span className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></span>
+                            <span className="w-2 h-2 bg-[#4caf50] rounded-full flex-shrink-0"></span>
                           )}
                         </div>
-                        <p className="text-gray-400 text-xs mb-2 line-clamp-2">
+                        <p className="text-[#c9c4c5] text-xs mb-2 line-clamp-2">
                           {notification.message}
                         </p>
-                        <span className="text-gray-500 text-xs">{notification.time}</span>
+                        <span className="text-[#9e9e9e] text-xs">{notification.time}</span>
                       </div>
                       <button
                         onClick={() => markAsRead(notification.id)}
-                        className="text-gray-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                        className="text-[#9e9e9e] hover:text-white transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
                         aria-label="Đánh dấu đã đọc"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -152,10 +176,10 @@ const NotificationBell = () => {
           </div>
 
           {notifications.length > 3 && (
-            <div className="p-3 border-t border-gray-700">
+            <div className="p-3 border-t border-[#4a3f41]">
               <button
                 onClick={() => setShowAll(!showAll)}
-                className="w-full text-center text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                className="w-full text-center text-sm text-[#ffd159] hover:text-[#ffeb9e] transition-colors"
               >
                 {showAll ? 'Thu gọn' : `Xem thêm (${notifications.length - 3})`}
               </button>

@@ -44,8 +44,8 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">Phim</h4>
             <ul className="space-y-2.5">
-              <li><a href="#promotions" className="text-gray-400 hover:text-white text-sm transition-colors">Ưu đãi</a></li>
-              <li><a href="#schedule" className="text-gray-400 hover:text-white text-sm transition-colors">Lịch chiếu</a></li>
+              <li><a href="/events" className="text-gray-400 hover:text-white text-sm transition-colors">Ưu đãi</a></li>
+              <li><a href="/schedule" className="text-gray-400 hover:text-white text-sm transition-colors">Lịch chiếu</a></li>
             </ul>
           </div>
 
@@ -53,8 +53,8 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">Dịch vụ</h4>
             <ul className="space-y-2.5">
-              <li><a href="#events" className="text-gray-400 hover:text-white text-sm transition-colors">Thẻ quà tặng</a></li>
-              <li><a href="#food-drinks" className="text-gray-400 hover:text-white text-sm transition-colors">Bắp nước</a></li>
+              <li><a href="/events" className="text-gray-400 hover:text-white text-sm transition-colors">Thẻ quà tặng</a></li>
+              <li><a href="/food-drinks" className="text-gray-400 hover:text-white text-sm transition-colors">Bắp nước</a></li>
             </ul>
           </div>
 

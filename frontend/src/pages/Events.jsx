@@ -154,7 +154,7 @@ export default function Events() {
               Chọn và lưu các voucher phù hợp để sử dụng nhanh khi đặt vé và nhận ưu đãi ngay lập tức.
             </p>
           </div>
-          <a href="#profile" className="events-hero__cta">
+          <a href="/profile" className="events-hero__cta">
             <span className="events-hero__cta-text">Voucher của tôi</span>
             <span className="events-hero__cta-count">{Object.keys(saved).length} voucher đã lưu</span>
           </a>

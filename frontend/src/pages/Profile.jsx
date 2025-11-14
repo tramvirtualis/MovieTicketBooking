@@ -105,7 +105,6 @@ export default function Profile() {
   const stats = [
     { label: 'Tổng số vé đã mua', value: userData.totalBookings, icon: 'ticket' },
     { label: 'Tổng chi tiêu', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(userData.totalSpent), icon: 'money' },
-    { label: 'Phim yêu thích', value: userData.favoriteMovies, icon: 'heart' },
     { label: 'Thành viên từ', value: new Date(userData.joinDate).toLocaleDateString('vi-VN'), icon: 'calendar' },
   ];
 
@@ -171,14 +170,14 @@ export default function Profile() {
                 <h1 className="profile-header__name">{userData.name}</h1>
                 <div className="profile-header__meta">
                   <span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block align-middle mr-1.5">
                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                       <polyline points="22,6 12,13 2,6"/>
                     </svg>
                     {userData.email}
                   </span>
                   <span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block align-middle mr-1.5">
                       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
                     </svg>
                     {userData.phone}
@@ -196,18 +195,6 @@ export default function Profile() {
                 Tổng quan
               </button>
               <button
-                className={`profile-tab ${activeTab === 'favorites' ? 'profile-tab--active' : ''}`}
-                onClick={() => setActiveTab('favorites')}
-              >
-                Phim yêu thích
-              </button>
-              <button
-                className={`profile-tab ${activeTab === 'bookings' ? 'profile-tab--active' : ''}`}
-                onClick={() => setActiveTab('bookings')}
-              >
-                Lịch sử đặt vé
-              </button>
-              <button
                 className={`profile-tab ${activeTab === 'vouchers' ? 'profile-tab--active' : ''}`}
                 onClick={() => setActiveTab('vouchers')}
               >
@@ -223,7 +210,7 @@ export default function Profile() {
                   <div className="profile-stats-grid">
                     {stats.map((stat, idx) => (
                       <div key={idx} className="profile-stat-card">
-                        <div className="profile-stat-card__icon" style={{ color: '#ffd159' }}>
+                        <div className="profile-stat-card__icon text-[#ffd159]">
                           {getIcon(stat.icon)}
                         </div>
                         <div className="profile-stat-card__content">
@@ -256,7 +243,7 @@ export default function Profile() {
                           {new Date(userData.dob).toLocaleDateString('vi-VN')}
                         </span>
                       </div>
-                      <div className="profile-info-item" style={{ gridColumn: '1 / -1' }}>
+                      <div className="profile-info-item col-span-full">
                         <span className="profile-info-item__label">Địa chỉ</span>
                         <span className="profile-info-item__value">
                           {userData.addressDescription}, {userData.addressProvince}
@@ -269,16 +256,16 @@ export default function Profile() {
                         </span>
                       </div>
                     </div>
-                    <button className="btn btn--primary" style={{ marginTop: '20px' }} onClick={() => setIsEditing(true)}>
+                    <button className="btn btn--primary mt-5" onClick={() => setIsEditing(true)}>
                       Chỉnh sửa thông tin
                     </button>
                   </div>
 
                   {/* Recent Bookings */}
                   <div className="profile-section">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div className="flex justify-between items-center mb-4">
                       <h2 className="profile-section__title">Đặt vé gần đây</h2>
-                      <a href="#booking-history" className="profile-section__link">Xem tất cả</a>
+                      <a href="/booking-history" className="profile-section__link">Xem tất cả</a>
                     </div>
                     <div className="profile-bookings-list">
                       {recentBookings.map((booking) => (
@@ -299,90 +286,77 @@ export default function Profile() {
                 </div>
               )}
 
-              {activeTab === 'favorites' && (
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                    <h2 className="profile-section__title">Phim yêu thích ({favoriteMovies.length})</h2>
-                  </div>
-                  <div className="profile-favorites-grid">
-                    {favoriteMovies.map((movie) => (
-                      <a
-                        key={movie.id}
-                        href={`#movie?title=${encodeURIComponent(movie.title)}`}
-                        className="profile-favorite-card"
-                      >
-                        <div className="profile-favorite-card__poster">
-                          <img src={movie.poster} alt={movie.title} />
-                          <div className="profile-favorite-card__overlay">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                            </svg>
-                          </div>
-                        </div>
-                        <div className="profile-favorite-card__title">{movie.title}</div>
-                        <div className="profile-favorite-card__date">
-                          Thêm vào {new Date(movie.addedDate).toLocaleDateString('vi-VN')}
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'bookings' && (
-                <div>
-                  <div style={{ marginBottom: '24px' }}>
-                    <a href="#booking-history" className="btn btn--primary">
-                      Xem toàn bộ lịch sử đặt vé
-                    </a>
-                  </div>
-                  <div className="profile-section">
-                    <p style={{ color: '#c9c4c5', textAlign: 'center', padding: '40px 20px' }}>
-                      Chuyển đến trang <a href="#booking-history" style={{ color: '#ffd159' }}>Lịch sử đặt vé</a> để xem chi tiết
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {activeTab === 'vouchers' && (
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                     <h2 className="profile-section__title">Voucher của tôi ({vouchers.length})</h2>
                   </div>
-                  <div className="movie-grid">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {vouchers.map((voucher) => {
                       const discountBadge = voucher.discount > 0 
                         ? `-${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(voucher.discount)}`
                         : 'FREE';
+                      const isAvailable = voucher.status === 'available';
                       return (
-                        <div key={voucher.id} className="movie-card">
-                          <div
-                            className="movie-card__poster"
-                            style={{ width: '100%', height: '160px', overflow: 'hidden', position: 'relative', padding: 0 }}
-                          >
+                        <div 
+                          key={voucher.id} 
+                          className="group relative bg-gradient-to-br from-[#2d2627] to-[#1a1415] border border-[#4a3f41] rounded-2xl overflow-hidden hover:border-[#e83b41] transition-all duration-300 hover:shadow-xl hover:shadow-[#e83b41]/20 hover:-translate-y-1"
+                        >
+                          {/* Image Section */}
+                          <div className="relative h-48 overflow-hidden">
                             <img
                               src={voucher.image || 'https://via.placeholder.com/1000x430?text=Voucher'}
                               alt={voucher.title}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                             />
-                            <div className="movie-card__status" style={{ backgroundColor: voucher.status === 'available' ? '#4caf50' : '#9e9e9e' }}>
-                              {voucher.status === 'available' ? 'Có thể dùng' : 'Đã hết hạn'}
-                            </div>
-                            <div className="movie-card__badge" style={{ position: 'absolute', top: 8, left: 8, background: '#e83b41', color: '#fff', padding: '4px 8px', borderRadius: 6, fontWeight: 800 }}>
+                            {/* Gradient Overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                            
+                            {/* Discount Badge - Top Left */}
+                            <div className="absolute top-3 left-3 bg-gradient-to-r from-[#e83b41] to-[#ff5258] text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-lg backdrop-blur-sm border border-white/20">
                               {discountBadge}
                             </div>
-                          </div>
-                          <div className="movie-card__content">
-                            <h3 className="movie-card__title">{voucher.title}</h3>
-                            <div className="movie-card__meta">
-                              <span className="movie-card__genre">Mã: {voucher.code}</span>
-                              <span className="movie-card__rating">HSD: {new Date(voucher.expiryDate).toLocaleDateString('vi-VN')}</span>
+                            
+                            {/* Status Badge - Top Right */}
+                            <div className={`absolute top-3 right-3 px-3 py-1.5 rounded-lg text-xs font-bold uppercase shadow-lg backdrop-blur-sm border ${
+                              isAvailable 
+                                ? 'bg-[#4caf50] text-white border-white/20' 
+                                : 'bg-[#9e9e9e] text-white border-white/20'
+                            }`}>
+                              {isAvailable ? 'Có thể dùng' : 'Đã hết hạn'}
                             </div>
-                            <div className="movie-card__director">{voucher.description}</div>
-                            {voucher.status === 'available' && (
-                              <button className="btn btn--primary" style={{ width: '100%', marginTop: '12px' }}>
-                                Sử dụng ngay
-                              </button>
+                          </div>
+
+                          {/* Content Section */}
+                          <div className="p-5 flex flex-col min-h-[200px]">
+                            {/* Title */}
+                            <h3 className="text-lg font-bold text-white mb-3 line-clamp-2 leading-tight">
+                              {voucher.title}
+                            </h3>
+
+                            {/* Code and Expiry Chips */}
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              <span className="inline-flex items-center px-3 py-1.5 bg-[#4a3f41]/60 border border-[#4a3f41] rounded-lg text-xs font-semibold text-[#ffd159]">
+                                Mã: {voucher.code}
+                              </span>
+                              <span className="inline-flex items-center px-3 py-1.5 bg-[#4a3f41]/60 border border-[#4a3f41] rounded-lg text-xs font-semibold text-[#ffd159]">
+                                HSD: {new Date(voucher.expiryDate).toLocaleDateString('vi-VN')}
+                              </span>
+                            </div>
+
+                            {/* Description */}
+                            <p className="text-sm text-[#c9c4c5] line-clamp-2 mb-4 flex-1">
+                              {voucher.description}
+                            </p>
+
+                            {/* Use Button - Centered */}
+                            {isAvailable && (
+                              <div className="mt-auto">
+                                <button className="w-full bg-gradient-to-r from-[#e83b41] to-[#ff5258] hover:from-[#ff5258] hover:to-[#ff6b6b] text-white text-xs font-bold py-2.5 px-4 rounded-lg transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg uppercase tracking-wide">
+                                  Sử dụng ngay
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>

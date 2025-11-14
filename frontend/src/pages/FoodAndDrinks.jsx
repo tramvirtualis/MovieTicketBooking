@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 
@@ -126,6 +127,7 @@ Object.keys(cinemas).forEach((key, index) => {
 });
 
 export default function FoodAndDrinks() {
+  const navigate = useNavigate();
   const [selectedCinema, setSelectedCinema] = useState('');
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
@@ -187,8 +189,8 @@ export default function FoodAndDrinks() {
       totalAmount: getTotalAmount()
     };
     localStorage.setItem('checkoutCart', JSON.stringify(cartData));
-    // Keep pendingBooking in localStorage for checkout page
-    window.location.href = '#checkout';
+    // Navigate to checkout page
+    navigate('/checkout');
   };
 
   return (

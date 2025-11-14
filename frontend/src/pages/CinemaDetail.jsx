@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import interstellar from '../assets/images/interstellar.jpg';
@@ -73,14 +74,13 @@ const cinemaData = {
 };
 
 export default function CinemaDetail() {
+  const { name } = useParams();
+  const [searchParams] = useSearchParams();
   const query = useMemo(() => {
-    const h = window.location.hash || '';
-    const qIndex = h.indexOf('?');
-    const params = new URLSearchParams(qIndex >= 0 ? h.slice(qIndex + 1) : '');
-    return Object.fromEntries(params.entries());
-  }, []);
+    return Object.fromEntries(searchParams.entries());
+  }, [searchParams]);
 
-  const cinemaName = query.name || 'Quốc Thanh';
+  const cinemaName = name || query.name || 'Quốc Thanh';
   const province = query.province || 'TP.HCM';
   const cinema = cinemaData[cinemaName] || cinemaData['Quốc Thanh'];
   const [activeTab, setActiveTab] = useState('now-showing');
