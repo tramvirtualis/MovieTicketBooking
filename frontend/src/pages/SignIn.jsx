@@ -1,7 +1,33 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Footer from '../components/Footer.jsx';
-import authService from '../services/authService.js'; // ✅ import service bạn đã có
+import authService from '../services/authService.js';
+
+
+function GoogleButton() {
+  return (
+    <button
+      type="button"
+      className="flex items-center justify-center gap-3 w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+      aria-label="Continue with Google"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 48 48"
+        width="20"
+        height="20"
+      >
+        <path fill="#FFC107" d="..." />
+        <path fill="#FF3D00" d="..." />
+        <path fill="#4CAF50" d="..." />
+        <path fill="#1976D2" d="..." />
+      </svg>
+      <span className="text-gray-700 font-medium text-sm">
+        Tiếp tục với Google
+      </span>
+    </button>
+  );
+}
 
 export default function SignIn() {
   const navigate = useNavigate();
@@ -9,25 +35,35 @@ export default function SignIn() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState({ type: '', text: '' });
+
+  const showMessage = (type, text) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage({ type: '', text: '' }), 5000);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMessage('');
+    setMessage({ type: '', text: '' });
 
     const result = await authService.login(username, password);
 
     if (result.success) {
-      setMessage('Đăng nhập thành công!');
+      showMessage('success', 'Đăng nhập thành công!');
       const user = result.data;
     
       localStorage.setItem('user', JSON.stringify(user));
     
-      // Redirect theo role
-      if (user.role === 'ADMIN') navigate('/admin');
-      else if (user.role === 'MANAGER') navigate('/manager');
-      else navigate('/');
+      // Nếu login thành công
+      setTimeout(() => {
+        if (user.role === 'ADMIN') navigate('/admin');
+        else if (user.role === 'MANAGER') navigate('/manager');
+        else navigate('/');
+      }, 1000);
+    } else {
+      // Nếu login thất bại
+      showMessage('error', result.error || 'Tên đăng nhập hoặc mật khẩu không đúng');
     }
     
     setLoading(false);
@@ -50,6 +86,19 @@ export default function SignIn() {
             <h2 className="auth__title">Đăng nhập</h2>
             <p className="auth__subtitle">Truy cập quyền lợi và ưu đãi Cinesmart</p>
 
+            {message.text && (
+              <div style={{
+                padding: '12px',
+                marginBottom: '16px',
+                borderRadius: '4px',
+                backgroundColor: message.type === 'success' ? '#1a472a' : '#4a1a1a',
+                color: message.type === 'success' ? '#4ade80' : '#f87171',
+                border: `1px solid ${message.type === 'success' ? '#22c55e' : '#ef4444'}`
+              }}>
+                {message.text}
+              </div>
+            )}
+
             <form className="auth__form" onSubmit={handleSubmit} autoComplete="on">
               <label className="field">
                 <span className="field__label">Tên đăng nhập</span>
@@ -59,7 +108,11 @@ export default function SignIn() {
                   name="username"
                   placeholder="Nhập tên đăng nhập"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    e.target.setCustomValidity('');
+                  }}
+                  onInvalid={(e) => e.target.setCustomValidity('Vui lòng nhập tên đăng nhập')}
                   required
                 />
               </label>
@@ -73,7 +126,11 @@ export default function SignIn() {
                     name="password"
                     placeholder="Nhập mật khẩu"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      e.target.setCustomValidity('');
+                    }}
+                    onInvalid={(e) => e.target.setCustomValidity('Vui lòng nhập mật khẩu')}
                     required
                     style={{ paddingRight: '44px' }}
                   />
@@ -110,12 +167,6 @@ export default function SignIn() {
                 </div>
               </label>
 
-              {message && (
-                <p style={{ color: result?.success ? 'green' : 'red', marginTop: '10px' }}>
-                  {message}
-                </p>
-              )}
-
               <div className="auth__forgot">
                 <Link to="/forgot">Quên mật khẩu?</Link>
               </div>
@@ -124,12 +175,10 @@ export default function SignIn() {
                 {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
               </button>
 
-              <button type="button" className="btn btn--google" aria-label="Continue with Google" style={{ marginTop: '8px' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-                  <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.602 31.91 29.197 35 24 35 16.82 35 11 29.18 11 22S16.82 9 24 9c3.59 0 6.84 1.353 9.35 3.57l5.657-5.657C34.884 3.029 29.7 1 24 1 10.745 1 0 11.745 0 25s10.745 24 24 24c12.426 0 23-9.065 23-24 0-1.604-.175-3.162-.389-4.917z"/>
-                </svg>
-                Tiếp tục với Google
-              </button>
+              {/* ✅ Thêm GoogleButton vào đúng vị trí trong form */}
+              <div style={{ marginTop: '16px' }}>
+                <GoogleButton />
+              </div>
             </form>
 
             <div className="auth__signup">

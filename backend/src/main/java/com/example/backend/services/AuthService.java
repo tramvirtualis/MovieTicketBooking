@@ -46,7 +46,7 @@ public class AuthService {
     // Quên mật khẩu
     private static final int FORGOT_OTP_EXPIRY_MINUTES = 5;
     private static final int RESET_TOKEN_EXPIRY_MINUTES = 15;
-    private static final int FORGOT_RESEND_COOLDOWN_SECONDS = 60;
+    private static final int FORGOT_RESEND_COOLDOWN_SECONDS = 30;
     private static final String FORGOT_OTP_SESSION_KEY = "FORGOT_PASSWORD_OTP_SESSION";
     private static final String RESET_TOKEN_SESSION_KEY = "PASSWORD_RESET_TOKEN_SESSION";
     private static final Pattern PASSWORD_PATTERN = Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,32}$");
@@ -268,8 +268,6 @@ public class AuthService {
         customerRepository.save(customer);
 
         session.removeAttribute(RESET_TOKEN_SESSION_KEY);
-
-        emailService.sendPasswordResetConfirmationEmail(customer.getEmail());
     }
 
     /**
@@ -302,12 +300,12 @@ public class AuthService {
     public LoginResponseDTO login(String username, String password) throws Exception {
         Optional<User> userOpt = userRepository.findByUsername(username);
         if (userOpt.isEmpty()) {
-            throw new Exception("Invalid username or password");
+            throw new Exception("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
         User user = userOpt.get();
         if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new Exception("Invalid username or password");
+            throw new Exception("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
         String role;

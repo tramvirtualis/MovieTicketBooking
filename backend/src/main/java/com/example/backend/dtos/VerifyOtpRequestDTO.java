@@ -7,7 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-// DTO cho request verify OTP
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
