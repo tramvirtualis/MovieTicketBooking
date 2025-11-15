@@ -1,44 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/admin/food-beverage-management.css';
+import managerMenuService from '../../services/managerMenuService';
 
 export default function ManagerMenuManagement({ complexId }) {
   const [availableItems, setAvailableItems] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    loadData();
+    if (complexId) {
+      loadData();
+    }
   }, [complexId]);
 
   const loadData = async () => {
+    if (!complexId) {
+      showNotification('Không tìm thấy thông tin cụm rạp', 'error');
+      return;
+    }
+
     setLoading(true);
     try {
-      const token = localStorage.getItem('jwt');
-      
-      // Load available items (do admin tạo)
-      const availableRes = await fetch('http://localhost:8080/api/manager/menu/available', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const availableData = await availableRes.json();
-      if (availableData.success) {
-        setAvailableItems(availableData.data || []);
+      // Load menu items của cinema complex
+      const menuResult = await managerMenuService.getMenuByComplexId(complexId);
+      if (menuResult.success) {
+        setMenuItems(menuResult.data || []);
+      } else {
+        showNotification(menuResult.error || 'Không thể tải menu', 'error');
       }
 
-      // Load menu items của cinema complex
-      if (complexId) {
-        const menuRes = await fetch(`http://localhost:8080/api/manager/menu/complex/${complexId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        const menuData = await menuRes.json();
-        if (menuData.success) {
-          setMenuItems(menuData.data || []);
-        }
+      // Load available items (do admin tạo, chưa có trong menu)
+      const availableResult = await managerMenuService.getAvailableFoodCombos(complexId);
+      if (availableResult.success) {
+        setAvailableItems(availableResult.data || []);
+      } else {
+        showNotification(availableResult.error || 'Không thể tải danh sách sản phẩm', 'error');
       }
     } catch (error) {
       showNotification('Có lỗi xảy ra khi tải dữ liệu', 'error');
@@ -55,28 +53,25 @@ export default function ManagerMenuManagement({ complexId }) {
   };
 
   const handleAddToMenu = async (foodComboId) => {
-    try {
-      const token = localStorage.getItem('jwt');
-      const response = await fetch(
-        `http://localhost:8080/api/manager/menu/complex/${complexId}/add/${foodComboId}`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+    if (!complexId) {
+      showNotification('Không tìm thấy thông tin cụm rạp', 'error');
+      return;
+    }
 
-      const data = await response.json();
-      if (data.success) {
+    setLoading(true);
+    try {
+      const result = await managerMenuService.addFoodComboToMenu(complexId, foodComboId);
+      
+      if (result.success) {
         showNotification('Thêm sản phẩm vào menu thành công', 'success');
         loadData();
       } else {
-        showNotification(data.message || 'Có lỗi xảy ra', 'error');
+        showNotification(result.error || 'Không thể thêm sản phẩm vào menu', 'error');
       }
     } catch (error) {
       showNotification('Có lỗi xảy ra khi thêm sản phẩm', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,27 +80,25 @@ export default function ManagerMenuManagement({ complexId }) {
       return;
     }
 
-    try {
-      const token = localStorage.getItem('jwt');
-      const response = await fetch(
-        `http://localhost:8080/api/manager/menu/complex/${complexId}/remove/${foodComboId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
+    if (!complexId) {
+      showNotification('Không tìm thấy thông tin cụm rạp', 'error');
+      return;
+    }
 
-      const data = await response.json();
-      if (data.success) {
+    setLoading(true);
+    try {
+      const result = await managerMenuService.removeFoodComboFromMenu(complexId, foodComboId);
+      
+      if (result.success) {
         showNotification('Xóa sản phẩm khỏi menu thành công', 'success');
         loadData();
       } else {
-        showNotification(data.message || 'Có lỗi xảy ra', 'error');
+        showNotification(result.error || 'Không thể xóa sản phẩm khỏi menu', 'error');
       }
     } catch (error) {
       showNotification('Có lỗi xảy ra khi xóa sản phẩm', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -126,10 +119,39 @@ export default function ManagerMenuManagement({ complexId }) {
     return matchesSearch;
   });
 
-  if (loading) {
+  if (loading && menuItems.length === 0 && availableItems.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '60px 20px', color: '#fff' }}>
-        <div style={{ fontSize: '18px' }}>Đang tải...</div>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '400px',
+        color: '#fff'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            border: '4px solid rgba(232, 59, 65, 0.3)',
+            borderTop: '4px solid #e83b41',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px'
+          }}></div>
+          <p>Đang tải dữ liệu...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!complexId) {
+    return (
+      <div style={{
+        textAlign: 'center',
+        padding: '60px 20px',
+        color: '#fff'
+      }}>
+        <p style={{ fontSize: '18px' }}>Không tìm thấy thông tin cụm rạp</p>
       </div>
     );
   }

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/admin/food-beverage-management.css';
 import cloudinaryService from '../../services/cloudinaryService';
+import foodComboService from '../../services/foodComboService';
 
 // Food & Beverage Management Component
 function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
-  const [items, setItems] = useState(initialItems || []);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
   const [showModal, setShowModal] = useState(false);
@@ -21,11 +23,37 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
   const [validationErrors, setValidationErrors] = useState({});
   const [notification, setNotification] = useState(null);
 
+  // Load food combos from API
   useEffect(() => {
-    if (onItemsChange) {
-      onItemsChange(items);
-    }
-  }, [items, onItemsChange]);
+    const loadFoodCombos = async () => {
+      setLoading(true);
+      try {
+        const result = await foodComboService.getAllFoodCombos();
+        if (result.success) {
+          // Map backend data to frontend format
+          const mappedItems = result.data.map(item => ({
+            id: item.foodComboId,
+            name: item.name,
+            description: item.description || '',
+            price: parseFloat(item.price),
+            image: item.image || ''
+          }));
+          setItems(mappedItems);
+          if (onItemsChange) {
+            onItemsChange(mappedItems);
+          }
+        } else {
+          showNotification(result.error || 'Không thể tải danh sách sản phẩm', 'error');
+        }
+      } catch (error) {
+        showNotification('Có lỗi xảy ra khi tải danh sách sản phẩm', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFoodCombos();
+  }, [onItemsChange]);
 
   // Notification component
   const showNotification = (message, type = 'success') => {
@@ -36,7 +64,7 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
   };
 
   // Handle image upload
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
@@ -48,13 +76,20 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
         return;
       }
       
-      setFormData({ ...formData, imageFile: file, image: '' });
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+      try {
+        // Upload to Cloudinary
+        const result = await cloudinaryService.uploadSingle(file);
+        
+        if (result.success) {
+          setFormData({ ...formData, imageFile: file, image: result.url });
+          setImagePreview(result.url);
+          showNotification('Upload hình ảnh thành công', 'success');
+        } else {
+          showNotification(result.error || 'Upload hình ảnh thất bại', 'error');
+        }
+      } catch (error) {
+        showNotification('Có lỗi xảy ra khi upload hình ảnh', 'error');
+      }
     }
   };
 
@@ -95,7 +130,7 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
   };
 
   // Save item
-  const handleSaveItem = () => {
+  const handleSaveItem = async () => {
     const errors = {};
     
     if (!formData.name || formData.name.trim() === '') {
@@ -118,47 +153,110 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
     }
 
     setValidationErrors({});
+    setLoading(true);
 
-    // Use image URL from Cloudinary
-    const imageValue = formData.image;
-
-    if (editingItem) {
-      // Update existing item
-      setItems(items.map(item =>
-        item.id === editingItem.id
-          ? {
-              ...item,
-              name: formData.name,
-              description: formData.description,
-              price: parseFloat(formData.price),
-              image: imageValue
-            }
-          : item
-      ));
-      showNotification('Cập nhật sản phẩm thành công', 'success');
-    } else {
-      // Create new item
-      const newItem = {
-        id: Math.max(...items.map(i => i.id), 0) + 1,
-        name: formData.name,
-        description: formData.description,
+    try {
+      const foodComboData = {
+        name: formData.name.trim(),
         price: parseFloat(formData.price),
-        image: imageValue
+        description: formData.description.trim() || '',
+        image: formData.image
       };
-      setItems([...items, newItem]);
-      showNotification('Thêm sản phẩm thành công', 'success');
-    }
 
-    setShowModal(false);
-    setEditingItem(null);
-    setImagePreview('');
+      if (editingItem) {
+        // Update existing item
+        const result = await foodComboService.updateFoodCombo(editingItem.id, foodComboData);
+        
+        if (result.success) {
+          // Reload items from API
+          const loadResult = await foodComboService.getAllFoodCombos();
+          if (loadResult.success) {
+            const mappedItems = loadResult.data.map(item => ({
+              id: item.foodComboId,
+              name: item.name,
+              description: item.description || '',
+              price: parseFloat(item.price),
+              image: item.image || ''
+            }));
+            setItems(mappedItems);
+            if (onItemsChange) {
+              onItemsChange(mappedItems);
+            }
+          }
+          showNotification('Cập nhật sản phẩm thành công', 'success');
+          setShowModal(false);
+          setEditingItem(null);
+          setImagePreview('');
+        } else {
+          showNotification(result.error || 'Cập nhật sản phẩm thất bại', 'error');
+        }
+      } else {
+        // Create new item
+        const result = await foodComboService.createFoodCombo(foodComboData);
+        
+        if (result.success) {
+          // Reload items from API
+          const loadResult = await foodComboService.getAllFoodCombos();
+          if (loadResult.success) {
+            const mappedItems = loadResult.data.map(item => ({
+              id: item.foodComboId,
+              name: item.name,
+              description: item.description || '',
+              price: parseFloat(item.price),
+              image: item.image || ''
+            }));
+            setItems(mappedItems);
+            if (onItemsChange) {
+              onItemsChange(mappedItems);
+            }
+          }
+          showNotification('Thêm sản phẩm thành công', 'success');
+          setShowModal(false);
+          setEditingItem(null);
+          setImagePreview('');
+        } else {
+          showNotification(result.error || 'Thêm sản phẩm thất bại', 'error');
+        }
+      }
+    } catch (error) {
+      showNotification('Có lỗi xảy ra khi lưu sản phẩm', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Delete item
-  const handleDeleteItem = (id) => {
-    setItems(items.filter(item => item.id !== id));
-    setDeleteConfirm(null);
-    showNotification('Xóa sản phẩm thành công', 'success');
+  const handleDeleteItem = async (id) => {
+    setLoading(true);
+    try {
+      const result = await foodComboService.deleteFoodCombo(id);
+      
+      if (result.success) {
+        // Reload items from API
+        const loadResult = await foodComboService.getAllFoodCombos();
+        if (loadResult.success) {
+          const mappedItems = loadResult.data.map(item => ({
+            id: item.foodComboId,
+            name: item.name,
+            description: item.description || '',
+            price: parseFloat(item.price),
+            image: item.image || ''
+          }));
+          setItems(mappedItems);
+          if (onItemsChange) {
+            onItemsChange(mappedItems);
+          }
+        }
+        setDeleteConfirm(null);
+        showNotification('Xóa sản phẩm thành công', 'success');
+      } else {
+        showNotification(result.error || 'Xóa sản phẩm thất bại', 'error');
+      }
+    } catch (error) {
+      showNotification('Có lỗi xảy ra khi xóa sản phẩm', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
 
@@ -176,6 +274,31 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                          (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
     return matchesSearch;
   });
+
+  if (loading && items.length === 0) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '400px',
+        color: '#fff'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            border: '4px solid rgba(232, 59, 65, 0.3)',
+            borderTop: '4px solid #e83b41',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px'
+          }}></div>
+          <p>Đang tải dữ liệu...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

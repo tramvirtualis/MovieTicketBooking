@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useEnums } from '../../hooks/useEnums';
 import { enumService } from '../../services/enumService';
 import { generateSeats } from './utils';
+import cinemaComplexService from '../../services/cinemaComplexService';
 
 const PROVINCES = [
   'Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Hải Phòng', 'An Giang', 'Bà Rịa - Vũng Tàu',
@@ -18,7 +19,9 @@ const PROVINCES = [
 // Cinema Management Component
 function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
   const { enums } = useEnums();
-  const [cinemas, setCinemas] = useState(initialCinemasList);
+  const [cinemas, setCinemas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [notification, setNotification] = useState(null);
   
   // Map room types from backend (TYPE_2D) to display format (2D)
   const roomTypes = enums.roomTypes?.map(rt => enumService.mapRoomTypeToDisplay(rt)) || [];
@@ -42,11 +45,50 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
     cols: 12
   });
 
+  // Load cinema complexes from API
   useEffect(() => {
-    if (onCinemasChange) {
+    const loadCinemaComplexes = async () => {
+      setLoading(true);
+      try {
+        const result = await cinemaComplexService.getAllCinemaComplexes();
+        if (result.success) {
+          // Map backend data to frontend format
+          const mappedCinemas = result.data.map(item => ({
+            complexId: item.complexId,
+            name: item.name,
+            address: item.fullAddress || `${item.addressDescription}, ${item.addressProvince}`,
+            rooms: [] // Rooms will be loaded separately if needed
+          }));
+          setCinemas(mappedCinemas);
+          if (onCinemasChange) {
+            onCinemasChange(mappedCinemas);
+          }
+        } else {
+          showNotification(result.error || 'Không thể tải danh sách cụm rạp', 'error');
+        }
+      } catch (error) {
+        showNotification('Có lỗi xảy ra khi tải danh sách cụm rạp', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCinemaComplexes();
+  }, [onCinemasChange]);
+
+  useEffect(() => {
+    if (onCinemasChange && cinemas.length > 0) {
       onCinemasChange(cinemas);
     }
   }, [cinemas, onCinemasChange]);
+
+  // Notification component
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000);
+  };
 
   // Handle cinema operations
   const handleAddCinema = () => {
@@ -55,51 +97,164 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
     setShowCinemaModal(true);
   };
 
-  const handleEditCinema = (cinema) => {
-    setEditingCinema(cinema);
-    // Tách địa chỉ thành mô tả + tỉnh/thành
-    const parts = (cinema.address || '').split(',');
-    const province = parts.length > 0 ? parts[parts.length - 1].trim() : 'Hồ Chí Minh';
-    const description = parts.slice(0, -1).join(',').trim();
-    setCinemaFormData({ name: cinema.name, addressDescription: description, addressProvince: province || 'Hồ Chí Minh' });
-    setShowCinemaModal(true);
+  const handleEditCinema = async (cinema) => {
+    try {
+      // Load full cinema data from API
+      const result = await cinemaComplexService.getCinemaComplexById(cinema.complexId);
+      if (result.success) {
+        const cinemaData = result.data;
+        setEditingCinema(cinema);
+        setCinemaFormData({
+          name: cinemaData.name,
+          addressDescription: cinemaData.addressDescription || '',
+          addressProvince: cinemaData.addressProvince || 'Hồ Chí Minh'
+        });
+        setShowCinemaModal(true);
+      } else {
+        showNotification(result.error || 'Không thể tải thông tin cụm rạp', 'error');
+      }
+    } catch (error) {
+      showNotification('Có lỗi xảy ra khi tải thông tin cụm rạp', 'error');
+    }
   };
 
-  const handleSaveCinema = () => {
+  const handleSaveCinema = async () => {
     if (!cinemaFormData.name || !cinemaFormData.addressDescription || !cinemaFormData.addressProvince) {
-      alert('Vui lòng điền đầy đủ thông tin');
+      showNotification('Vui lòng điền đầy đủ thông tin', 'error');
       return;
     }
-    const composedAddress = `${cinemaFormData.addressDescription}, ${cinemaFormData.addressProvince}`;
 
-    if (editingCinema) {
-      setCinemas(cinemas.map(c =>
-        c.complexId === editingCinema.complexId
-          ? { ...c, name: cinemaFormData.name, address: composedAddress }
-          : c
-      ));
-    } else {
-      const newCinema = {
-        complexId: Math.max(...cinemas.map(c => c.complexId), 0) + 1,
-        name: cinemaFormData.name,
-        address: composedAddress,
-        rooms: []
+    setLoading(true);
+    try {
+      const cinemaComplexData = {
+        name: cinemaFormData.name.trim(),
+        addressDescription: cinemaFormData.addressDescription.trim(),
+        addressProvince: cinemaFormData.addressProvince
       };
-      setCinemas([...cinemas, newCinema]);
+
+      if (editingCinema) {
+        // Update existing cinema
+        const result = await cinemaComplexService.updateCinemaComplex(editingCinema.complexId, cinemaComplexData);
+        
+        if (result.success) {
+          // Reload cinemas from API
+          const loadResult = await cinemaComplexService.getAllCinemaComplexes();
+          if (loadResult.success) {
+            const mappedCinemas = loadResult.data.map(item => ({
+              complexId: item.complexId,
+              name: item.name,
+              address: item.fullAddress || `${item.addressDescription}, ${item.addressProvince}`,
+              rooms: [] // Preserve rooms if needed
+            }));
+            setCinemas(mappedCinemas);
+            if (onCinemasChange) {
+              onCinemasChange(mappedCinemas);
+            }
+          }
+          showNotification('Cập nhật cụm rạp thành công', 'success');
+          setShowCinemaModal(false);
+          setEditingCinema(null);
+        } else {
+          showNotification(result.error || 'Cập nhật cụm rạp thất bại', 'error');
+        }
+      } else {
+        // Create new cinema
+        const result = await cinemaComplexService.createCinemaComplex(cinemaComplexData);
+        
+        if (result.success) {
+          // Reload cinemas from API
+          const loadResult = await cinemaComplexService.getAllCinemaComplexes();
+          if (loadResult.success) {
+            const mappedCinemas = loadResult.data.map(item => ({
+              complexId: item.complexId,
+              name: item.name,
+              address: item.fullAddress || `${item.addressDescription}, ${item.addressProvince}`,
+              rooms: []
+            }));
+            setCinemas(mappedCinemas);
+            if (onCinemasChange) {
+              onCinemasChange(mappedCinemas);
+            }
+          }
+          showNotification('Thêm cụm rạp thành công', 'success');
+          setShowCinemaModal(false);
+          setEditingCinema(null);
+        } else {
+          showNotification(result.error || 'Thêm cụm rạp thất bại', 'error');
+        }
+      }
+    } catch (error) {
+      showNotification('Có lỗi xảy ra khi lưu cụm rạp', 'error');
+    } finally {
+      setLoading(false);
     }
-    setShowCinemaModal(false);
-    setEditingCinema(null);
   };
 
-  const handleDeleteCinema = (complexId) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa rạp này? Tất cả phòng chiếu sẽ bị xóa.')) {
-      setCinemas(cinemas.filter(c => c.complexId !== complexId));
-      if (selectedCinema?.complexId === complexId) {
-        setSelectedCinema(null);
-        setSelectedRoom(null);
+  const handleDeleteCinema = async (complexId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa cụm rạp này? Tất cả phòng chiếu sẽ bị xóa.')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await cinemaComplexService.deleteCinemaComplex(complexId);
+      
+      if (result.success) {
+        // Reload cinemas from API
+        const loadResult = await cinemaComplexService.getAllCinemaComplexes();
+        if (loadResult.success) {
+          const mappedCinemas = loadResult.data.map(item => ({
+            complexId: item.complexId,
+            name: item.name,
+            address: item.fullAddress || `${item.addressDescription}, ${item.addressProvince}`,
+            rooms: []
+          }));
+          setCinemas(mappedCinemas);
+          if (onCinemasChange) {
+            onCinemasChange(mappedCinemas);
+          }
+        }
+        
+        if (selectedCinema?.complexId === complexId) {
+          setSelectedCinema(null);
+          setSelectedRoom(null);
+        }
+        showNotification('Xóa cụm rạp thành công', 'success');
+      } else {
+        showNotification(result.error || 'Xóa cụm rạp thất bại', 'error');
       }
+    } catch (error) {
+      showNotification('Có lỗi xảy ra khi xóa cụm rạp', 'error');
+    } finally {
+      setLoading(false);
     }
   };
+
+  // Show loading state
+  if (loading && cinemas.length === 0) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '400px',
+        color: '#fff'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            border: '4px solid rgba(232, 59, 65, 0.3)',
+            borderTop: '4px solid #e83b41',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px'
+          }}></div>
+          <p>Đang tải dữ liệu...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Handle room operations
   const handleAddRoom = (cinema) => {
@@ -362,6 +517,53 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
   };
 
   return (
+    <>
+      {/* Notification Toast */}
+      {notification && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 10000,
+          padding: '16px 20px',
+          borderRadius: '12px',
+          background: notification.type === 'success' 
+            ? 'rgba(76, 175, 80, 0.95)' 
+            : 'rgba(244, 67, 54, 0.95)',
+          color: '#fff',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          minWidth: '300px',
+          maxWidth: '500px',
+          animation: 'slideInRight 0.3s ease-out',
+          border: `1px solid ${notification.type === 'success' ? 'rgba(76, 175, 80, 1)' : 'rgba(244, 67, 54, 1)'}`
+        }}>
+          <div style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            {notification.type === 'success' ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            )}
+          </div>
+          <span>{notification.message}</span>
+        </div>
+      )}
     <div className="cinema-management">
       <div className="cinema-management__header">
         <button className="btn btn--primary" onClick={handleAddCinema}>
@@ -657,6 +859,7 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
         </div>
       )}
     </div>
+  </>
   );
 }
 

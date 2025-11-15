@@ -29,6 +29,10 @@ public class CinemaComplexMenuController {
             List<FoodComboResponseDTO> menu = menuService.getMenuByComplexId(complexId);
             return ResponseEntity.ok(createSuccessResponse("Lấy menu thành công", menu));
         } catch (RuntimeException e) {
+            if (e.getMessage().contains("không có quyền")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(createErrorResponse(e.getMessage()));
+            }
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
@@ -37,11 +41,14 @@ public class CinemaComplexMenuController {
         }
     }
     
-    @GetMapping("/available")
-    public ResponseEntity<?> getAvailableFoodCombos() {
+    @GetMapping("/available/{complexId}")
+    public ResponseEntity<?> getAvailableFoodCombos(@PathVariable Long complexId) {
         try {
-            List<FoodComboResponseDTO> combos = menuService.getAvailableFoodCombos();
+            List<FoodComboResponseDTO> combos = menuService.getAvailableFoodCombos(complexId);
             return ResponseEntity.ok(createSuccessResponse("Lấy danh sách sản phẩm thành công", combos));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse(e.getMessage()));
@@ -55,6 +62,10 @@ public class CinemaComplexMenuController {
             FoodComboResponseDTO added = menuService.addFoodComboToMenu(complexId, foodComboId);
             return ResponseEntity.ok(createSuccessResponse("Thêm sản phẩm vào menu thành công", added));
         } catch (RuntimeException e) {
+            if (e.getMessage().contains("không có quyền")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(createErrorResponse(e.getMessage()));
+            }
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
@@ -70,6 +81,10 @@ public class CinemaComplexMenuController {
             menuService.removeFoodComboFromMenu(complexId, foodComboId);
             return ResponseEntity.ok(createSuccessResponse("Xóa sản phẩm khỏi menu thành công", null));
         } catch (RuntimeException e) {
+            if (e.getMessage().contains("không có quyền")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(createErrorResponse(e.getMessage()));
+            }
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
