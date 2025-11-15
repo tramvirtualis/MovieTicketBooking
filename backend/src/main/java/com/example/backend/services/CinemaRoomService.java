@@ -9,6 +9,7 @@ import com.example.backend.entities.Seat;
 import com.example.backend.entities.enums.SeatType;
 import com.example.backend.repositories.CinemaComplexRepository;
 import com.example.backend.repositories.CinemaRoomRepository;
+import com.example.backend.repositories.SeatRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ public class CinemaRoomService {
     
     private final CinemaRoomRepository cinemaRoomRepository;
     private final CinemaComplexRepository cinemaComplexRepository;
+    private final SeatRepository seatRepository;
     
     @Transactional
     public CinemaRoomResponseDTO createCinemaRoom(CreateCinemaRoomDTO createDTO) {
@@ -125,6 +127,22 @@ public class CinemaRoomService {
         CinemaRoom room = cinemaRoomRepository.findById(roomId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy phòng chiếu với ID: " + roomId));
         cinemaRoomRepository.delete(room);
+    }
+    
+    @Transactional
+    public SeatResponseDTO updateSeatType(Long seatId, SeatType newType) {
+        Seat seat = seatRepository.findById(seatId)
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy ghế với ID: " + seatId));
+        
+        seat.setType(newType);
+        Seat savedSeat = seatRepository.save(seat);
+        
+        return SeatResponseDTO.builder()
+            .seatId(savedSeat.getSeatId())
+            .type(savedSeat.getType())
+            .seatRow(savedSeat.getSeatRow())
+            .seatColumn(savedSeat.getSeatColumn())
+            .build();
     }
     
     private CinemaRoomResponseDTO mapToDTO(CinemaRoom room) {

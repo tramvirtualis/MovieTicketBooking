@@ -288,6 +288,54 @@ export const cinemaRoomService = {
     }
   },
 
+  /**
+   * Cập nhật loại ghế (Admin)
+   * @param {number} seatId - ID của ghế
+   * @param {string} seatType - Loại ghế mới ('NORMAL', 'VIP', 'COUPLE')
+   * @returns {Promise<Object>} Response từ server
+   */
+  updateSeatType: async (seatId, seatType) => {
+    try {
+      const response = await axiosInstance.put(`/admin/seats/${seatId}`, {
+        type: seatType
+      });
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        message: response.data.message || 'Cập nhật loại ghế thành công',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể cập nhật loại ghế',
+      };
+    }
+  },
+
+  /**
+   * Cập nhật loại ghế (Manager)
+   * @param {number} seatId - ID của ghế
+   * @param {string} seatType - Loại ghế mới ('NORMAL', 'VIP', 'COUPLE')
+   * @returns {Promise<Object>} Response từ server
+   */
+  updateSeatTypeManager: async (seatId, seatType) => {
+    try {
+      const response = await axiosInstance.put(`/manager/seats/${seatId}`, {
+        type: seatType
+      });
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        message: response.data.message || 'Cập nhật loại ghế thành công',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể cập nhật loại ghế',
+      };
+    }
+  },
+
   // Helper để map RoomType
   mapRoomTypeToBackend,
   mapRoomTypeFromBackend,

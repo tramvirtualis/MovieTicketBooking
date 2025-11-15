@@ -398,7 +398,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     if (editingShowtime?.showtimeId === stId) setEditingShowtime(null);
   };
 
-  const handleSeatClick = (seatId) => {
+  const handleSeatClick = async (seatId) => {
     if (!selectedCinema || !selectedRoom) return;
     const cinemaIndex = cinemas.findIndex(c => c.complexId === selectedCinema.complexId);
     if (cinemaIndex === -1) return;
@@ -409,18 +409,60 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     const updatedRooms = [...updatedCinema.rooms];
     const updatedRoom = { ...updatedRooms[roomIndex] };
     const currentSeat = updatedRoom.seats.find(s => s.seatId === seatId);
-    if (currentSeat) {
-      const currentIndex = SEAT_TYPES.indexOf(currentSeat.type);
-      const nextIndex = (currentIndex + 1) % SEAT_TYPES.length;
-      const newType = SEAT_TYPES[nextIndex];
-      updatedRoom.seats = updatedRoom.seats.map(s =>
-        s.seatId === seatId ? { ...s, type: newType } : s
+    if (!currentSeat || !currentSeat.seatId) return; // Không có seatId thì không thể lưu
+    
+    const currentIndex = SEAT_TYPES.indexOf(currentSeat.type);
+    const nextIndex = (currentIndex + 1) % SEAT_TYPES.length;
+    const newType = SEAT_TYPES[nextIndex];
+    
+    // Optimistic update: cập nhật UI trước
+    updatedRoom.seats = updatedRoom.seats.map(s =>
+      s.seatId === seatId ? { ...s, type: newType } : s
+    );
+    updatedRooms[roomIndex] = updatedRoom;
+    updatedCinema.rooms = updatedRooms;
+    updatedCinemas[cinemaIndex] = updatedCinema;
+    setCinemas(updatedCinemas);
+    setSelectedRoom(updatedRoom);
+    
+    // Gọi API để lưu vào database
+    try {
+      const { default: cinemaRoomService } = await import('../../services/cinemaRoomService');
+      const result = await cinemaRoomService.updateSeatTypeManager(seatId, newType);
+      
+      if (!result.success) {
+        // Nếu API thất bại, revert lại state
+        const revertedCinemas = [...cinemas];
+        const revertedCinema = { ...revertedCinemas[cinemaIndex] };
+        const revertedRooms = [...revertedCinema.rooms];
+        const revertedRoom = { ...revertedRooms[roomIndex] };
+        revertedRoom.seats = revertedRoom.seats.map(s =>
+          s.seatId === seatId ? { ...s, type: currentSeat.type } : s
+        );
+        revertedRooms[roomIndex] = revertedRoom;
+        revertedCinema.rooms = revertedRooms;
+        revertedCinemas[cinemaIndex] = revertedCinema;
+        setCinemas(revertedCinemas);
+        setSelectedRoom(revertedRoom);
+        
+        alert(result.error || 'Không thể cập nhật loại ghế');
+      }
+    } catch (error) {
+      // Nếu có lỗi, revert lại state
+      const revertedCinemas = [...cinemas];
+      const revertedCinema = { ...revertedCinemas[cinemaIndex] };
+      const revertedRooms = [...revertedCinema.rooms];
+      const revertedRoom = { ...revertedRooms[roomIndex] };
+      revertedRoom.seats = revertedRoom.seats.map(s =>
+        s.seatId === seatId ? { ...s, type: currentSeat.type } : s
       );
-      updatedRooms[roomIndex] = updatedRoom;
-      updatedCinema.rooms = updatedRooms;
-      updatedCinemas[cinemaIndex] = updatedCinema;
-      setCinemas(updatedCinemas);
-      setSelectedRoom(updatedRoom);
+      revertedRooms[roomIndex] = revertedRoom;
+      revertedCinema.rooms = revertedRooms;
+      revertedCinemas[cinemaIndex] = revertedCinema;
+      setCinemas(revertedCinemas);
+      setSelectedRoom(revertedRoom);
+      
+      alert('Có lỗi xảy ra khi cập nhật loại ghế');
     }
   };
 
@@ -515,6 +557,19 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
             const rowItems = buildRowSeats(row);
             return (
               <div key={row} className="seat-layout__row">
+                <div className="seat-layout__row-label" style={{
+                  minWidth: '32px',
+                  textAlign: 'center',
+                  color: '#fff',
+                  fontWeight: 600,
+                  fontSize: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: '12px'
+                }}>
+                  {row}
+                </div>
                 <div className="seat-layout__seats">
                   {rowItems.map((item, idx) => {
                     if (item.type === 'gap') {
@@ -537,9 +592,11 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                         title={seat.seatId ? `${seat.seatId} - ${seat.type === 'NORMAL' ? 'Thường' : seat.type === 'VIP' ? 'VIP' : 'Đôi'}` : `${seat.row}${seat.column} - Chưa có dữ liệu`}
                       >
                         <span className="seat-button__number">{seat.column}</span>
-                        <span className="seat-button__type">
-                          {seat.type === 'COUPLE' ? '💑' : seat.type === 'VIP' ? '⭐' : seat.type.charAt(0)}
-                        </span>
+                        {seat.type !== 'NORMAL' && (
+                          <span className="seat-button__type">
+                            {seat.type === 'COUPLE' ? '💑' : seat.type === 'VIP' ? '⭐' : ''}
+                          </span>
+                        )}
                       </button>
                     );
                   })}

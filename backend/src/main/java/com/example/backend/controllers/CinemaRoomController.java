@@ -2,6 +2,8 @@ package com.example.backend.controllers;
 
 import com.example.backend.dtos.CinemaRoomResponseDTO;
 import com.example.backend.dtos.CreateCinemaRoomDTO;
+import com.example.backend.dtos.SeatResponseDTO;
+import com.example.backend.entities.enums.SeatType;
 import com.example.backend.services.CinemaRoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -192,6 +194,72 @@ public class CinemaRoomController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    // ============ SEAT ENDPOINTS ============
+
+    @PutMapping("/api/admin/seats/{seatId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateSeatType(@PathVariable Long seatId,
+                                             @RequestBody Map<String, String> request) {
+        try {
+            String seatTypeStr = request.get("type");
+            if (seatTypeStr == null) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Thiếu thông tin loại ghế"));
+            }
+            
+            SeatType seatType;
+            try {
+                seatType = SeatType.valueOf(seatTypeStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Loại ghế không hợp lệ: " + seatTypeStr));
+            }
+            
+            SeatResponseDTO seatResponse = cinemaRoomService.updateSeatType(seatId, seatType);
+            return ResponseEntity.ok(
+                    createSuccessResponse("Cập nhật loại ghế thành công", seatResponse)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    @PutMapping("/api/manager/seats/{seatId}")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<?> updateSeatTypeManager(@PathVariable Long seatId,
+                                                    @RequestBody Map<String, String> request) {
+        try {
+            String seatTypeStr = request.get("type");
+            if (seatTypeStr == null) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Thiếu thông tin loại ghế"));
+            }
+            
+            SeatType seatType;
+            try {
+                seatType = SeatType.valueOf(seatTypeStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Loại ghế không hợp lệ: " + seatTypeStr));
+            }
+            
+            SeatResponseDTO seatResponse = cinemaRoomService.updateSeatType(seatId, seatType);
+            return ResponseEntity.ok(
+                    createSuccessResponse("Cập nhật loại ghế thành công", seatResponse)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage()));
         }
     }
     
