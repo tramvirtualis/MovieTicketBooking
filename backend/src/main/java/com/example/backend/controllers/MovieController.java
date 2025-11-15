@@ -18,17 +18,18 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/admin/movies")
 @RequiredArgsConstructor
 @CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000"}, 
              allowedHeaders = "*", 
              allowCredentials = "true")
-@PreAuthorize("hasRole('ADMIN')")
 public class MovieController {
     
     private final MovieService movieService;
     
-    @PostMapping
+    // ============ ADMIN ENDPOINTS (CẦN AUTHENTICATION) ============
+    
+    @PostMapping("/api/admin/movies")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createMovie(@Valid @RequestBody CreateMovieDTO createMovieDTO,
                                          BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
@@ -48,7 +49,8 @@ public class MovieController {
         }
     }
     
-    @PutMapping("/{movieId}")
+    @PutMapping("/api/admin/movies/{movieId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateMovie(@PathVariable Long movieId,
                                          @Valid @RequestBody UpdateMovieDTO updateMovieDTO,
                                          BindingResult bindingResult) {
@@ -72,7 +74,8 @@ public class MovieController {
         }
     }
     
-    @DeleteMapping("/{movieId}")
+    @DeleteMapping("/api/admin/movies/{movieId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteMovie(@PathVariable Long movieId) {
         try {
             movieService.deleteMovie(movieId);
@@ -88,8 +91,9 @@ public class MovieController {
         }
     }
     
-    @GetMapping("/{movieId}")
-    public ResponseEntity<?> getMovieById(@PathVariable Long movieId) {
+    @GetMapping("/api/admin/movies/{movieId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getMovieByIdAdmin(@PathVariable Long movieId) {
         try {
             MovieResponseDTO movieResponse = movieService.getMovieById(movieId);
             return ResponseEntity.ok(
@@ -104,8 +108,9 @@ public class MovieController {
         }
     }
     
-    @GetMapping
-    public ResponseEntity<?> getAllMovies() {
+    @GetMapping("/api/admin/movies")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getAllMoviesAdmin() {
         try {
             List<MovieResponseDTO> movies = movieService.getAllMovies();
             return ResponseEntity.ok(
@@ -116,6 +121,52 @@ public class MovieController {
                     .body(createErrorResponse(e.getMessage()));
         }
     }
+    
+    // ============ PUBLIC ENDPOINTS (KHÔNG CẦN AUTHENTICATION) ============
+    
+    @GetMapping("/api/public/movies/now-showing")
+    public ResponseEntity<List<MovieResponseDTO>> getNowShowingMovies() {
+        try {
+            List<MovieResponseDTO> movies = movieService.getNowShowingMovies();
+            return ResponseEntity.ok(movies);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    @GetMapping("/api/public/movies/coming-soon")
+    public ResponseEntity<List<MovieResponseDTO>> getComingSoonMovies() {
+        try {
+            List<MovieResponseDTO> movies = movieService.getComingSoonMovies();
+            return ResponseEntity.ok(movies);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    @GetMapping("/api/public/movies")
+    public ResponseEntity<List<MovieResponseDTO>> getAllMovies() {
+        try {
+            List<MovieResponseDTO> movies = movieService.getAllMovies();
+            return ResponseEntity.ok(movies);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    @GetMapping("/api/public/movies/{id}")
+    public ResponseEntity<MovieResponseDTO> getMovieById(@PathVariable Long id) {
+        try {
+            MovieResponseDTO movie = movieService.getMovieById(id);
+            return ResponseEntity.ok(movie);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    // ============ HELPER METHODS ============
     
     private Map<String, Object> createSuccessResponse(String message, Object data) {
         Map<String, Object> response = new HashMap<>();
@@ -146,4 +197,3 @@ public class MovieController {
         return response;
     }
 }
-

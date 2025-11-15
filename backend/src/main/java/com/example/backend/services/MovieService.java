@@ -6,6 +6,7 @@ import com.example.backend.dtos.UpdateMovieDTO;
 import com.example.backend.entities.Movie;
 import com.example.backend.entities.MovieVersion;
 import com.example.backend.entities.enums.Language;
+import com.example.backend.entities.enums.MovieStatus;
 import com.example.backend.entities.enums.RoomType;
 import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.MovieVersionRepository;
@@ -25,6 +26,8 @@ public class MovieService {
     private final MovieRepository movieRepository;
     private final MovieVersionRepository movieVersionRepository;
     
+    // ============ ADMIN METHODS (GIỮ NGUYÊN) ============
+    
     @Transactional
     public MovieResponseDTO createMovie(CreateMovieDTO createMovieDTO) {
         Movie movie = Movie.builder()
@@ -43,7 +46,6 @@ public class MovieService {
         
         Movie savedMovie = movieRepository.save(movie);
         
-        // Tạo MovieVersion cho mỗi combination của format và language
         if (createMovieDTO.getFormats() != null && createMovieDTO.getLanguages() != null) {
             List<MovieVersion> versions = new ArrayList<>();
             for (RoomType format : createMovieDTO.getFormats()) {
@@ -103,7 +105,6 @@ public class MovieService {
         
         Movie updatedMovie = movieRepository.save(movie);
         
-        // Cập nhật MovieVersion nếu có formats và languages mới
         if (updateMovieDTO.getFormats() != null && updateMovieDTO.getLanguages() != null) {
             // Lấy các MovieVersion hiện có
             List<MovieVersion> existingVersions = movieVersionRepository.findByMovie(updatedMovie);
@@ -170,8 +171,32 @@ public class MovieService {
                 .collect(Collectors.toList());
     }
     
+    // ============ PUBLIC METHODS (MỚI THÊM) ============
+    
+    public List<MovieResponseDTO> getNowShowingMovies() {
+        List<Movie> movies = movieRepository.findNowShowingMovies();
+        return movies.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+    
+    public List<MovieResponseDTO> getComingSoonMovies() {
+        List<Movie> movies = movieRepository.findComingSoonMovies();
+        return movies.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+    
+    public List<MovieResponseDTO> getMoviesByStatus(MovieStatus status) {
+        List<Movie> movies = movieRepository.findByStatus(status);
+        return movies.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+    
+    // ============ HELPER METHOD ============
+    
     private MovieResponseDTO convertToDTO(Movie movie) {
-        // Lấy formats và languages từ MovieVersion
         List<MovieVersion> versions = movieVersionRepository.findByMovie(movie);
         
         List<RoomType> formats = versions.stream()
@@ -202,4 +227,3 @@ public class MovieService {
                 .build();
     }
 }
-
