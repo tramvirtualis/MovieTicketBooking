@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { movieService } from '../../services/movieService';
 import { useEnums } from '../../hooks/useEnums';
 import { enumService } from '../../services/enumService';
+import cloudinaryService from '../../services/cloudinaryService';
 
 // Movie Management Component
 function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
@@ -187,7 +188,7 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
   });
 
   // Handle poster file upload
-  const handlePosterUpload = (e) => {
+  const handlePosterUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
       // Validate file type
@@ -201,15 +202,25 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
         return;
       }
       
-      setFormData({ ...formData, posterFile: file, poster: '' });
+      // Show loading state
+      setLoading(true);
       
-      // Create preview và lưu base64 để gửi lên server
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        // Lưu base64 để có thể gửi lên server
-        setPosterPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+      try {
+        // Upload to Cloudinary
+        const result = await cloudinaryService.uploadSingle(file);
+        
+        if (result.success) {
+          setFormData({ ...formData, posterFile: file, poster: result.url });
+          setPosterPreview(result.url);
+          showNotification('Upload poster thành công', 'success');
+        } else {
+          showNotification(result.error || 'Upload poster thất bại', 'error');
+        }
+      } catch (error) {
+        showNotification('Có lỗi xảy ra khi upload poster', 'error');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -311,9 +322,9 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     if (!formData.languages || formData.languages.length === 0) {
       errors.languages = 'Vui lòng chọn ít nhất 1 ngôn ngữ';
     }
-    // Validate poster - ít nhất phải có URL hoặc file upload
-    if (!posterPreview && (!formData.poster || formData.poster.trim() === '')) {
-      errors.poster = 'Vui lòng upload poster hoặc nhập URL poster';
+    // Validate poster - phải có URL từ Cloudinary
+    if (!formData.poster || formData.poster.trim() === '') {
+      errors.poster = 'Vui lòng upload poster';
     }
 
     if (Object.keys(errors).length > 0) {
@@ -333,16 +344,8 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     setError(null);
 
     try {
-      // Use poster: base64 từ file upload hoặc URL từ input
-      // Base64 có thể rất dài, không giới hạn độ dài
-      let posterValue = '';
-      if (posterPreview && posterPreview.startsWith('data:image')) {
-        // Nếu là base64 từ file upload, sử dụng trực tiếp
-        posterValue = posterPreview;
-      } else if (formData.poster) {
-        // Nếu là URL, sử dụng URL (có thể dài)
-        posterValue = formData.poster;
-      }
+      // Use poster URL from Cloudinary
+      const posterValue = formData.poster;
 
       // Prepare movie data for API (map ageRating và formats to backend format)
       const movieData = {
@@ -1416,28 +1419,11 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                         </svg>
                         Upload từ máy
                       </label>
-                      <span className="movie-poster-upload__or">hoặc</span>
-                      <input
-                        type="url"
-                        value={formData.poster}
-                        onChange={(e) => {
-                          setFormData({ ...formData, poster: e.target.value, posterFile: null });
-                          setPosterPreview(e.target.value);
-                          if (validationErrors.poster) {
-                            setValidationErrors({ ...validationErrors, poster: null });
-                          }
-                        }}
-                        placeholder="Nhập URL poster"
-                        className="movie-poster-upload__url"
-                        style={{
-                          borderColor: validationErrors.poster ? '#ff5757' : undefined
-                        }}
-                      />
                     </div>
-                    {(posterPreview || formData.poster) && (
+                    {formData.poster && (
                       <div className="movie-poster-upload__preview">
                         <img 
-                          src={posterPreview || formData.poster} 
+                          src={formData.poster} 
                           alt="Poster preview" 
                           className="movie-form__poster-preview" 
                         />

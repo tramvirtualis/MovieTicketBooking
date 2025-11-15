@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   BarChart,
   Bar,
@@ -22,6 +22,7 @@ import VoucherManagement from '../components/AdminDashboard/VoucherManagement';
 import BookingManagement from '../components/AdminDashboard/BookingManagement';
 import Reports from '../components/AdminDashboard/Reports';
 import PriceManagement from '../components/AdminDashboard/PriceManagement';
+import cloudinaryService from '../services/cloudinaryService';
 
 // Add CSS animation for spinner and notification
 if (typeof document !== 'undefined') {
@@ -610,6 +611,7 @@ const initialUsers = [
 // - Reports: frontend/src/components/AdminDashboard/Reports.jsx
 // - PriceManagement: frontend/src/components/AdminDashboard/PriceManagement.jsx
 // - VoucherAssignModal: frontend/src/components/AdminDashboard/VoucherAssignModal.jsx
+
 
 export default function AdminDashboard() {
   const { enums } = useEnums(); // Fetch enums from API

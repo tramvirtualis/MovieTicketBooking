@@ -438,12 +438,12 @@
   color: rgba(255, 255, 255, 0.9);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-}
+  }
 
 .food-form__group label .required {
   color: #e83b41;
   margin-left: 4px;
-}
+  }
 
 .food-form__group input,
 .food-form__group select,
@@ -514,12 +514,12 @@
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 16px;
   }
-
+  
   .food-beverage-header {
     flex-direction: column;
     align-items: stretch;
   }
-
+  
   .food-beverage-header__left {
     flex-direction: column;
     width: 100%;

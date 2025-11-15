@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/admin/food-beverage-management.css';
+import cloudinaryService from '../../services/cloudinaryService';
 
 // Food & Beverage Management Component
 function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
@@ -103,8 +104,8 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
     if (!formData.price || formData.price === '' || parseFloat(formData.price) <= 0) {
       errors.price = 'Giá không được để trống và phải lớn hơn 0';
     }
-    if (!imagePreview && (!formData.image || formData.image.trim() === '')) {
-      errors.image = 'Vui lòng upload hình ảnh hoặc nhập URL hình ảnh';
+    if (!formData.image || formData.image.trim() === '') {
+      errors.image = 'Vui lòng upload hình ảnh';
     }
 
     if (Object.keys(errors).length > 0) {
@@ -118,12 +119,8 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
 
     setValidationErrors({});
 
-    let imageValue = '';
-    if (imagePreview && imagePreview.startsWith('data:image')) {
-      imageValue = imagePreview;
-    } else if (formData.image) {
-      imageValue = formData.image;
-    }
+    // Use image URL from Cloudinary
+    const imageValue = formData.image;
 
     if (editingItem) {
       // Update existing item
@@ -544,10 +541,10 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                   </div>
                   <div className="food-form__group">
                     <label>Hình ảnh <span className="required">*</span></label>
-                    {imagePreview ? (
+                    {formData.image ? (
                       <div className="food-form__image-preview">
                         <img 
-                          src={imagePreview} 
+                          src={formData.image} 
                           alt="Preview"
                         />
                         <button
@@ -568,24 +565,6 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                           accept="image/*"
                           onChange={handleImageUpload}
                           style={{ marginBottom: '8px' }}
-                        />
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '4px' }}>
-                          hoặc
-                        </div>
-                        <input
-                          type="text"
-                          value={formData.image}
-                          onChange={(e) => {
-                            setFormData({ ...formData, image: e.target.value });
-                            if (validationErrors.image) {
-                              setValidationErrors({ ...validationErrors, image: null });
-                            }
-                          }}
-                          placeholder="Nhập URL hình ảnh"
-                          style={{
-                            marginTop: '8px',
-                            borderColor: validationErrors.image ? '#ff5757' : undefined
-                          }}
                         />
                       </div>
                     )}
