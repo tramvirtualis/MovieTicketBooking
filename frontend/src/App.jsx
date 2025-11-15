@@ -48,7 +48,7 @@ export default function App() {
         <Route path="/events" element={<Events />} />
         <Route path="/food-drinks" element={<FoodAndDrinks />} />
         <Route path="/food-and-drinks" element={<FoodAndDrinks />} />
-        <Route path="/order-food" element={<FoodAndDrinksWithTicket />} />
+        <Route path="/order-food" element={<FoodAndDrinks />} />
         <Route path="/food-drinks-with-ticket" element={<FoodAndDrinksWithTicket />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/booking" element={<BookTicket />} />

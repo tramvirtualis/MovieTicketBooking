@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import '../styles/pages/food-drinks.css';
+import '../styles/components/food-item-card.css';
+import '../styles/components/food-cart-modal.css';
+import '../styles/components/food-cinema-selector.css';
 
 const cinemas = [
   { id: '1', name: 'Quốc Thanh', province: 'TP.HCM' },
@@ -15,107 +19,90 @@ const cinemas = [
   { id: '9', name: 'Kiên Giang', province: 'An Giang' },
 ];
 
-// Sample food and drinks data
+// Sample food and drinks data - không phân loại, tất cả items trong một mảng
 const menuData = {
-  '1': {
-    foods: [
-      {
-        id: 'f1',
-        name: 'Bắp rang bơ',
-        description: 'Bắp rang bơ thơm ngon, giòn tan',
-        price: 45000,
-        image: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=300&fit=crop',
-        category: 'Đồ ăn'
-      },
-      {
-        id: 'f2',
-        name: 'Hotdog',
-        description: 'Xúc xích thơm ngon với sốt đặc biệt',
-        price: 55000,
-        image: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400&h=300&fit=crop',
-        category: 'Đồ ăn'
-      },
-      {
-        id: 'f3',
-        name: 'Khoai tây chiên',
-        description: 'Khoai tây chiên giòn, nóng hổi',
-        price: 40000,
-        image: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400&h=300&fit=crop',
-        category: 'Đồ ăn'
-      },
-      {
-        id: 'f4',
-        name: 'Gà rán',
-        description: 'Gà rán giòn, thơm ngon',
-        price: 75000,
-        image: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400&h=300&fit=crop',
-        category: 'Đồ ăn'
-      }
-    ],
-    drinks: [
-      {
-        id: 'd1',
-        name: 'Coca Cola',
-        description: 'Nước ngọt có ga',
-        price: 30000,
-        image: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&h=300&fit=crop',
-        category: 'Nước uống'
-      },
-      {
-        id: 'd2',
-        name: 'Pepsi',
-        description: 'Nước ngọt có ga',
-        price: 30000,
-        image: 'https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=400&h=300&fit=crop',
-        category: 'Nước uống'
-      },
-      {
-        id: 'd3',
-        name: 'Nước suối',
-        description: 'Nước suối tinh khiết',
-        price: 20000,
-        image: 'https://images.unsplash.com/photo-1548839140-5a9415c45c59?w=400&h=300&fit=crop',
-        category: 'Nước uống'
-      },
-      {
-        id: 'd4',
-        name: 'Trà sữa',
-        description: 'Trà sữa thơm ngon, đậm đà',
-        price: 50000,
-        image: 'https://images.unsplash.com/photo-1564890369478-c89ca6d9cde9?w=400&h=300&fit=crop',
-        category: 'Nước uống'
-      }
-    ],
-    combos: [
-      {
-        id: 'c1',
-        name: 'Combo 1: Bắp + Nước',
-        description: '1 Bắp rang bơ + 1 Nước ngọt',
-        price: 65000,
-        image: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=300&fit=crop',
-        category: 'Combo',
-        originalPrice: 75000
-      },
-      {
-        id: 'c2',
-        name: 'Combo 2: Hotdog + Nước',
-        description: '1 Hotdog + 1 Nước ngọt',
-        price: 75000,
-        image: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400&h=300&fit=crop',
-        category: 'Combo',
-        originalPrice: 85000
-      },
-      {
-        id: 'c3',
-        name: 'Combo 3: Gà rán + Khoai tây + Nước',
-        description: '1 Gà rán + 1 Khoai tây chiên + 1 Nước ngọt',
-        price: 120000,
-        image: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400&h=300&fit=crop',
-        category: 'Combo',
-        originalPrice: 145000
-      }
-    ]
-  }
+  '1': [
+    {
+      id: 'f1',
+      name: 'Bắp rang bơ',
+      description: 'Bắp rang bơ thơm ngon, giòn tan',
+      price: 45000,
+      image: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=300&fit=crop'
+    },
+    {
+      id: 'f2',
+      name: 'Hotdog',
+      description: 'Xúc xích thơm ngon với sốt đặc biệt',
+      price: 55000,
+      image: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400&h=300&fit=crop'
+    },
+    {
+      id: 'f3',
+      name: 'Khoai tây chiên',
+      description: 'Khoai tây chiên giòn, nóng hổi',
+      price: 40000,
+      image: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400&h=300&fit=crop'
+    },
+    {
+      id: 'f4',
+      name: 'Gà rán',
+      description: 'Gà rán giòn, thơm ngon',
+      price: 75000,
+      image: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400&h=300&fit=crop'
+    },
+    {
+      id: 'd1',
+      name: 'Coca Cola',
+      description: 'Nước ngọt có ga',
+      price: 30000,
+      image: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&h=300&fit=crop'
+    },
+    {
+      id: 'd2',
+      name: 'Pepsi',
+      description: 'Nước ngọt có ga',
+      price: 30000,
+      image: 'https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=400&h=300&fit=crop'
+    },
+    {
+      id: 'd3',
+      name: 'Nước suối',
+      description: 'Nước suối tinh khiết',
+      price: 20000,
+      image: 'https://images.unsplash.com/photo-1548839140-5a9415c45c59?w=400&h=300&fit=crop'
+    },
+    {
+      id: 'd4',
+      name: 'Trà sữa',
+      description: 'Trà sữa thơm ngon, đậm đà',
+      price: 50000,
+      image: 'https://images.unsplash.com/photo-1564890369478-c89ca6d9cde9?w=400&h=300&fit=crop'
+    },
+    {
+      id: 'c1',
+      name: 'Combo 1: Bắp + Nước',
+      description: '1 Bắp rang bơ + 1 Nước ngọt',
+      price: 65000,
+      image: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=300&fit=crop',
+      originalPrice: 75000
+    },
+    {
+      id: 'c2',
+      name: 'Combo 2: Hotdog + Nước',
+      description: '1 Hotdog + 1 Nước ngọt',
+      price: 75000,
+      image: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400&h=300&fit=crop',
+      originalPrice: 85000
+    },
+    {
+      id: 'c3',
+      name: 'Combo 3: Gà rán + Khoai tây + Nước',
+      description: '1 Gà rán + 1 Khoai tây chiên + 1 Nước ngọt',
+      price: 120000,
+      image: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400&h=300&fit=crop',
+      originalPrice: 145000
+    }
+  ]
 };
 
 // Default menu for other cinemas (same structure)
@@ -142,9 +129,8 @@ export default function FoodAndDrinks() {
   const getMenuItems = () => {
     if (!selectedCinema || !menuData[selectedCinema]) return [];
     
-    const menu = menuData[selectedCinema];
-    // Normal ordering (without ticket) - show all items with regular prices
-    return [...menu.foods, ...menu.drinks, ...menu.combos];
+    // Trả về mảng items trực tiếp, không phân loại
+    return menuData[selectedCinema];
   };
 
   const menuItems = getMenuItems();
@@ -285,14 +271,13 @@ export default function FoodAndDrinks() {
                         <div key={item.id} className="food-item-card">
                           <div className="food-item-card__image">
                             <img src={item.image} alt={item.name} />
-                            {item.category === 'Combo' && item.originalPrice && (
+                            {item.originalPrice && (
                               <div className="food-item-card__badge">
                                 <span className="food-item-card__badge-text">Tiết kiệm</span>
                               </div>
                             )}
                           </div>
                           <div className="food-item-card__content">
-                            <div className="food-item-card__category">{item.category}</div>
                             <h3 className="food-item-card__title">{item.name}</h3>
                             <p className="food-item-card__description">{item.description}</p>
                             <div className="food-item-card__footer">
