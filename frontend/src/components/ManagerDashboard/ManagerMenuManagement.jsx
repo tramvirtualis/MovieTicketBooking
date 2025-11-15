@@ -12,33 +12,55 @@ export default function ManagerMenuManagement({ complexId }) {
   useEffect(() => {
     if (complexId) {
       loadData();
+    } else {
+      setLoading(false);
+      setMenuItems([]);
+      setAvailableItems([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [complexId]);
 
   const loadData = async () => {
     if (!complexId) {
-      showNotification('Không tìm thấy thông tin cụm rạp', 'error');
+      console.log('ManagerMenuManagement: No complexId provided');
+      setLoading(false);
+      setMenuItems([]);
+      setAvailableItems([]);
       return;
     }
 
+    console.log('ManagerMenuManagement: Loading data for complexId:', complexId);
     setLoading(true);
     try {
       // Load menu items của cinema complex
       const menuResult = await managerMenuService.getMenuByComplexId(complexId);
+      console.log('ManagerMenuManagement: Menu result:', menuResult);
       if (menuResult.success) {
         setMenuItems(menuResult.data || []);
       } else {
-        showNotification(menuResult.error || 'Không thể tải menu', 'error');
+        console.error('ManagerMenuManagement: Failed to load menu:', menuResult.error);
+        setMenuItems([]);
+        if (menuResult.error && !menuResult.error.includes('không có quyền')) {
+          showNotification(menuResult.error || 'Không thể tải menu', 'error');
+        }
       }
 
       // Load available items (do admin tạo, chưa có trong menu)
       const availableResult = await managerMenuService.getAvailableFoodCombos(complexId);
+      console.log('ManagerMenuManagement: Available items result:', availableResult);
       if (availableResult.success) {
         setAvailableItems(availableResult.data || []);
       } else {
-        showNotification(availableResult.error || 'Không thể tải danh sách sản phẩm', 'error');
+        console.error('ManagerMenuManagement: Failed to load available items:', availableResult.error);
+        setAvailableItems([]);
+        if (availableResult.error && !availableResult.error.includes('không có quyền')) {
+          showNotification(availableResult.error || 'Không thể tải danh sách sản phẩm', 'error');
+        }
       }
     } catch (error) {
+      console.error('ManagerMenuManagement: Exception loading data:', error);
+      setMenuItems([]);
+      setAvailableItems([]);
       showNotification('Có lỗi xảy ra khi tải dữ liệu', 'error');
     } finally {
       setLoading(false);

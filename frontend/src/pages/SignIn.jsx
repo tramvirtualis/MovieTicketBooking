@@ -53,13 +53,41 @@ export default function SignIn() {
       showMessage('success', 'Đăng nhập thành công!');
       const user = result.data;
     
-      localStorage.setItem('user', JSON.stringify(user));
-    
-      // Nếu login thành công
+      // User data đã được lưu trong authService.login()
+      // Debug: Log để kiểm tra
+      console.log('=== LOGIN DEBUG ===');
+      console.log('Full login response data:', user);
+      console.log('User role (raw):', user.role);
+      console.log('User role type:', typeof user.role);
+      console.log('User role value:', JSON.stringify(user.role));
+      
+      // Kiểm tra role từ localStorage (đã được lưu trong authService)
+      const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      console.log('Saved user from localStorage:', savedUser);
+      console.log('Saved user role:', savedUser.role);
+      
+      // Chỉ cần redirect dựa trên role
       setTimeout(() => {
-        if (user.role === 'ADMIN') navigate('/admin');
-        else if (user.role === 'MANAGER') navigate('/manager');
-        else navigate('/');
+        // Lấy role từ user object hoặc từ localStorage
+        const role = (user.role || savedUser.role || '').toString().toUpperCase().trim();
+        console.log('=== REDIRECT DEBUG ===');
+        console.log('Final role for redirect:', role);
+        console.log('Role === "MANAGER":', role === 'MANAGER');
+        console.log('Role === "ADMIN":', role === 'ADMIN');
+        
+        if (role === 'ADMIN') {
+          console.log('Redirecting to /admin');
+          navigate('/admin');
+        } else if (role === 'MANAGER') {
+          console.log('Redirecting to /manager');
+          navigate('/manager');
+        } else if (role === 'CUSTOMER') {
+          console.log('Redirecting to home (CUSTOMER)');
+          navigate('/');
+        } else {
+          console.warn('Unknown role, redirecting to home. Role was:', role);
+          navigate('/');
+        }
       }, 1000);
     } else {
       // Nếu login thất bại

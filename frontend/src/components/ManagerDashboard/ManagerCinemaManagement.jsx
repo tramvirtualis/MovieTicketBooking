@@ -4,7 +4,7 @@ import { generateSeats, getSeatColor } from '../AdminDashboard/utils';
 import { SAMPLE_MOVIES } from './sampleData';
 
 // Full Cinema Management (copied and adapted from Admin) scoped for manager
-function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
+function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange, complexId }) {
   const [cinemas, setCinemas] = useState(initialCinemasList);
   const [selectedCinema, setSelectedCinema] = useState(initialCinemasList[0] || null);
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -35,13 +35,22 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange 
   });
 
   useEffect(() => {
-    onCinemasChange && onCinemasChange(cinemas);
-  }, [cinemas, onCinemasChange]);
+    if (onCinemasChange) {
+      onCinemasChange(cinemas);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cinemas]);
 
   useEffect(() => {
-    setCinemas(initialCinemasList);
-    if (initialCinemasList?.length) {
+    console.log('ManagerCinemaManagement: initialCinemasList changed:', initialCinemasList);
+    console.log('ManagerCinemaManagement: initialCinemasList length:', initialCinemasList?.length || 0);
+    setCinemas(initialCinemasList || []);
+    if (initialCinemasList && initialCinemasList.length > 0) {
+      console.log('ManagerCinemaManagement: Setting selectedCinema to:', initialCinemasList[0]);
       setSelectedCinema(initialCinemasList[0]);
+    } else {
+      console.log('ManagerCinemaManagement: No cinemas, setting selectedCinema to null');
+      setSelectedCinema(null);
     }
   }, [initialCinemasList]);
 
@@ -410,9 +419,23 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange 
     );
   };
 
+  console.log('ManagerCinemaManagement: Rendering with cinemas:', cinemas);
+  console.log('ManagerCinemaManagement: cinemas.length:', cinemas?.length || 0);
+  console.log('ManagerCinemaManagement: selectedCinema:', selectedCinema);
+
   return (
     <div className="cinema-management">
-      <div className="cinema-management__header">
+      <div className="cinema-management__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div>
+          <h2 style={{ margin: 0, color: '#fff', fontSize: '24px', fontWeight: 600 }}>
+            Quản lý cụm rạp
+          </h2>
+          <p style={{ margin: '8px 0 0 0', color: '#c9c4c5', fontSize: '14px' }}>
+            {cinemas && cinemas.length > 0 
+              ? `Bạn đang quản lý ${cinemas.length} cụm rạp${cinemas.length > 1 ? '' : ''}`
+              : 'Chưa có cụm rạp nào được gán cho bạn'}
+          </p>
+        </div>
         <button className="btn btn--primary" onClick={handleAddCinema}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="12" y1="5" x2="12" y2="19"/>
@@ -422,13 +445,18 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange 
         </button>
       </div>
       <div className="cinema-management__content">
-        {cinemas.length === 0 ? (
-          <div className="cinema-empty-state">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        {!cinemas || cinemas.length === 0 ? (
+          <div className="cinema-empty-state" style={{ 
+            textAlign: 'center', 
+            padding: '60px 20px',
+            color: '#c9c4c5'
+          }}>
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: '16px', opacity: 0.5 }}>
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
               <circle cx="12" cy="10" r="3"/>
             </svg>
-            <p>Chưa có rạp nào. Nhấn "Thêm rạp mới" để bắt đầu.</p>
+            <p style={{ fontSize: '16px', marginBottom: '8px' }}>Chưa có cụm rạp nào được gán cho bạn</p>
+            <p style={{ fontSize: '14px', opacity: 0.7 }}>Vui lòng liên hệ admin để được gán cụm rạp</p>
           </div>
         ) : (
           <div className="cinema-list">
@@ -436,9 +464,33 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange 
               <div key={cinema.complexId} className="cinema-card">
                 <div className="cinema-card__header">
                   <div className="cinema-card__info">
-                    <h3 className="cinema-card__name">{cinema.name}</h3>
-                    <p className="cinema-card__address">{cinema.address}</p>
-                    <span className="cinema-card__rooms-count">{cinema.rooms.length} phòng chiếu</span>
+                    <h3 className="cinema-card__name">{cinema.name || 'Chưa có tên'}</h3>
+                    <div className="cinema-card__details" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <p className="cinema-card__address" style={{ margin: 0, color: '#c9c4c5', fontSize: '14px' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                          <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                        {cinema.address || 'Chưa có địa chỉ'}
+                      </p>
+                      {cinema.addressDescription && (
+                        <p style={{ margin: 0, color: '#a8a3a4', fontSize: '13px', paddingLeft: '22px' }}>
+                          {cinema.addressDescription}
+                        </p>
+                      )}
+                      {cinema.addressProvince && (
+                        <p style={{ margin: 0, color: '#a8a3a4', fontSize: '13px', paddingLeft: '22px' }}>
+                          Tỉnh/Thành phố: {cinema.addressProvince}
+                        </p>
+                      )}
+                    </div>
+                    <span className="cinema-card__rooms-count" style={{ marginTop: '8px', display: 'inline-block' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
+                        <rect x="3" y="4" width="18" height="18" rx="2"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                      </svg>
+                      {cinema.rooms.length} phòng chiếu
+                    </span>
                   </div>
                   <div className="cinema-card__actions">
                     <button className="cinema-action-btn" onClick={() => handleEditCinema(cinema)} title="Chỉnh sửa">

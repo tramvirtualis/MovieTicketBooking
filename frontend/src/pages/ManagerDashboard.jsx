@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import ManagerCinemaManagement from '../components/ManagerDashboard/ManagerCinemaManagement';
 import ManagerDashboardView from '../components/ManagerDashboard/ManagerDashboardView';
 import ManagerMovieView from '../components/ManagerDashboard/ManagerMovieView';
@@ -12,29 +12,129 @@ import { SAMPLE_CINEMAS, initialMovies, initialBookingOrders, initialPrices } fr
 // It provides full-featured cinema management (rooms, interactive seat layout).
 
 export default function ManagerDashboard() {
-  // Determine which complexes the manager controls.
-  // Priority: URL search param ?complexIds=1,2 then localStorage, else [1]
-  const urlParams = new URLSearchParams(window.location.search);
-  const fromQuery = urlParams.get('complexIds');
-  const fallback = (typeof window !== 'undefined' && window.localStorage.getItem('managerComplexIds')) || '';
-  const parsedIds = (fromQuery || fallback)
-    .split(',')
-    .map(s => parseInt(s.trim(), 10))
-    .filter(n => Number.isFinite(n));
-  const managerComplexIds = parsedIds.length > 0 ? parsedIds : [1];
+  // Lấy cinemaComplexId từ user data trong localStorage
+  const getUserData = () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        return JSON.parse(userStr);
+      }
+    } catch (e) {
+      console.error('Error parsing user data:', e);
+    }
+    return null;
+  };
 
-  const scopedCinemas = useMemo(
-    () => SAMPLE_CINEMAS.filter(c => managerComplexIds.includes(c.complexId)),
-    [managerComplexIds]
-  );
+  const userData = getUserData();
+  const cinemaComplexId = userData?.cinemaComplexId || null;
+  const managerComplexIds = cinemaComplexId ? [cinemaComplexId] : [];
 
   // State management
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [cinemas, setCinemas] = useState(scopedCinemas);
+  const [cinemas, setCinemas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Lấy complexId từ cinemas state nếu có (sau khi load từ API)
+  const currentComplexId = cinemas.length > 0 ? cinemas[0].complexId : cinemaComplexId;
   const [movies] = useState(initialMovies);
   const [orders] = useState(initialBookingOrders);
   const [prices] = useState(initialPrices);
+
+  // Load cinemas từ API khi component mount
+  useEffect(() => {
+    const loadCinemas = async () => {
+      console.log('=== ManagerDashboard: Starting to load cinemas ===');
+      console.log('cinemaComplexId from localStorage:', cinemaComplexId);
+      console.log('Current cinemas state:', cinemas);
+      
+      // Luôn gọi API để lấy data, không cần kiểm tra cinemaComplexId
+      // API sẽ tự lấy từ JWT token
+
+      try {
+        console.log('ManagerDashboard: Importing cinemaComplexService...');
+        const { default: cinemaComplexService } = await import('../services/cinemaComplexService');
+        console.log('ManagerDashboard: Calling getManagerCinemaComplex...');
+        const result = await cinemaComplexService.getManagerCinemaComplex();
+        console.log('ManagerDashboard: Received result from API');
+        
+        console.log('=== FRONTEND DEBUG: getManagerCinemaComplex ===');
+        console.log('Full result:', JSON.stringify(result, null, 2));
+        console.log('result.success:', result.success);
+        console.log('result.data:', result.data);
+        console.log('result.data type:', typeof result.data);
+        console.log('result.data isArray:', Array.isArray(result.data));
+        
+        if (result.success) {
+          let dataToProcess = result.data;
+          
+          // Xử lý data - đảm bảo luôn là array
+          if (!dataToProcess) {
+            console.log('DEBUG: result.data is null/undefined');
+            setCinemas([]);
+          } else if (Array.isArray(dataToProcess)) {
+            if (dataToProcess.length > 0) {
+              console.log('DEBUG: Data is array with length:', dataToProcess.length);
+              // Map từ API response sang format mà component cần
+              const mappedCinemas = dataToProcess.map(complex => ({
+                complexId: complex.complexId,
+                name: complex.name || 'Chưa có tên',
+                address: complex.fullAddress || `${complex.addressDescription || ''}, ${complex.addressProvince || ''}`.trim().replace(/^,\s*|,\s*$/g, '') || 'Chưa có địa chỉ',
+                addressDescription: complex.addressDescription || '',
+                addressProvince: complex.addressProvince || '',
+                rooms: [] // Rooms sẽ được load riêng nếu cần
+              }));
+              console.log('DEBUG: Mapped cinemas:', mappedCinemas);
+              setCinemas(mappedCinemas);
+            } else {
+              console.log('DEBUG: Data is empty array');
+              setCinemas([]);
+            }
+          } else if (dataToProcess && typeof dataToProcess === 'object') {
+            // Kiểm tra nếu có complexId
+            if (dataToProcess.complexId) {
+              // Nếu data là object đơn, chuyển thành array
+              console.log('DEBUG: Data is single object with complexId, converting to array');
+              const complex = dataToProcess;
+              const mappedCinemas = [{
+                complexId: complex.complexId,
+                name: complex.name || 'Chưa có tên',
+                address: complex.fullAddress || `${complex.addressDescription || ''}, ${complex.addressProvince || ''}`.trim().replace(/^,\s*|,\s*$/g, '') || 'Chưa có địa chỉ',
+                addressDescription: complex.addressDescription || '',
+                addressProvince: complex.addressProvince || '',
+                rooms: []
+              }];
+              console.log('DEBUG: Mapped single cinema:', mappedCinemas);
+              console.log('DEBUG: Setting cinemas state to:', mappedCinemas);
+              setCinemas(mappedCinemas);
+            } else {
+              console.log('DEBUG: Data is object but no complexId found');
+              console.log('DEBUG: Object keys:', Object.keys(dataToProcess));
+              setCinemas([]);
+            }
+          } else {
+            // Nếu không có data hoặc data không hợp lệ
+            console.log('DEBUG: No valid data returned, setting empty array');
+            console.log('DEBUG: result.data value:', result.data);
+            console.log('DEBUG: result.data type:', typeof result.data);
+            setCinemas([]);
+          }
+        } else {
+          console.error('DEBUG: Failed to load cinemas:', result.error || 'Unknown error');
+          console.error('DEBUG: result object:', result);
+          setCinemas([]);
+        }
+      } catch (error) {
+        console.error('DEBUG: Exception loading cinemas:', error);
+        console.error('DEBUG: Error stack:', error.stack);
+        setCinemas([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCinemas();
+  }, [cinemaComplexId]);
 
   return (
     <div className="admin-layout">
@@ -183,8 +283,10 @@ export default function ManagerDashboard() {
           <div className="admin-header__right">
             <div className="admin-header__user">
               <div className="admin-header__user-info">
-                <div className="admin-header__user-name">Manager User</div>
-                <div className="admin-header__user-role">Quản lý cụm rạp</div>
+                <div className="admin-header__user-name">{userData?.username || 'Manager User'}</div>
+                <div className="admin-header__user-role">
+                  {cinemas.length > 0 ? cinemas[0].name : 'Chưa có cụm rạp'}
+                </div>
               </div>
               <div className="admin-header__user-avatar">
                 <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -249,7 +351,34 @@ export default function ManagerDashboard() {
           )}
 
           {activeSection === 'cinemas' && (
-            <ManagerCinemaManagement cinemas={cinemas} onCinemasChange={setCinemas} />
+            loading ? (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '400px',
+                color: '#fff'
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    border: '4px solid rgba(232, 59, 65, 0.3)',
+                    borderTop: '4px solid #e83b41',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                    margin: '0 auto 16px'
+                  }}></div>
+                  <p>Đang tải dữ liệu...</p>
+                </div>
+              </div>
+            ) : (
+              <ManagerCinemaManagement 
+                cinemas={cinemas || []} 
+                onCinemasChange={setCinemas}
+                complexId={currentComplexId || cinemaComplexId}
+              />
+            )
           )}
 
           {activeSection === 'bookings' && (
@@ -263,7 +392,7 @@ export default function ManagerDashboard() {
 
           {activeSection === 'menu' && (
             <ManagerMenuManagement 
-              complexId={managerComplexIds[0]} 
+              complexId={currentComplexId} 
             />
           )}
 

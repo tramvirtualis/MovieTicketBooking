@@ -32,6 +32,16 @@ public class CinemaComplexService {
         return mapToDTO(complex);
     }
     
+    public List<CinemaComplexResponseDTO> getCinemaComplexesByManager(Long complexId) {
+        // Manager chỉ có thể xem cụm rạp của mình
+        if (complexId == null) {
+            return List.of();
+        }
+        return cinemaComplexRepository.findById(complexId)
+            .map(complex -> List.of(mapToDTO(complex)))
+            .orElse(List.of());
+    }
+    
     @Transactional
     public CinemaComplexResponseDTO createCinemaComplex(CreateCinemaComplexDTO createDTO) {
         // Tạo Address

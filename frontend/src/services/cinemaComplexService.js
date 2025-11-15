@@ -151,6 +151,81 @@ export const cinemaComplexService = {
       };
     }
   },
+
+  /**
+   * Lấy cụm rạp của manager (chỉ cụm rạp mà manager đó quản lý)
+   * @returns {Promise<Object>} Response từ server
+   */
+  getManagerCinemaComplex: async () => {
+    try {
+      console.log('=== FRONTEND SERVICE: Calling /manager/cinema-complex ===');
+      const response = await axiosInstance.get('/manager/cinema-complex');
+      
+      console.log('=== FRONTEND SERVICE: Raw API response ===');
+      console.log('Full response:', JSON.stringify(response.data, null, 2));
+      console.log('response.data type:', typeof response.data);
+      console.log('response.data keys:', Object.keys(response.data || {}));
+      
+      const responseData = response.data;
+      
+      // Kiểm tra cấu trúc response
+      if (!responseData) {
+        console.error('✗ Response data is null or undefined');
+        return {
+          success: false,
+          error: 'Response data is null',
+          data: [],
+        };
+      }
+      
+      // Lấy data từ response
+      let data = responseData.data;
+      console.log('responseData.data:', data);
+      console.log('responseData.data type:', typeof data);
+      console.log('responseData.data isArray:', Array.isArray(data));
+      
+      // Xử lý data
+      if (data === null || data === undefined) {
+        console.log('⚠ Data is null/undefined, setting to empty array');
+        data = [];
+      } else if (!Array.isArray(data)) {
+        console.log('⚠ Data is not array, checking if it has complexId...');
+        if (data && typeof data === 'object' && data.complexId) {
+          console.log('✓ Data is single object, converting to array');
+          data = [data];
+        } else {
+          console.log('✗ Data is not a valid object, setting to empty array');
+          data = [];
+        }
+      } else if (Array.isArray(data) && data.length === 0) {
+        console.log('⚠ Data is empty array');
+      } else {
+        console.log('✓ Data is array with', data.length, 'item(s)');
+      }
+      
+      const result = {
+        success: responseData.success !== false,
+        data: data,
+        message: responseData.message || 'Lấy thông tin cụm rạp thành công',
+      };
+      
+      console.log('=== FRONTEND SERVICE: Final result ===');
+      console.log('Result:', JSON.stringify(result, null, 2));
+      console.log('Result.data length:', Array.isArray(result.data) ? result.data.length : 'not array');
+      
+      return result;
+    } catch (error) {
+      console.error('=== FRONTEND SERVICE: Error ===');
+      console.error('Error message:', error.message);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      return {
+        success: false,
+        error: error.message || 'Không thể lấy thông tin cụm rạp',
+        data: [],
+      };
+    }
+  },
 };
 
 export default cinemaComplexService;

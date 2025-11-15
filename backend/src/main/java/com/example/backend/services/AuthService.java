@@ -20,7 +20,9 @@ import com.example.backend.entities.Admin;
 import com.example.backend.entities.Customer;
 import com.example.backend.entities.Manager;
 import com.example.backend.entities.User;
+import com.example.backend.repositories.AdminRepository;
 import com.example.backend.repositories.CustomerRepository;
+import com.example.backend.repositories.ManagerRepository;
 import com.example.backend.repositories.UserRepository;
 import com.example.backend.utils.JwtUtils;
 
@@ -33,6 +35,8 @@ import lombok.RequiredArgsConstructor;
 public class AuthService {
     
     private final CustomerRepository customerRepository;
+    private final ManagerRepository managerRepository;
+    private final AdminRepository adminRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
@@ -317,29 +321,77 @@ public class AuthService {
         Long cinemaComplexId = null;
 
         // Phân loại user & lấy dữ liệu tương ứng
-        if (user instanceof Admin) {
-            role = "ADMIN";
+        // Với JOINED inheritance, cần kiểm tra từng repository để đảm bảo subclass được load đúng
+        // Sử dụng try-catch để tránh ClassCastException khi query
+        try {
+            Optional<Manager> managerOpt = managerRepository.findByUsername(username);
+            System.out.println("DEBUG: Checking Manager for username: " + username + ", found: " + managerOpt.isPresent());
+            
+            if (managerOpt.isPresent()) {
+                role = "MANAGER";
+                Manager m = managerOpt.get();
+                System.out.println("DEBUG: User is MANAGER, cinemaComplexId: " + (m.getCinemaComplex() != null ? m.getCinemaComplex().getComplexId() : "null"));
+                if (m.getCinemaComplex() != null) {
+                    cinemaComplexId = m.getCinemaComplex().getComplexId();
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("DEBUG: Error checking Manager: " + e.getMessage());
+            // Tiếp tục kiểm tra các loại user khác
         }
-        else if (user instanceof Manager) {
-            role = "MANAGER";
-            Manager m = (Manager) user;
-
-            if (m.getCinemaComplex() != null) {
-                cinemaComplexId = m.getCinemaComplex().getComplexId();
+        
+        // Nếu chưa xác định được role, kiểm tra Admin
+        if (role.isEmpty()) {
+            try {
+                Optional<Admin> adminOpt = adminRepository.findByUsername(username);
+                System.out.println("DEBUG: Checking Admin for username: " + username + ", found: " + adminOpt.isPresent());
+                
+                if (adminOpt.isPresent()) {
+                    role = "ADMIN";
+                    System.out.println("DEBUG: User is ADMIN");
+                }
+            } catch (Exception e) {
+                System.out.println("DEBUG: Error checking Admin: " + e.getMessage());
+                // Tiếp tục kiểm tra Customer
             }
         }
-        else if (user instanceof Customer) {
+        
+        // Nếu chưa xác định được role, kiểm tra Customer
+        if (role.isEmpty()) {
+            try {
+                Optional<Customer> customerOpt = customerRepository.findByUsername(username);
+                System.out.println("DEBUG: Checking Customer for username: " + username + ", found: " + customerOpt.isPresent());
+                
+                if (customerOpt.isPresent()) {
+                    role = "CUSTOMER";
+                    Customer c = customerOpt.get();
+                    name = c.getName();
+                    dob = c.getDob();
+                    System.out.println("DEBUG: User is CUSTOMER");
+                }
+            } catch (Exception e) {
+                System.out.println("DEBUG: Error checking Customer: " + e.getMessage());
+            }
+        }
+        
+        // Nếu vẫn chưa xác định được, mặc định là CUSTOMER
+        if (role.isEmpty()) {
             role = "CUSTOMER";
-            Customer c = (Customer) user;
-            name = c.getName();
-            dob = c.getDob();
+            System.out.println("DEBUG: User type unknown, defaulting to CUSTOMER");
+        }
+        
+        System.out.println("DEBUG: Final role determined: " + role);
+        
+        // Đảm bảo role không rỗng
+        if (role.isEmpty()) {
+            throw new Exception("Không thể xác định quyền của người dùng");
         }
 
         // Tạo JWT
         String token = jwtUtils.generateJwtToken(username, role);
 
         // Build Response
-        return LoginResponseDTO.builder()
+        LoginResponseDTO response = LoginResponseDTO.builder()
                 .userId(user.getUserId())
                 .username(user.getUsername())
                 .name(name)
@@ -352,5 +404,9 @@ public class AuthService {
                 .token(token)
                 .cinemaComplexId(cinemaComplexId)
                 .build();
+        
+        System.out.println("DEBUG: LoginResponseDTO - role: " + response.getRole() + ", token: " + (response.getToken() != null ? "present" : "null"));
+        
+        return response;
     }
 }

@@ -79,6 +79,11 @@ export const authService = {
     try {
       const response = await axiosInstance.post('/auth/login', { username, password });
       const userData = response.data;
+      
+      // Debug: Log response để kiểm tra
+      console.log('Login API response:', userData);
+      console.log('Role from response:', userData.role);
+      
       // Response thành công sẽ là object user + token
       const { token, role } = userData;
   
@@ -88,18 +93,12 @@ export const authService = {
       }
       localStorage.setItem('user', JSON.stringify(userData));
   
-      // Chuyển hướng theo role
-      if (role === 'ADMIN') {
-        window.location.href = '/admin';
-      } else if (role === 'MANAGER') {
-        window.location.href = '/manager';
-      } else {
-        window.location.href = '/'; // CUSTOMER hoặc role khác
-      }
+      // Không redirect ở đây, để component xử lý redirect
+      // Service chỉ nên trả về data, không nên xử lý navigation
       
       return {
         success: true,
-        data: response.data, // trả toàn bộ object user + token
+        data: userData, // trả toàn bộ object user + token
       };
     } catch (error) {
       // Nếu backend trả về lỗi với message
