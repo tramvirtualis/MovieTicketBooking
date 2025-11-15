@@ -25,7 +25,7 @@ export function CardsGrid({ items, isNowShowing = false, onPlayTrailer }) {
       {displayItems.map((m, idx) => (
         <div key={idx} className="card" style={{ position: 'relative' }}>
           <div 
-            onClick={() => navigate(`/movie/${m.id || encodeURIComponent(m.title)}`)}
+            onClick={() => navigate(`/movie/${m.movieId || encodeURIComponent(m.title)}`)}
             style={{ textDecoration: 'none', display: 'block', cursor: 'pointer' }}
           >
             <div className="card__img-wrapper">
@@ -56,7 +56,7 @@ export function CardsGrid({ items, isNowShowing = false, onPlayTrailer }) {
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        navigate(`/movie/${m.id || encodeURIComponent(m.title)}`);
+                        navigate(`/movie/${m.movieId || encodeURIComponent(m.title)}`);
                       }}
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -71,7 +71,18 @@ export function CardsGrid({ items, isNowShowing = false, onPlayTrailer }) {
             </div>
             <div className="card__body">
               <h3 className="card__title">{m.title}</h3>
-              {m.genre ? <p className="card__meta">{m.genre}</p> : null}
+              {m.genre ? (
+                <p 
+                  className="card__meta" 
+                  style={{ 
+                    whiteSpace: 'normal', 
+                    overflow: 'visible', 
+                    textOverflow: 'clip' 
+                  }}
+                >
+                  {m.genre}
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -139,4 +150,3 @@ export function PromosGrid({ items }) {
     </div>
   );
 }
-

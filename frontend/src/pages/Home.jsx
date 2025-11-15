@@ -56,7 +56,7 @@ const formatMovieData = (movie) => {
   return {
     movieId: movie.movieId,
     title: movie.title,
-    genre: movie.genre && movie.genre.length > 0 ? movie.genre[0] : 'N/A',
+    genre: movie.genre && movie.genre.length > 0 ? movie.genre.join(', ') : 'N/A',
     poster: movie.poster,
     rating: mapAgeRating(movie.ageRating),
     trailerId: extractYouTubeId(movie.trailerURL)
