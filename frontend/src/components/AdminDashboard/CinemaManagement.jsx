@@ -53,12 +53,45 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
         const result = await cinemaComplexService.getAllCinemaComplexes();
         if (result.success) {
           // Map backend data to frontend format
-          const mappedCinemas = result.data.map(item => ({
+          let mappedCinemas = result.data.map(item => ({
             complexId: item.complexId,
             name: item.name,
             address: item.fullAddress || `${item.addressDescription}, ${item.addressProvince}`,
-            rooms: [] // Rooms will be loaded separately if needed
+            rooms: [] // Rooms will be loaded separately
           }));
+          
+          // Load rooms for each cinema complex
+          const { default: cinemaRoomService } = await import('../../services/cinemaRoomService');
+          const roomsPromises = mappedCinemas.map(async (cinema) => {
+            try {
+              const roomsResult = await cinemaRoomService.getRoomsByComplexId(cinema.complexId);
+              if (roomsResult.success && roomsResult.data) {
+                return {
+                  ...cinema,
+                  rooms: roomsResult.data.map(room => ({
+                    roomId: room.roomId,
+                    roomName: room.roomName,
+                    roomType: cinemaRoomService.mapRoomTypeFromBackend(room.roomType),
+                    rows: room.rows,
+                    cols: room.cols,
+                    seats: (room.seats || []).map(seat => ({
+                      seatId: seat.seatId,
+                      type: seat.type,
+                      row: seat.seatRow, // Map seatRow -> row
+                      column: seat.seatColumn // Map seatColumn -> column
+                    }))
+                  }))
+                };
+              }
+              return cinema;
+            } catch (error) {
+              console.error(`Error loading rooms for cinema ${cinema.complexId}:`, error);
+              return cinema;
+            }
+          });
+          
+          mappedCinemas = await Promise.all(roomsPromises);
+          
           setCinemas(mappedCinemas);
           if (onCinemasChange) {
             onCinemasChange(mappedCinemas);
@@ -276,68 +309,177 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
     setShowRoomModal(true);
   };
 
-  const handleSaveRoom = () => {
+  const handleSaveRoom = async (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
     if (!roomFormData.roomName || !roomFormData.rows || !roomFormData.cols) {
-      alert('Vui lòng điền đầy đủ thông tin');
+      showNotification('Vui lòng điền đầy đủ thông tin', 'error');
       return;
     }
 
-    const cinemaIndex = cinemas.findIndex(c => c.complexId === selectedCinema.complexId);
-    if (cinemaIndex === -1) return;
-
-    const updatedCinemas = [...cinemas];
-    const cinema = { ...updatedCinemas[cinemaIndex] };
-
-    if (editingRoom) {
-      // Update existing room
-      cinema.rooms = cinema.rooms.map(r =>
-        r.roomId === editingRoom.roomId
-          ? {
-              ...r,
-              roomName: roomFormData.roomName,
-              roomType: roomFormData.roomType,
-              rows: roomFormData.rows,
-              cols: roomFormData.cols,
-              // Keep existing seats if rows/cols unchanged, otherwise regenerate
-              seats: r.rows === roomFormData.rows && r.cols === roomFormData.cols
-                ? r.seats
-                : generateSeats(roomFormData.rows, roomFormData.cols)
-            }
-          : r
-      );
-    } else {
-      // Add new room
-      const newRoom = {
-        roomId: Math.max(...cinema.rooms.map(r => r.roomId), 0) + 1,
-        roomName: roomFormData.roomName,
-        roomType: roomFormData.roomType,
-        rows: roomFormData.rows,
-        cols: roomFormData.cols,
-        seats: generateSeats(roomFormData.rows, roomFormData.cols)
-      };
-      cinema.rooms = [...cinema.rooms, newRoom];
+    if (!selectedCinema) {
+      showNotification('Vui lòng chọn cụm rạp', 'error');
+      return;
     }
 
-    updatedCinemas[cinemaIndex] = cinema;
-    setCinemas(updatedCinemas);
-    setShowRoomModal(false);
-    setEditingRoom(null);
+    // Prevent multiple calls
+    if (loading) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { default: cinemaRoomService } = await import('../../services/cinemaRoomService');
+      
+      const roomData = {
+        roomName: roomFormData.roomName.trim(),
+        roomType: roomFormData.roomType,
+        cinemaComplexId: selectedCinema.complexId,
+        rows: Number(roomFormData.rows),
+        cols: Number(roomFormData.cols)
+      };
+
+      if (editingRoom) {
+        // Update existing room
+        const result = await cinemaRoomService.updateCinemaRoom(editingRoom.roomId, roomData);
+        
+        if (result.success) {
+          // Reload rooms from API
+          const roomsResult = await cinemaRoomService.getRoomsByComplexId(selectedCinema.complexId);
+          if (roomsResult.success) {
+            const mappedRooms = roomsResult.data.map(room => ({
+              roomId: room.roomId,
+              roomName: room.roomName,
+              roomType: cinemaRoomService.mapRoomTypeFromBackend(room.roomType),
+              rows: room.rows,
+              cols: room.cols,
+              seats: (room.seats || []).map(seat => ({
+                seatId: seat.seatId,
+                type: seat.type,
+                row: seat.seatRow, // Map seatRow -> row
+                column: seat.seatColumn // Map seatColumn -> column
+              }))
+            }));
+            
+            const cinemaIndex = cinemas.findIndex(c => c.complexId === selectedCinema.complexId);
+            if (cinemaIndex !== -1) {
+              const updatedCinemas = [...cinemas];
+              updatedCinemas[cinemaIndex] = {
+                ...updatedCinemas[cinemaIndex],
+                rooms: mappedRooms
+              };
+              setCinemas(updatedCinemas);
+              if (onCinemasChange) {
+                onCinemasChange(updatedCinemas);
+              }
+            }
+          }
+          showNotification('Cập nhật phòng chiếu thành công', 'success');
+          setShowRoomModal(false);
+          setEditingRoom(null);
+        } else {
+          showNotification(result.error || 'Cập nhật phòng chiếu thất bại', 'error');
+        }
+      } else {
+        // Create new room
+        const result = await cinemaRoomService.createCinemaRoom(roomData);
+        
+        if (result.success) {
+          // Reload rooms from API
+          const roomsResult = await cinemaRoomService.getRoomsByComplexId(selectedCinema.complexId);
+          if (roomsResult.success) {
+            const mappedRooms = roomsResult.data.map(room => ({
+              roomId: room.roomId,
+              roomName: room.roomName,
+              roomType: cinemaRoomService.mapRoomTypeFromBackend(room.roomType),
+              rows: room.rows,
+              cols: room.cols,
+              seats: (room.seats || []).map(seat => ({
+                seatId: seat.seatId,
+                type: seat.type,
+                row: seat.seatRow, // Map seatRow -> row
+                column: seat.seatColumn // Map seatColumn -> column
+              }))
+            }));
+            
+            const cinemaIndex = cinemas.findIndex(c => c.complexId === selectedCinema.complexId);
+            if (cinemaIndex !== -1) {
+              const updatedCinemas = [...cinemas];
+              updatedCinemas[cinemaIndex] = {
+                ...updatedCinemas[cinemaIndex],
+                rooms: mappedRooms
+              };
+              setCinemas(updatedCinemas);
+              if (onCinemasChange) {
+                onCinemasChange(updatedCinemas);
+              }
+            }
+          }
+          showNotification('Tạo phòng chiếu thành công', 'success');
+          setShowRoomModal(false);
+          setEditingRoom(null);
+        } else {
+          showNotification(result.error || 'Tạo phòng chiếu thất bại', 'error');
+        }
+      }
+    } catch (error) {
+      showNotification('Có lỗi xảy ra khi lưu phòng chiếu', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteRoom = (cinema, roomId) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa phòng chiếu này?')) {
-      const cinemaIndex = cinemas.findIndex(c => c.complexId === cinema.complexId);
-      if (cinemaIndex === -1) return;
+  const handleDeleteRoom = async (cinema, roomId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa phòng chiếu này?')) {
+      return;
+    }
 
-      const updatedCinemas = [...cinemas];
-      updatedCinemas[cinemaIndex] = {
-        ...updatedCinemas[cinemaIndex],
-        rooms: updatedCinemas[cinemaIndex].rooms.filter(r => r.roomId !== roomId)
-      };
-      setCinemas(updatedCinemas);
-      if (selectedRoom?.roomId === roomId) {
-        setSelectedRoom(null);
+    setLoading(true);
+    try {
+      const { default: cinemaRoomService } = await import('../../services/cinemaRoomService');
+      const result = await cinemaRoomService.deleteCinemaRoom(roomId);
+      
+      if (result.success) {
+        // Reload rooms from API
+        const roomsResult = await cinemaRoomService.getRoomsByComplexId(cinema.complexId);
+        if (roomsResult.success) {
+          const mappedRooms = roomsResult.data.map(room => ({
+            roomId: room.roomId,
+            roomName: room.roomName,
+            roomType: cinemaRoomService.mapRoomTypeFromBackend(room.roomType),
+            rows: room.rows,
+            cols: room.cols,
+            seats: room.seats || []
+          }));
+          
+          const cinemaIndex = cinemas.findIndex(c => c.complexId === cinema.complexId);
+          if (cinemaIndex !== -1) {
+            const updatedCinemas = [...cinemas];
+            updatedCinemas[cinemaIndex] = {
+              ...updatedCinemas[cinemaIndex],
+              rooms: mappedRooms
+            };
+            setCinemas(updatedCinemas);
+            if (onCinemasChange) {
+              onCinemasChange(updatedCinemas);
+            }
+          }
+        }
+        
+        if (selectedRoom?.roomId === roomId) {
+          setSelectedRoom(null);
+        }
+        showNotification('Xóa phòng chiếu thành công', 'success');
+      } else {
+        showNotification(result.error || 'Xóa phòng chiếu thất bại', 'error');
       }
+    } catch (error) {
+      showNotification('Có lỗi xảy ra khi xóa phòng chiếu', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -391,19 +533,16 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
 
   // Render seat layout
   const renderSeatLayout = (room) => {
-    if (!room || !room.seats) return null;
+    if (!room || !room.rows || !room.cols) return null;
 
-    // Group seats by row
-    const seatsByRow = {};
-    room.seats.forEach(seat => {
-      if (!seatsByRow[seat.row]) {
-        seatsByRow[seat.row] = [];
-      }
-      seatsByRow[seat.row].push(seat);
-    });
-
-    // Sort rows
-    const sortedRows = Object.keys(seatsByRow).sort();
+    // Create a map of seats by row and column for quick lookup
+    const seatMap = new Map();
+    if (room.seats && room.seats.length > 0) {
+      room.seats.forEach(seat => {
+        const key = `${seat.row}-${seat.column}`;
+        seatMap.set(key, seat);
+      });
+    }
 
     // Calculate walkway positions (same logic as generateSeats)
     const walkwayPositions = new Set();
@@ -417,20 +556,21 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
     }
 
     // Build row structure with gaps aligned to walkways
-    const buildRowSeats = (rowSeats) => {
-      const sortedSeats = [...rowSeats].sort((a, b) => a.column - b.column);
-      if (sortedSeats.length === 0) return [];
-      
+    const buildRowSeats = (rowChar) => {
       const result = [];
       let lastColumn = 0;
       
-      sortedSeats.forEach((seat) => {
-        // Check if there's a gap (walkway) between last column and current seat
-        if (lastColumn > 0 && seat.column > lastColumn + 1) {
+      // Generate all seats for this row
+      for (let col = 1; col <= room.cols; col++) {
+        const key = `${rowChar}-${col}`;
+        const seat = seatMap.get(key);
+        
+        // Check if there's a gap (walkway) before this seat
+        if (lastColumn > 0 && col > lastColumn + 1) {
           // There's a gap - check if it contains walkways
           let hasWalkway = false;
-          for (let col = lastColumn + 1; col < seat.column; col++) {
-            if (walkwayPositions.has(col)) {
+          for (let c = lastColumn + 1; c < col; c++) {
+            if (walkwayPositions.has(c)) {
               hasWalkway = true;
               break;
             }
@@ -438,18 +578,40 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
           
           if (hasWalkway) {
             // Calculate gap width based on number of missing columns
-            const gapColumns = seat.column - lastColumn - 1;
+            const gapColumns = col - lastColumn - 1;
             const gapWidth = Math.max(32, gapColumns * 8); // Minimum 32px, or based on columns
             result.push({ type: 'gap', width: gapWidth });
           }
         }
         
-        result.push({ type: 'seat', seat });
-        lastColumn = seat.column;
-      });
+        // Add seat (or placeholder if seat doesn't exist)
+        if (seat) {
+          result.push({ type: 'seat', seat });
+        } else {
+          // Create a placeholder seat if it doesn't exist in data
+          result.push({ 
+            type: 'seat', 
+            seat: {
+              seatId: null,
+              type: 'NORMAL',
+              row: rowChar,
+              column: col
+            }
+          });
+        }
+        
+        lastColumn = col;
+      }
       
       return result;
     };
+
+    // Generate all rows from A to the last row based on room.rows
+    const rows = [];
+    for (let i = 0; i < room.rows; i++) {
+      const rowChar = String.fromCharCode(65 + i); // A, B, C, ...
+      rows.push(rowChar);
+    }
 
     return (
       <div className="seat-layout">
@@ -458,8 +620,8 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
         </div>
 
         <div className="seat-layout__grid">
-          {sortedRows.map(row => {
-            const rowItems = buildRowSeats(seatsByRow[row]);
+          {rows.map(row => {
+            const rowItems = buildRowSeats(row);
             return (
               <div key={row} className="seat-layout__row">
                 <div className="seat-layout__seats">
@@ -473,15 +635,17 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
                     
                     return (
                       <button
-                        key={seat.seatId}
+                        key={seat.seatId || `${seat.row}-${seat.column}`}
                         className={`seat-button ${isCouple ? 'seat-button--couple' : ''}`}
                         style={{
                           backgroundColor: getSeatColor(seat.type),
                           borderColor: seat.status ? getSeatColor(seat.type) : '#666',
-                          width: isCouple ? '64px' : '44px'
+                          width: isCouple ? '64px' : '44px',
+                          opacity: seat.seatId ? 1 : 0.5 // Dim placeholder seats
                         }}
-                        onClick={() => handleSeatClick(seat.seatId)}
-                        title={`${seat.seatId} - ${seat.type === 'NORMAL' ? 'Thường' : seat.type === 'VIP' ? 'VIP' : 'Đôi'}`}
+                        onClick={() => seat.seatId && handleSeatClick(seat.seatId)}
+                        disabled={!seat.seatId}
+                        title={seat.seatId ? `${seat.seatId} - ${seat.type === 'NORMAL' ? 'Thường' : seat.type === 'VIP' ? 'VIP' : 'Đôi'}` : `${seat.row}${seat.column} - Chưa có dữ liệu`}
                       >
                         <span className="seat-button__number">{seat.column}</span>
                         <span className="seat-button__type">
@@ -851,8 +1015,13 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
               <button className="btn btn--ghost" onClick={() => setShowRoomModal(false)}>
                 Hủy
               </button>
-              <button className="btn btn--primary" onClick={handleSaveRoom}>
-                {editingRoom ? 'Cập nhật' : 'Thêm phòng'}
+              <button 
+                type="button"
+                className="btn btn--primary" 
+                onClick={handleSaveRoom}
+                disabled={loading}
+              >
+                {loading ? 'Đang xử lý...' : (editingRoom ? 'Cập nhật' : 'Thêm phòng')}
               </button>
             </div>
           </div>

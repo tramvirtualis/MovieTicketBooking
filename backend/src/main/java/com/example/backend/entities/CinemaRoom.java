@@ -8,6 +8,8 @@ import com.example.backend.entities.enums.RoomType;
 @Entity
 @Table(name = "cinema_rooms")
 @Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

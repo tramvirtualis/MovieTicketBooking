@@ -8,6 +8,8 @@ import com.example.backend.entities.enums.SeatType;
 @Entity
 @Table(name = "seats")
 @Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

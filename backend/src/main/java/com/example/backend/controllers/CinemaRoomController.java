@@ -1,0 +1,228 @@
+package com.example.backend.controllers;
+
+import com.example.backend.dtos.CinemaRoomResponseDTO;
+import com.example.backend.dtos.CreateCinemaRoomDTO;
+import com.example.backend.services.CinemaRoomService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@RestController
+@RequiredArgsConstructor
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000"},
+             allowedHeaders = "*",
+             allowCredentials = "true")
+public class CinemaRoomController {
+    
+    private final CinemaRoomService cinemaRoomService;
+    
+    // ============ ADMIN ENDPOINTS ============
+    
+    @PostMapping("/api/admin/cinema-rooms")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> createCinemaRoom(@Valid @RequestBody CreateCinemaRoomDTO createDTO,
+                                              BindingResult bindingResult) {
+        if (bindingResult.hasErrors()) {
+            return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
+        }
+        
+        try {
+            CinemaRoomResponseDTO roomResponse = cinemaRoomService.createCinemaRoom(createDTO);
+            return ResponseEntity.status(HttpStatus.CREATED).body(
+                createSuccessResponse("Tạo phòng chiếu thành công", roomResponse)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/api/admin/cinema-rooms/complex/{complexId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getRoomsByComplexId(@PathVariable Long complexId) {
+        try {
+            List<CinemaRoomResponseDTO> rooms = cinemaRoomService.getRoomsByComplexId(complexId);
+            return ResponseEntity.ok(
+                createSuccessResponse("Lấy danh sách phòng chiếu thành công", rooms)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/api/admin/cinema-rooms/{roomId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getRoomById(@PathVariable Long roomId) {
+        try {
+            CinemaRoomResponseDTO room = cinemaRoomService.getRoomById(roomId);
+            return ResponseEntity.ok(
+                createSuccessResponse("Lấy thông tin phòng chiếu thành công", room)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    @PutMapping("/api/admin/cinema-rooms/{roomId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateCinemaRoom(@PathVariable Long roomId,
+                                              @Valid @RequestBody CreateCinemaRoomDTO updateDTO,
+                                              BindingResult bindingResult) {
+        if (bindingResult.hasErrors()) {
+            return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
+        }
+        
+        try {
+            CinemaRoomResponseDTO roomResponse = cinemaRoomService.updateCinemaRoom(roomId, updateDTO);
+            return ResponseEntity.ok(
+                createSuccessResponse("Cập nhật phòng chiếu thành công", roomResponse)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    @DeleteMapping("/api/admin/cinema-rooms/{roomId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> deleteCinemaRoom(@PathVariable Long roomId) {
+        try {
+            cinemaRoomService.deleteCinemaRoom(roomId);
+            return ResponseEntity.ok(
+                createSuccessResponse("Xóa phòng chiếu thành công", null)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    // ============ MANAGER ENDPOINTS ============
+    
+    @PostMapping("/api/manager/cinema-rooms")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<?> createCinemaRoomManager(@Valid @RequestBody CreateCinemaRoomDTO createDTO,
+                                                     BindingResult bindingResult) {
+        if (bindingResult.hasErrors()) {
+            return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
+        }
+        
+        try {
+            // Manager chỉ có thể tạo phòng cho cụm rạp của mình
+            // Kiểm tra quyền sẽ được thực hiện trong service hoặc filter
+            CinemaRoomResponseDTO roomResponse = cinemaRoomService.createCinemaRoom(createDTO);
+            return ResponseEntity.status(HttpStatus.CREATED).body(
+                createSuccessResponse("Tạo phòng chiếu thành công", roomResponse)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/api/manager/cinema-rooms/complex/{complexId}")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<?> getRoomsByComplexIdManager(@PathVariable Long complexId) {
+        try {
+            List<CinemaRoomResponseDTO> rooms = cinemaRoomService.getRoomsByComplexId(complexId);
+            return ResponseEntity.ok(
+                createSuccessResponse("Lấy danh sách phòng chiếu thành công", rooms)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    @PutMapping("/api/manager/cinema-rooms/{roomId}")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<?> updateCinemaRoomManager(@PathVariable Long roomId,
+                                                     @Valid @RequestBody CreateCinemaRoomDTO updateDTO,
+                                                     BindingResult bindingResult) {
+        if (bindingResult.hasErrors()) {
+            return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
+        }
+        
+        try {
+            CinemaRoomResponseDTO roomResponse = cinemaRoomService.updateCinemaRoom(roomId, updateDTO);
+            return ResponseEntity.ok(
+                createSuccessResponse("Cập nhật phòng chiếu thành công", roomResponse)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    @DeleteMapping("/api/manager/cinema-rooms/{roomId}")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<?> deleteCinemaRoomManager(@PathVariable Long roomId) {
+        try {
+            cinemaRoomService.deleteCinemaRoom(roomId);
+            return ResponseEntity.ok(
+                createSuccessResponse("Xóa phòng chiếu thành công", null)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    // Helper methods
+    private Map<String, Object> createSuccessResponse(String message, Object data) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", message);
+        if (data != null) {
+            response.put("data", data);
+        }
+        return response;
+    }
+    
+    private Map<String, Object> createErrorResponse(String message) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", message);
+        return response;
+    }
+    
+    private Map<String, Object> createErrorResponse(BindingResult bindingResult) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", "Dữ liệu không hợp lệ");
+        response.put("errors", bindingResult.getFieldErrors().stream()
+            .collect(Collectors.toMap(
+                error -> error.getField(),
+                error -> error.getDefaultMessage()
+            )));
+        return response;
+    }
+}
+
