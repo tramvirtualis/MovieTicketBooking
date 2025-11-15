@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import {
   BarChart,
   Bar,
@@ -63,10 +63,7 @@ const PROVINCES = [
   'Thừa Thiên Huế', 'Tiền Giang', 'Trà Vinh', 'Tuyên Quang', 'Vĩnh Long', 'Vĩnh Phúc', 'Yên Bái'
 ];
 
-// Note: All enum values (GENRES, MOVIE_STATUSES, AGE_RATINGS, ROOM_TYPES, SEAT_TYPES, LANGUAGES, etc.)
-// are now fetched from the backend API via useEnums hook. See: frontend/src/hooks/useEnums.js
 
-// Generate seats for a room with realistic layout
 function generateSeats(rows, cols) {
   const seats = [];
   const rowLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
