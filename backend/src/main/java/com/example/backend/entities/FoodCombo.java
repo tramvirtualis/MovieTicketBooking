@@ -18,6 +18,7 @@ public class FoodCombo {
     private BigDecimal price;
     private String description;
     private String image;
+    
     @ManyToOne
     @JoinColumn(name = "order_combo_id")
     private OrderCombo orderCombo;

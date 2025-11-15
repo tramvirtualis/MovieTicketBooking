@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 
-export default function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
+// Voucher Assign Modal Component
+function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
   const [newSelectedIds, setNewSelectedIds] = useState([]);
 
   const privateVouchers = vouchers?.filter(v => v.isPublic === false) || [];
@@ -115,4 +116,4 @@ export default function VoucherAssignModal({ user, vouchers, onClose, onSave }) 
   );
 }
 
-
+export default VoucherAssignModal;

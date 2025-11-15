@@ -55,7 +55,10 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/customer/**").permitAll()
+                .requestMatchers("/api/reviews/movie/**").permitAll() // Public access to movie reviews
+                .requestMatchers("/api/enums/**").permitAll() // Public access to enum values
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/manager/**").hasAnyRole("MANAGER", "ADMIN")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

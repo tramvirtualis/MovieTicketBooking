@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import ReviewForm from '../components/ReviewForm.jsx';
 import { QRCodeSVG } from 'qrcode.react';
 import interstellar from '../assets/images/interstellar.jpg';
 import inception from '../assets/images/inception.jpg';
@@ -75,6 +76,9 @@ export default function BookingHistory() {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [activeTab, setActiveTab] = useState('upcoming'); // 'upcoming' hoặc 'completed'
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [selectedMovieForReview, setSelectedMovieForReview] = useState(null);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   // Filter bookings theo tab
   const filteredBookings = bookings.filter((booking) => {
@@ -270,6 +274,28 @@ export default function BookingHistory() {
                             }}
                           >
                             Xem lại vé
+                          </button>
+                        </div>
+                      )}
+
+                      {booking.status === 'completed' && (
+                        <div className="booking-card__actions mt-4 flex gap-2.5">
+                          <button 
+                            className="btn btn--primary" 
+                            style={{ fontSize: '14px', padding: '10px 20px' }}
+                            onClick={() => {
+                              setSelectedMovieForReview({
+                                title: booking.movie.title,
+                                poster: booking.movie.poster,
+                                movieId: booking.movie.movieId || 1 // You may need to adjust this based on your data structure
+                              });
+                              setShowReviewForm(true);
+                            }}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
+                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                            Viết đánh giá
                           </button>
                         </div>
                       )}
@@ -485,6 +511,59 @@ export default function BookingHistory() {
               >
                 Đóng
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review Form Modal */}
+      {showReviewForm && selectedMovieForReview && (
+        <ReviewForm
+          movie={selectedMovieForReview}
+          onClose={() => {
+            setShowReviewForm(false);
+            setSelectedMovieForReview(null);
+          }}
+          onSuccess={() => {
+            setShowSuccessMessage(true);
+            setTimeout(() => {
+              setShowSuccessMessage(false);
+            }, 3000);
+          }}
+        />
+      )}
+
+      {/* Success Notification */}
+      {showSuccessMessage && (
+        <div 
+          className="review-success-notification"
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            background: 'linear-gradient(135deg, rgba(76, 175, 80, 0.95) 0%, rgba(56, 142, 60, 0.95) 100%)',
+            color: '#fff',
+            padding: '16px 24px',
+            borderRadius: '12px',
+            boxShadow: '0 8px 24px rgba(76, 175, 80, 0.4)',
+            zIndex: 10002,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            animation: 'slideInRight 0.3s ease-out',
+            border: '1px solid rgba(255, 255, 255, 0.2)'
+          }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '16px', marginBottom: '2px' }}>
+              Đánh giá thành công!
+            </div>
+            <div style={{ fontSize: '14px', opacity: 0.9 }}>
+              Cảm ơn bạn đã chia sẻ đánh giá về bộ phim.
             </div>
           </div>
         </div>

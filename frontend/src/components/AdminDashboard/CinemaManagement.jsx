@@ -1,10 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { SEAT_TYPES, ROOM_TYPES, PROVINCES } from './constants';
+import { useEnums } from '../../hooks/useEnums';
+import { enumService } from '../../services/enumService';
 import { generateSeats } from './utils';
+
+const PROVINCES = [
+  'Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Hải Phòng', 'An Giang', 'Bà Rịa - Vũng Tàu',
+  'Bắc Giang', 'Bắc Kạn', 'Bạc Liêu', 'Bắc Ninh', 'Bến Tre', 'Bình Định', 'Bình Dương',
+  'Bình Phước', 'Bình Thuận', 'Cà Mau', 'Cao Bằng', 'Đắk Lắk', 'Đắk Nông', 'Điện Biên',
+  'Đồng Nai', 'Đồng Tháp', 'Gia Lai', 'Hà Giang', 'Hà Nam', 'Hà Tĩnh', 'Hải Dương',
+  'Hậu Giang', 'Hòa Bình', 'Hưng Yên', 'Khánh Hòa', 'Kiên Giang', 'Kon Tum', 'Lai Châu',
+  'Lâm Đồng', 'Lạng Sơn', 'Lào Cai', 'Long An', 'Nam Định', 'Nghệ An', 'Ninh Bình',
+  'Ninh Thuận', 'Phú Thọ', 'Phú Yên', 'Quảng Bình', 'Quảng Nam', 'Quảng Ngãi', 'Quảng Ninh',
+  'Quảng Trị', 'Sóc Trăng', 'Sơn La', 'Tây Ninh', 'Thái Bình', 'Thái Nguyên', 'Thanh Hóa',
+  'Thừa Thiên Huế', 'Tiền Giang', 'Trà Vinh', 'Tuyên Quang', 'Vĩnh Long', 'Vĩnh Phúc', 'Yên Bái'
+];
 
 // Cinema Management Component
 function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
+  const { enums } = useEnums();
   const [cinemas, setCinemas] = useState(initialCinemasList);
+  
+  // Map room types from backend (TYPE_2D) to display format (2D)
+  const roomTypes = enums.roomTypes?.map(rt => enumService.mapRoomTypeToDisplay(rt)) || [];
+  const seatTypes = enums.seatTypes || [];
   const [selectedCinema, setSelectedCinema] = useState(null);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [showCinemaModal, setShowCinemaModal] = useState(false);
@@ -186,9 +204,9 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
     // Cycle through seat types: NORMAL -> VIP -> COUPLE -> NORMAL
     const currentSeat = updatedRoom.seats.find(s => s.seatId === seatId);
     if (currentSeat) {
-      const currentIndex = SEAT_TYPES.indexOf(currentSeat.type);
-      const nextIndex = (currentIndex + 1) % SEAT_TYPES.length;
-      const newType = SEAT_TYPES[nextIndex];
+      const currentIndex = seatTypes.indexOf(currentSeat.type);
+      const nextIndex = (currentIndex + 1) % seatTypes.length;
+      const newType = seatTypes[nextIndex];
       
       // Update seat
       updatedRoom.seats = updatedRoom.seats.map(s =>
@@ -590,7 +608,7 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
                       value={roomFormData.roomType}
                       onChange={(e) => setRoomFormData({ ...roomFormData, roomType: e.target.value })}
                     >
-                      {ROOM_TYPES.map(type => (
+                      {roomTypes.map(type => (
                         <option key={type} value={type}>{type}</option>
                       ))}
                     </select>

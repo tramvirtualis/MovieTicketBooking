@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -104,23 +105,45 @@ public class MovieService {
         
         // Cập nhật MovieVersion nếu có formats và languages mới
         if (updateMovieDTO.getFormats() != null && updateMovieDTO.getLanguages() != null) {
-            // Xóa các MovieVersion cũ
+            // Lấy các MovieVersion hiện có
             List<MovieVersion> existingVersions = movieVersionRepository.findByMovie(updatedMovie);
-            movieVersionRepository.deleteAll(existingVersions);
             
-            // Tạo MovieVersion mới cho mỗi combination của format và language
-            List<MovieVersion> versions = new ArrayList<>();
+            // Tạo danh sách các combination mới cần có
+            List<MovieVersion> versionsToKeep = new ArrayList<>();
+            List<MovieVersion> versionsToCreate = new ArrayList<>();
+            
             for (RoomType format : updateMovieDTO.getFormats()) {
                 for (Language language : updateMovieDTO.getLanguages()) {
-                    MovieVersion version = MovieVersion.builder()
-                            .movie(updatedMovie)
-                            .roomType(format)
-                            .language(language)
-                            .build();
-                    versions.add(version);
+                    // Tìm version đã tồn tại với cùng format và language
+                    Optional<MovieVersion> existingVersion = existingVersions.stream()
+                            .filter(v -> v.getRoomType() == format && v.getLanguage() == language)
+                            .findFirst();
+                    
+                    if (existingVersion.isPresent()) {
+                        // Giữ lại version đã có (giữ nguyên ID)
+                        versionsToKeep.add(existingVersion.get());
+                    } else {
+                        // Tạo version mới nếu chưa có
+                        MovieVersion newVersion = MovieVersion.builder()
+                                .movie(updatedMovie)
+                                .roomType(format)
+                                .language(language)
+                                .build();
+                        versionsToCreate.add(newVersion);
+                    }
                 }
             }
-            movieVersionRepository.saveAll(versions);
+            
+            // Xóa các versions không còn trong danh sách mới
+            List<MovieVersion> versionsToDelete = existingVersions.stream()
+                    .filter(v -> !versionsToKeep.contains(v))
+                    .collect(Collectors.toList());
+            movieVersionRepository.deleteAll(versionsToDelete);
+            
+            // Tạo các versions mới
+            if (!versionsToCreate.isEmpty()) {
+                movieVersionRepository.saveAll(versionsToCreate);
+            }
         }
         
         return convertToDTO(updatedMovie);

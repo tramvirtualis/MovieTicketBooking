@@ -1,30 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import '../../styles/admin/food-beverage-management.css';
 
 // Food & Beverage Management Component
 function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
   const [items, setItems] = useState(initialItems || []);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
-    category: 'FOOD',
     description: '',
     price: '',
     image: '',
-    imageFile: null,
-    status: 'AVAILABLE'
+    imageFile: null
   });
   const [imagePreview, setImagePreview] = useState('');
   const [validationErrors, setValidationErrors] = useState({});
   const [notification, setNotification] = useState(null);
-
-  const CATEGORIES = ['FOOD', 'BEVERAGE', 'COMBO'];
-  const STATUSES = ['AVAILABLE', 'UNAVAILABLE'];
 
   useEffect(() => {
     if (onItemsChange) {
@@ -74,12 +68,10 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
     setEditingItem(null);
     setFormData({
       name: '',
-      category: 'FOOD',
       description: '',
       price: '',
       image: '',
-      imageFile: null,
-      status: 'AVAILABLE'
+      imageFile: null
     });
     setImagePreview('');
     setValidationErrors({});
@@ -91,12 +83,10 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
     setEditingItem(item);
     setFormData({
       name: item.name,
-      category: item.category,
       description: item.description || '',
       price: item.price.toString(),
       image: item.image || '',
-      imageFile: null,
-      status: item.status || 'AVAILABLE'
+      imageFile: null
     });
     setImagePreview(item.image || '');
     setValidationErrors({});
@@ -142,11 +132,9 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
           ? {
               ...item,
               name: formData.name,
-              category: formData.category,
               description: formData.description,
               price: parseFloat(formData.price),
-              image: imageValue,
-              status: formData.status
+              image: imageValue
             }
           : item
       ));
@@ -156,11 +144,9 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
       const newItem = {
         id: Math.max(...items.map(i => i.id), 0) + 1,
         name: formData.name,
-        category: formData.category,
         description: formData.description,
         price: parseFloat(formData.price),
-        image: imageValue,
-        status: formData.status
+        image: imageValue
       };
       setItems([...items, newItem]);
       showNotification('Thêm sản phẩm thành công', 'success');
@@ -178,33 +164,6 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
     showNotification('Xóa sản phẩm thành công', 'success');
   };
 
-  // Format category for display
-  const formatCategory = (category) => {
-    const categoryMap = {
-      'FOOD': 'Đồ ăn',
-      'BEVERAGE': 'Nước uống',
-      'COMBO': 'Combo'
-    };
-    return categoryMap[category] || category;
-  };
-
-  // Format status for display
-  const formatStatus = (status) => {
-    const statusMap = {
-      'AVAILABLE': 'Có sẵn',
-      'UNAVAILABLE': 'Hết hàng'
-    };
-    return statusMap[status] || status;
-  };
-
-  // Get status color
-  const getStatusColor = (status) => {
-    const colorMap = {
-      'AVAILABLE': '#4caf50',
-      'UNAVAILABLE': '#9e9e9e'
-    };
-    return colorMap[status] || '#9e9e9e';
-  };
 
   // Format price
   const formatPrice = (price) => {
@@ -218,9 +177,7 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
   const filteredItems = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = !filterCategory || item.category === filterCategory;
-    const matchesStatus = !filterStatus || item.status === filterStatus;
-    return matchesSearch && matchesCategory && matchesStatus;
+    return matchesSearch;
   });
 
   return (
@@ -272,24 +229,11 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
         </div>
       )}
 
-      <div className="movie-management">
-        {/* Header - Compact Layout */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '20px',
-          gap: '16px',
-          flexWrap: 'wrap'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            flex: '1',
-            minWidth: '300px'
-          }}>
-            <div className="movie-management__search" style={{ flex: '1', maxWidth: '400px' }}>
+      <div className="food-beverage-management">
+        {/* Header */}
+        <div className="food-beverage-header">
+          <div className="food-beverage-header__left">
+            <div className="food-beverage-search">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="11" cy="11" r="8"/>
                 <path d="M21 21l-4.35-4.35"/>
@@ -299,45 +243,10 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                 placeholder="Tìm kiếm sản phẩm..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ fontSize: '14px' }}
               />
             </div>
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="movie-management__filter"
-              style={{ 
-                minWidth: '140px',
-                fontSize: '14px',
-                padding: '8px 12px'
-              }}
-            >
-              <option value="">Tất cả loại</option>
-              {CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>{formatCategory(cat)}</option>
-              ))}
-            </select>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="movie-management__filter"
-              style={{ 
-                minWidth: '140px',
-                fontSize: '14px',
-                padding: '8px 12px'
-              }}
-            >
-              <option value="">Tất cả trạng thái</option>
-              {STATUSES.map(status => (
-                <option key={status} value={status}>{formatStatus(status)}</option>
-              ))}
-            </select>
           </div>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
+          <div className="food-beverage-header__right">
             <div className="view-mode-toggle">
               <button
                 className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
@@ -365,7 +274,7 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
               className="btn btn--primary" 
               onClick={handleAddItem}
               style={{
-                padding: '10px 16px',
+                padding: '12px 20px',
                 fontSize: '14px',
                 whiteSpace: 'nowrap'
               }}
@@ -379,94 +288,32 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
           </div>
         </div>
 
-        {/* Items count - Compact */}
-        <div style={{
-          marginBottom: '16px',
-          fontSize: '14px',
-          color: 'rgba(255,255,255,0.6)'
-        }}>
-          Tìm thấy <strong style={{ color: '#fff' }}>{filteredItems.length}</strong> sản phẩm
+        {/* Stats Bar */}
+        <div className="food-stats-bar">
+          Tìm thấy <strong>{filteredItems.length}</strong> sản phẩm
         </div>
 
         {/* Items list */}
         {viewMode === 'grid' ? (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: '16px',
-            padding: '0'
-          }}>
+          <div className="food-item-grid">
             {filteredItems.map(item => (
-              <div key={item.id} style={{
-                background: 'rgba(20, 15, 16, 0.6)',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                border: '1px solid rgba(255,255,255,0.1)',
-                transition: 'all 0.3s ease',
-                cursor: 'pointer',
-                position: 'relative'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)';
-                e.currentTarget.style.borderColor = 'rgba(123, 97, 255, 0.5)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = 'none';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
-              }}
-              >
-                <div style={{ position: 'relative', width: '100%', paddingTop: '75%', overflow: 'hidden' }}>
+              <div key={item.id} className="food-item-card">
+                <div className="food-item-card__image-wrapper">
                   <img 
-                    src={item.image || 'https://via.placeholder.com/200x150'} 
+                    src={item.image || 'https://via.placeholder.com/280x210'} 
                     alt={item.name}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover'
-                    }}
+                    className="food-item-card__image"
                   />
-                  <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.7) 100%)',
-                    opacity: 0,
-                    transition: 'opacity 0.3s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '12px'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0'}
-                  >
+                  <div className="food-item-card__overlay">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleEditItem(item);
                       }}
-                      style={{
-                        background: 'rgba(123, 97, 255, 0.9)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        width: '36px',
-                        height: '36px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        color: '#fff'
-                      }}
+                      className="food-item-card__action"
                       title="Chỉnh sửa"
                     >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                       </svg>
@@ -476,87 +323,25 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                         e.stopPropagation();
                         setDeleteConfirm(item);
                       }}
-                      style={{
-                        background: 'rgba(232, 59, 65, 0.9)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        width: '36px',
-                        height: '36px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        color: '#fff'
-                      }}
+                      className="food-item-card__action food-item-card__action--delete"
                       title="Xóa"
                     >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                       </svg>
                     </button>
                   </div>
-                  <div style={{
-                    position: 'absolute',
-                    top: '8px',
-                    right: '8px',
-                    padding: '4px 10px',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    backgroundColor: getStatusColor(item.status),
-                    color: '#fff',
-                    textTransform: 'uppercase'
-                  }}>
-                    {formatStatus(item.status)}
-                  </div>
                 </div>
-                <div style={{ padding: '12px' }}>
-                  <h3 style={{
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    margin: '0 0 8px 0',
-                    color: '#fff',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {item.name}
-                  </h3>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '6px'
-                  }}>
-                    <span style={{
-                      fontSize: '12px',
-                      color: 'rgba(255,255,255,0.6)',
-                      background: 'rgba(123, 97, 255, 0.2)',
-                      padding: '2px 8px',
-                      borderRadius: '4px'
-                    }}>
-                      {formatCategory(item.category)}
-                    </span>
-                    <span style={{
-                      fontSize: '14px',
-                      color: '#ffd700',
-                      fontWeight: 600
-                    }}>
+                <div className="food-item-card__content">
+                  <h3 className="food-item-card__title">{item.name}</h3>
+                  <div className="food-item-card__meta">
+                    <span className="food-item-card__price">
                       {formatPrice(item.price)}
                     </span>
                   </div>
                   {item.description && (
-                    <div style={{
-                      fontSize: '12px',
-                      color: 'rgba(255,255,255,0.5)',
-                      marginTop: '6px',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      lineHeight: '1.4'
-                    }}>
+                    <div className="food-item-card__description">
                       {item.description}
                     </div>
                   )}
@@ -571,10 +356,8 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                 <tr>
                   <th>Hình ảnh</th>
                   <th>Tên sản phẩm</th>
-                  <th>Loại</th>
                   <th>Giá</th>
                   <th>Mô tả</th>
-                  <th>Trạng thái</th>
                   <th>Thao tác</th>
                 </tr>
               </thead>
@@ -587,15 +370,9 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                     <td>
                       <div className="movie-table-title">{item.name}</div>
                     </td>
-                    <td>{formatCategory(item.category)}</td>
                     <td style={{ fontWeight: 600, color: '#ffd700' }}>{formatPrice(item.price)}</td>
                     <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {item.description || '-'}
-                    </td>
-                    <td>
-                      <span className="movie-status-badge" style={{ backgroundColor: getStatusColor(item.status) }}>
-                        {formatStatus(item.status)}
-                      </span>
                     </td>
                     <td>
                       <div className="movie-table-actions">
@@ -630,11 +407,7 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
 
         {/* Empty state */}
         {filteredItems.length === 0 && (
-          <div className="movie-empty" style={{
-            padding: '60px 20px',
-            textAlign: 'center',
-            color: '#c9c4c5'
-          }}>
+          <div className="food-empty-state">
             <svg 
               width="80" 
               height="80" 
@@ -642,27 +415,22 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
               fill="none" 
               stroke="currentColor" 
               strokeWidth="1.5"
-              style={{ 
-                marginBottom: '20px',
-                opacity: 0.5,
-                color: '#7b61ff'
-              }}
             >
               <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
               <line x1="3" y1="6" x2="21" y2="6"/>
               <path d="M16 10a4 4 0 0 1-8 0"/>
             </svg>
-            <p style={{ 
-              fontSize: '16px', 
-              fontWeight: 500, 
-              marginBottom: '8px',
-              color: '#e6e1e2'
-            }}>
-              {searchTerm || filterCategory || filterStatus 
-                ? 'Không tìm thấy sản phẩm nào phù hợp với bộ lọc' 
+            <h3 className="food-empty-state__title">
+              {searchTerm 
+                ? 'Không tìm thấy sản phẩm nào phù hợp với từ khóa tìm kiếm' 
                 : 'Chưa có sản phẩm nào trong hệ thống'}
+            </h3>
+            <p className="food-empty-state__message">
+              {searchTerm 
+                ? 'Hãy thử thay đổi từ khóa tìm kiếm' 
+                : 'Bắt đầu bằng cách thêm sản phẩm đầu tiên vào hệ thống'}
             </p>
-            {!searchTerm && !filterCategory && !filterStatus && (
+            {!searchTerm && (
               <button 
                 className="btn btn--primary" 
                 onClick={handleAddItem}
@@ -684,10 +452,10 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
             setShowModal(false);
             setImagePreview('');
           }}>
-            <div className="movie-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="movie-modal__header">
+            <div className="food-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="food-modal__header">
                 <h2>{editingItem ? 'Chỉnh sửa sản phẩm' : 'Thêm sản phẩm mới'}</h2>
-                <button className="movie-modal__close" onClick={() => {
+                <button className="food-modal__close" onClick={() => {
                   setShowModal(false);
                   setImagePreview('');
                 }}>
@@ -697,8 +465,8 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                   </svg>
                 </button>
               </div>
-              <div className="movie-modal__content">
-                <div className="movie-form">
+              <div className="food-modal__content">
+                <div className="food-form">
                   {Object.keys(validationErrors).length > 0 && (
                     <div style={{
                       padding: '12px 16px',
@@ -717,8 +485,8 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                       </ul>
                     </div>
                   )}
-                  <div className="movie-form__row">
-                    <div className="movie-form__group">
+                  <div className="food-form__row">
+                    <div className="food-form__group">
                       <label>Tên sản phẩm <span className="required">*</span></label>
                       <input
                         type="text"
@@ -740,20 +508,7 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                         </div>
                       )}
                     </div>
-                    <div className="movie-form__group">
-                      <label>Loại <span className="required">*</span></label>
-                      <select
-                        value={formData.category}
-                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      >
-                        {CATEGORIES.map(cat => (
-                          <option key={cat} value={cat}>{formatCategory(cat)}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="movie-form__row">
-                    <div className="movie-form__group">
+                    <div className="food-form__group">
                       <label>Giá (VNĐ) <span className="required">*</span></label>
                       <input
                         type="number"
@@ -777,19 +532,8 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                         </div>
                       )}
                     </div>
-                    <div className="movie-form__group">
-                      <label>Trạng thái <span className="required">*</span></label>
-                      <select
-                        value={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      >
-                        {STATUSES.map(status => (
-                          <option key={status} value={status}>{formatStatus(status)}</option>
-                        ))}
-                      </select>
-                    </div>
                   </div>
-                  <div className="movie-form__group">
+                  <div className="food-form__group">
                     <label>Mô tả</label>
                     <textarea
                       value={formData.description}
@@ -798,39 +542,18 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                       rows="3"
                     />
                   </div>
-                  <div className="movie-form__group">
+                  <div className="food-form__group">
                     <label>Hình ảnh <span className="required">*</span></label>
                     {imagePreview ? (
-                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <div className="food-form__image-preview">
                         <img 
                           src={imagePreview} 
-                          alt="Preview" 
-                          style={{
-                            width: '200px',
-                            height: '200px',
-                            objectFit: 'cover',
-                            borderRadius: '8px',
-                            border: '1px solid rgba(255,255,255,0.1)'
-                          }}
+                          alt="Preview"
                         />
                         <button
                           type="button"
                           onClick={handleRemoveImage}
-                          style={{
-                            position: 'absolute',
-                            top: '8px',
-                            right: '8px',
-                            background: 'rgba(232, 59, 65, 0.9)',
-                            border: 'none',
-                            borderRadius: '50%',
-                            width: '32px',
-                            height: '32px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#fff'
-                          }}
+                          className="food-form__image-remove"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -874,7 +597,7 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
                   </div>
                 </div>
               </div>
-              <div className="movie-modal__footer">
+              <div className="food-modal__footer">
                 <button className="btn btn--ghost" onClick={() => {
                   setShowModal(false);
                   setImagePreview('');
