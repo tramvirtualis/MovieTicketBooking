@@ -14,6 +14,7 @@ import {
 import { movieService } from '../services/movieService';
 import { GENRES, MOVIE_STATUSES, AGE_RATINGS } from '../components/AdminDashboard/constants';
 import FoodBeverageManagement from '../components/AdminDashboard/FoodBeverageManagement';
+import cloudinaryService from '../services/cloudinaryService';
 
 // Add CSS animation for spinner and notification
 if (typeof document !== 'undefined') {
@@ -1382,31 +1383,25 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
   });
 
   // Handle poster file upload
-  const handlePosterUpload = (e) => {
+  const handlePosterUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        showNotification('Vui lòng chọn file hình ảnh', 'error');
-        return;
-      }
-      // Tăng giới hạn file size lên 10MB để hỗ trợ ảnh chất lượng cao
-      if (file.size > 10 * 1024 * 1024) {
-        showNotification('Kích thước file không được vượt quá 10MB', 'error');
-        return;
-      }
+    if (!file) return;
+  
+    const result = await cloudinaryService.uploadSingle(file);
+  
+    if (result.success) {
+      setFormData({
+        ...formData,
+        poster: result.url,      // ✔ lưu URL Cloudinary
+        posterFile: file
+      });
       
-      setFormData({ ...formData, posterFile: file, poster: '' });
-      
-      // Create preview và lưu base64 để gửi lên server
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        // Lưu base64 để có thể gửi lên server
-        setPosterPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+      setPosterPreview(result.url);  // ✔ hiển thị ảnh Cloudinary
+    } else {
+      showNotification(result.error, 'error');
     }
   };
+  
 
   // Remove poster
   const handleRemovePoster = () => {
@@ -2567,72 +2562,44 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                 </div>
                 <div className="movie-form__group">
                   <label>Poster <span className="required">*</span></label>
+
                   <div className="movie-poster-upload">
-                    <div className="movie-poster-upload__options">
-                      <label className="movie-poster-upload__btn">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            handlePosterUpload(e);
-                            if (validationErrors.poster) {
-                              setValidationErrors({ ...validationErrors, poster: null });
-                            }
-                          }}
-                          style={{ display: 'none' }}
-                        />
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                          <polyline points="17 8 12 3 7 8"/>
-                          <line x1="12" y1="3" x2="12" y2="15"/>
-                        </svg>
-                        Upload từ máy
-                      </label>
-                      <span className="movie-poster-upload__or">hoặc</span>
+                    <label className="movie-poster-upload__btn">
                       <input
-                        type="url"
-                        value={formData.poster}
+                        type="file"
+                        accept="image/*"
                         onChange={(e) => {
-                          setFormData({ ...formData, poster: e.target.value, posterFile: null });
-                          setPosterPreview(e.target.value);
+                          handlePosterUpload(e);
                           if (validationErrors.poster) {
                             setValidationErrors({ ...validationErrors, poster: null });
                           }
                         }}
-                        placeholder="Nhập URL poster"
-                        className="movie-poster-upload__url"
-                        style={{
-                          borderColor: validationErrors.poster ? '#ff5757' : undefined
-                        }}
+                        style={{ display: 'none' }}
                       />
-                    </div>
-                    {(posterPreview || formData.poster) && (
-                      <div className="movie-poster-upload__preview">
-                        <img 
-                          src={posterPreview || formData.poster} 
-                          alt="Poster preview" 
-                          className="movie-form__poster-preview" 
-                        />
-                        <button
-                          type="button"
-                          className="movie-poster-upload__remove"
-                          onClick={handleRemovePoster}
-                          title="Xóa poster"
-                        >
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
-                          </svg>
-                        </button>
-                      </div>
-                    )}
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                      </svg>
+                      Upload từ máy
+                    </label>
                   </div>
-                  {validationErrors.poster && (
-                    <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '8px' }}>
-                      {validationErrors.poster}
-                    </div>
+
+                  {/* Hiển thị preview nếu có */}
+                  {posterPreview && (
+                    <img
+                      src={posterPreview}
+                      alt="Poster preview"
+                      style={{
+                        marginTop: '12px',
+                        width: '150px',
+                        height: 'auto',
+                        borderRadius: '4px'
+                      }}
+                    />
                   )}
                 </div>
+
                 <div className="movie-form__group">
                   <label>URL Trailer (YouTube)</label>
                   <input
