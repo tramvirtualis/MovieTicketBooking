@@ -28,6 +28,6 @@ public class MovieVersion {
     @Enumerated(EnumType.STRING)
     private RoomType roomType;
 
-    @OneToMany(mappedBy = "movieVersion")
+    @OneToMany(mappedBy = "movieVersion", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Showtime> showtimes;
 }

@@ -18,13 +18,31 @@ public class UploadController {
     @Autowired
     private CloudinaryService cloudinaryService;
 
-    @PostMapping("/upload-image")
+    @PostMapping(value = "/upload-image", produces = "text/plain")
     public ResponseEntity<?> uploadImage(@RequestParam("file") MultipartFile file) {
         try {
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .header("Content-Type", "text/plain")
+                    .body("File không được để trống");
+            }
+            
             String imageUrl = cloudinaryService.uploadImage(file);
-            return ResponseEntity.ok(imageUrl);
+            if (imageUrl == null || imageUrl.isEmpty()) {
+                return ResponseEntity.status(500)
+                    .header("Content-Type", "text/plain")
+                    .body("Không thể upload ảnh lên Cloudinary");
+            }
+            
+            // Trả về string trực tiếp với content-type text/plain
+            return ResponseEntity.ok()
+                .header("Content-Type", "text/plain")
+                .body(imageUrl);
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Upload failed: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500)
+                .header("Content-Type", "text/plain")
+                .body("Upload failed: " + e.getMessage());
         }
     }
 }

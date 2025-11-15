@@ -155,6 +155,13 @@ public class MovieService {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy phim với ID: " + movieId));
         
+        // Xóa tất cả MovieVersion trước khi xóa Movie
+        List<MovieVersion> versions = movieVersionRepository.findByMovie(movie);
+        if (!versions.isEmpty()) {
+            movieVersionRepository.deleteAll(versions);
+        }
+        
+        // Sau đó mới xóa Movie
         movieRepository.delete(movie);
     }
     

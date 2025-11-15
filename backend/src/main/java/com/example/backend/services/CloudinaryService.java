@@ -15,7 +15,21 @@ public class CloudinaryService {
     private Cloudinary cloudinary;
 
     public String uploadImage(MultipartFile file) throws IOException {
-        Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.emptyMap());
-        return uploadResult.get("secure_url").toString();
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File không được để trống");
+        }
+        
+        try {
+            Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.emptyMap());
+            Object secureUrl = uploadResult.get("secure_url");
+            
+            if (secureUrl == null) {
+                throw new IOException("Không nhận được URL từ Cloudinary");
+            }
+            
+            return secureUrl.toString();
+        } catch (Exception e) {
+            throw new IOException("Lỗi khi upload lên Cloudinary: " + e.getMessage(), e);
+        }
     }
 }

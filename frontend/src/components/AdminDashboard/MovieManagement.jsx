@@ -209,15 +209,18 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
         // Upload to Cloudinary
         const result = await cloudinaryService.uploadSingle(file);
         
-        if (result.success) {
+        if (result.success && result.url) {
           setFormData({ ...formData, posterFile: file, poster: result.url });
           setPosterPreview(result.url);
           showNotification('Upload poster thành công', 'success');
         } else {
-          showNotification(result.error || 'Upload poster thất bại', 'error');
+          const errorMsg = result.error || 'Upload poster thất bại';
+          showNotification(errorMsg, 'error');
+          console.error('Upload failed:', result);
         }
       } catch (error) {
-        showNotification('Có lỗi xảy ra khi upload poster', 'error');
+        console.error('Upload error:', error);
+        showNotification(error.message || 'Có lỗi xảy ra khi upload poster', 'error');
       } finally {
         setLoading(false);
       }

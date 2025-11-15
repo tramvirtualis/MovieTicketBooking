@@ -63,14 +63,34 @@ export const cloudinaryService = {
         },
       });
 
+      // Backend có thể trả về string trực tiếp hoặc JSON object
+      let imageUrl = response.data;
+      if (typeof imageUrl === 'object' && imageUrl !== null) {
+        // Nếu là object, thử lấy url hoặc secure_url
+        imageUrl = imageUrl.url || imageUrl.secure_url || imageUrl.data || imageUrl;
+      }
+      
+      // Đảm bảo là string
+      if (typeof imageUrl !== 'string' || !imageUrl.trim()) {
+        return {
+          success: false,
+          error: 'Không nhận được URL ảnh từ server',
+        };
+      }
+
       return {
         success: true,
-        url: response.data, // Backend trả về secure_url dạng text
+        url: imageUrl,
       };
     } catch (error) {
+      console.error('Upload error:', error);
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          error.message || 
+                          'Upload ảnh thất bại';
       return {
         success: false,
-        error: error.message || 'Upload ảnh thất bại',
+        error: errorMessage,
       };
     }
   },
