@@ -53,9 +53,17 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Public endpoints - không cần authentication
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/public/**").permitAll()  // ← THÊM DÒNG NÀY
+                
+                // Customer endpoints
                 .requestMatchers("/api/customer/**").permitAll()
+                
+                // Admin endpoints - cần role ADMIN
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                
+                // Tất cả request khác cần authentication
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

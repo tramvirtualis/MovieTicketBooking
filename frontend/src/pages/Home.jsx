@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import Header from '../components/Header.jsx';
 import HeroCarousel from '../components/HeroCarousel.jsx';
 import Footer from '../components/Footer.jsx';
@@ -8,29 +9,89 @@ import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
 import driveMyCar from '../assets/images/drive-my-car.jpg';
 
-
-const nowShowing = [
-  { title: 'Interstellar', genre: 'Sci‑Fi', poster: interstellar, rating: 'T13', trailerId: 'zSWdZVtXT7E' },
-  { title: 'Inception', genre: 'Action', poster: inception, rating: 'T16', trailerId: 'YoHD9XEInc0' },
-  { title: 'The Dark Knight Rises', genre: 'Action', poster: darkKnightRises, rating: 'T16', trailerId: 'GokKUqLcvD8' },
-  { title: 'Drive My Car', genre: 'Drama', poster: driveMyCar, rating: 'T13', trailerId: '6BPKPb_RTwI' }
-];
-
-const comingSoon = [
-  { title: 'Wicked', genre: 'Fantasy', poster: 'https://image.tmdb.org/t/p/w500/9azEue8jX6n8WcN6iYG3PaY5E9R.jpg', rating: 'T13', trailerId: 'Y5BeTH2c3WA' },
-  { title: 'Gladiator II', genre: 'Drama', poster: 'https://image.tmdb.org/t/p/w500/iADOJ8Zymht2JPMoy3R7xceZprc.jpg', rating: 'T16', trailerId: 'l5X9UpFzH4M' },
-  { title: 'Moana 2', genre: 'Animation', poster: 'https://image.tmdb.org/t/p/w500/6KAnr4PjkY3S2wPqDq3PcTzu3rG.jpg', rating: 'P', trailerId: 'pS3v-dRthh0' },
-  { title: 'Nosferatu', genre: 'Horror', poster: 'https://image.tmdb.org/t/p/w500/pQx6fJ5S9t8uKXuX4nHCqB6Sm9D.jpg', rating: 'T18', trailerId: '8hP9D6kZseM' },
-  { title: 'Superman', genre: 'Superhero', poster: 'https://image.tmdb.org/t/p/w500/okA8m4cC5hW6RtWLpmjDoE7YQD6.jpg', rating: 'T13', trailerId: '82RAYOz8zCk' }
-];
-
 const promos = [
   { title: 'Mua 2 tặng 1 vé', desc: 'Áp dụng cuối tuần', image: 'https://images.unsplash.com/photo-1511735111819-9a3f7709049c?q=80&w=200&auto=format&fit=crop' },
   { title: 'Giảm 30% combo bắp nước', desc: 'Thành viên hạng Gold', image: 'https://images.unsplash.com/photo-1512428559087-560fa5ceab42?q=80&w=200&auto=format&fit=crop' }
 ];
 
+// Helper function để map AgeRating từ backend sang format frontend
+const mapAgeRating = (ageRating) => {
+  const ratingMap = {
+    'P': 'P',
+    'K': 'K',
+    'AGE_13_PLUS': 'T13',
+    'AGE_16_PLUS': 'T16',
+    'AGE_18_PLUS': 'T18'
+  };
+  return ratingMap[ageRating] || ageRating;
+};
+
+// Helper function để extract YouTube video ID từ URL
+const extractYouTubeId = (url) => {
+  if (!url) return null;
+  
+  // Nếu đã là ID thuần (11 ký tự)
+  if (url.length === 11 && !url.includes('/') && !url.includes('?')) {
+    return url;
+  }
+  
+  // Extract từ các dạng URL khác nhau
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+    /^([a-zA-Z0-9_-]{11})$/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  
+  return null;
+};
+
+// Helper function để format movie data từ backend
+const formatMovieData = (movie) => {
+  return {
+    movieId: movie.movieId,
+    title: movie.title,
+    genre: movie.genre && movie.genre.length > 0 ? movie.genre[0] : 'N/A',
+    poster: movie.poster,
+    rating: mapAgeRating(movie.ageRating),
+    trailerId: extractYouTubeId(movie.trailerURL)
+  };
+};
+
 export default function Home() {
   const [trailerModal, setTrailerModal] = useState({ isOpen: false, videoId: null });
+  const [nowShowing, setNowShowing] = useState([]);
+  const [comingSoon, setComingSoon] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch movies from backend
+  useEffect(() => {
+    const fetchMovies = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch phim đang chiếu và phim sắp chiếu song song
+        const [nowShowingRes, comingSoonRes] = await Promise.all([
+          axios.get('http://localhost:8080/api/public/movies/now-showing'),
+          axios.get('http://localhost:8080/api/public/movies/coming-soon')
+        ]);
+        
+        setNowShowing(nowShowingRes.data.map(formatMovieData));
+        setComingSoon(comingSoonRes.data.map(formatMovieData));
+      } catch (err) {
+        console.error('Error fetching movies:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMovies();
+  }, []);
 
   const handlePlayTrailer = (trailerId) => {
     if (trailerId) {
@@ -48,10 +109,22 @@ export default function Home() {
       <HeroCarousel posters={[interstellar, inception, darkKnightRises, driveMyCar]} />
       <main className="main">
         <Section id="now-showing" title="Phim Đang Chiếu" linkText="Xem tất cả">
-          <CardsGrid items={nowShowing} isNowShowing={true} onPlayTrailer={handlePlayTrailer} />
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
+              Đang tải phim...
+            </div>
+          ) : (
+            <CardsGrid items={nowShowing} isNowShowing={true} onPlayTrailer={handlePlayTrailer} />
+          )}
         </Section>
         <Section id="coming-soon" title="Phim Sắp Chiếu" linkText="Xem tất cả">
-          <CardsGrid items={comingSoon} isNowShowing={false} onPlayTrailer={handlePlayTrailer} />
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
+              Đang tải phim...
+            </div>
+          ) : (
+            <CardsGrid items={comingSoon} isNowShowing={true} onPlayTrailer={handlePlayTrailer} />
+          )}
         </Section>
         <Section id="promotions" title="Chương Trình Ưu Đãi">
           <PromosGrid items={promos} />
@@ -94,4 +167,3 @@ export default function Home() {
     </div>
   );
 }
-
