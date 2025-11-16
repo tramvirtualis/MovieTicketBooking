@@ -1,165 +1,197 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
-import { useEnums } from '../../hooks/useEnums';
-import { enumService } from '../../services/enumService';
+﻿// src/components/AdminDashboard/PriceManagement.jsx
+import React, { useState, useEffect } from "react";
+import { useEnums } from "../../hooks/useEnums";
+import { enumService } from "../../services/enumService";
+import { priceService } from "../../services/priceService";
+import { useNotification } from "./NotificationSystem";
 
-// Price Management Component
 function PriceManagement({ prices: initialPricesList, onPricesChange }) {
   const { enums } = useEnums();
-  const [prices, setPrices] = useState(initialPricesList || []);
-  
-  // Map room types from backend (TYPE_2D) to display format (2D)
-  const roomTypes = enums.roomTypes?.map(rt => enumService.mapRoomTypeToDisplay(rt)) || [];
-  const seatTypes = enums.seatTypes || [];
 
-  // Build an in-memory matrix for easy inline editing: key `${roomType}-${seatType}` -> price
-  const matrix = useMemo(() => {
-    const map = new Map();
-    (prices || []).forEach(p => {
-      if (p && p.roomType && p.seatType) {
-        map.set(`${p.roomType}-${p.seatType}`, Number(p.price) || 0);
+  // backend values (TYPE_2D, TYPE_3D,…)
+  const backendRoomTypes = enums.roomTypes || [];
+  const backendSeatTypes = enums.seatTypes || [];
+
+  // Lấy showToast + NotificationContainer từ hook
+  const { showToast, NotificationContainer } = useNotification();
+
+  // display values (2D, 3D…)
+  const roomTypes = backendRoomTypes.map(rt =>
+    enumService.mapRoomTypeToDisplay(rt)
+  );
+  const seatTypes = backendSeatTypes.map(st => st);
+
+  const [prices, setPrices] = useState(initialPricesList || []);
+  const [draft, setDraft] = useState({});
+
+  // Load bảng giá từ backend khi mount
+  useEffect(() => {
+    priceService.getAllPrices().then(res => {
+      if (res.success) {
+        setPrices(res.data);
+      } else {
+        alert(res.error);
       }
     });
-    return map;
-  }, [prices]);
+  }, []);
 
-  const [draft, setDraft] = useState(() => {
-    const obj = {};
-    // Initialize all combinations with 0 if not in prices
-    roomTypes.forEach(rt => {
-      seatTypes.forEach(st => {
-        const existing = (prices || []).find(p => p && p.roomType === rt && p.seatType === st);
-        obj[`${rt}-${st}`] = existing ? Number(existing.price) || 0 : 0;
-      });
-    });
-    return obj;
-  });
-
+  // Sync draft mỗi khi prices hoặc enums thay đổi
   useEffect(() => {
-    if (onPricesChange) onPricesChange(prices);
-  }, [prices, onPricesChange]);
-
-  useEffect(() => {
-    // Sync draft when prices change externally - initialize all combinations
     const obj = {};
-    roomTypes.forEach(rt => {
+    roomTypes.forEach((rtDisplay, i) => {
+      const rtBackend = backendRoomTypes[i];
       seatTypes.forEach(st => {
-        const existing = (prices || []).find(p => p && p.roomType === rt && p.seatType === st);
-        obj[`${rt}-${st}`] = existing ? Number(existing.price) || 0 : 0;
+        const existing = prices.find(
+          p => p.roomType === rtBackend && p.seatType === st
+        );
+        obj[`${rtDisplay}-${st}`] = existing ? Number(existing.price) : 0;
       });
     });
     setDraft(obj);
+  }, [prices, roomTypes.length, seatTypes.length]);
+
+  // Update parent khi prices thay đổi
+  useEffect(() => {
+    if (onPricesChange) onPricesChange(prices);
   }, [prices]);
 
-  const getPrice = (roomType, seatType) =>
-    draft[`${roomType}-${seatType}`] ?? matrix.get(`${roomType}-${seatType}`) ?? 0;
+  const getPrice = (roomTypeDisplay, seatType) =>
+    draft[`${roomTypeDisplay}-${seatType}`] ?? 0;
 
-  const setPrice = (roomType, seatType, value) => {
+  const setPrice = (roomTypeDisplay, seatType, value) => {
     setDraft(prev => ({
       ...prev,
-      [`${roomType}-${seatType}`]: value
+      [`${roomTypeDisplay}-${seatType}`]: value
     }));
-  };
-
-  const applyQuickFillRow = (seatType, value) => {
-    const num = Number(value) || 0;
-    const next = { ...draft };
-    roomTypes.forEach(rt => { next[`${rt}-${seatType}`] = num; });
-    setDraft(next);
-  };
-
-  const applyQuickFillCol = (roomType, value) => {
-    const num = Number(value) || 0;
-    const next = { ...draft };
-    seatTypes.forEach(st => { next[`${roomType}-${st}`] = num; });
-    setDraft(next);
   };
 
   const handleReset = () => {
     const obj = {};
-    (prices || []).forEach(p => { obj[`${p.roomType}-${p.seatType}`] = Number(p.price); });
+    roomTypes.forEach((rtDisplay, i) => {
+      const rtBackend = backendRoomTypes[i];
+      seatTypes.forEach(st => {
+        const existing = prices.find(
+          p => p.roomType === rtBackend && p.seatType === st
+        );
+        obj[`${rtDisplay}-${st}`] = existing ? Number(existing.price) : 0;
+      });
+    });
     setDraft(obj);
   };
 
-  const handleSaveAll = () => {
-    // Convert draft matrix -> normalized array (unique pairs)
-    const items = [];
-    roomTypes.forEach(rt => {
+  const handleSaveAll = async () => {
+    const updatedItems = [];
+
+    roomTypes.forEach((rtDisplay, i) => {
+      const rtBackend = backendRoomTypes[i];
       seatTypes.forEach(st => {
-        const price = Number(getPrice(rt, st) || 0);
-        if (price >= 0) {
-          const exist = prices.find(p => p.roomType === rt && p.seatType === st);
-          if (exist) {
-            items.push({ ...exist, price });
-          } else {
-            items.push({
-              id: Math.max(0, ...prices.map(p => p.id)) + items.length + 1,
-              roomType: rt,
-              seatType: st,
-              price
-            });
-          }
-        }
+        const priceValue = Number(draft[`${rtDisplay}-${st}`] || 0);
+        updatedItems.push({
+          roomType: rtBackend,
+          seatType: st,
+          price: priceValue
+        });
       });
     });
-    setPrices(items);
+
+    try {
+      const res = await priceService.saveAllPrices(updatedItems);
+      if (!res.success) {
+        showToast(res.error || "Lỗi khi lưu!", "error");
+        return;
+      }
+      setPrices(updatedItems);
+      showToast("Đã lưu thành công!", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Lỗi khi lưu giá!", "error");
+    }
   };
 
-  const formatCurrency = (v) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v);
+  const formatCurrency = value =>
+    new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND"
+    }).format(value);
 
   return (
     <div className="admin-card">
       <div className="admin-card__header">
         <h2 className="admin-card__title">Bảng giá</h2>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn--ghost" onClick={handleReset}>Hoàn tác</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn--ghost" onClick={handleReset}>
+            Hoàn tác
+          </button>
           <button className="btn btn--primary" onClick={handleSaveAll}>
             Lưu bảng giá
           </button>
         </div>
       </div>
+
       <div className="admin-card__content">
-        <div className="admin-table" style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="admin-table" style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={{ padding: '16px', textAlign: 'left', borderBottom: '2px solid rgba(255,255,255,0.1)' }}>
-                  Loại ghế / Loại phòng
-                </th>
+                <th style={{ padding: 16 }}>Loại ghế / Loại phòng</th>
                 {roomTypes.map(rt => (
-                  <th key={rt} style={{ padding: '16px', textAlign: 'center', borderBottom: '2px solid rgba(255,255,255,0.1)' }}>
+                  <th key={rt} style={{ padding: 16, textAlign: "center" }}>
                     {rt}
                   </th>
                 ))}
               </tr>
             </thead>
+
             <tbody>
               {seatTypes.map(st => (
                 <tr key={st}>
-                  <td style={{ padding: '16px', fontWeight: '600', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <td
+                    style={{
+                      padding: 16,
+                      fontWeight: 600,
+                      borderBottom: "1px solid rgba(255,255,255,0.05)"
+                    }}
+                  >
                     {st}
                   </td>
+
                   {roomTypes.map(rt => {
                     const val = getPrice(rt, st);
                     return (
-                      <td key={`${rt}-${st}`} style={{ padding: '16px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td
+                        key={`${rt}-${st}`}
+                        style={{
+                          padding: 16,
+                          textAlign: "center",
+                          borderBottom: "1px solid rgba(255,255,255,0.05)"
+                        }}
+                      >
                         <input
                           type="number"
                           min="0"
                           value={val}
-                          onChange={(e)=>setPrice(rt, st, Number(e.target.value))}
+                          onChange={e =>
+                            setPrice(rt, st, Number(e.target.value))
+                          }
                           style={{
-                            width: '120px',
-                            padding: '10px',
-                            background: 'rgba(20, 15, 16, 0.8)',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            borderRadius: '8px',
-                            color: '#fff',
-                            fontSize: '14px',
-                            textAlign: 'center'
+                            width: "120px",
+                            padding: "10px",
+                            background: "rgba(20, 15, 16, 0.8)",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            borderRadius: "8px",
+                            color: "#fff",
+                            fontSize: "14px",
+                            textAlign: "center"
                           }}
                         />
-                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#ffd159' }}>
-                          {formatCurrency(val || 0)}
+                        <div
+                          style={{
+                            marginTop: 8,
+                            fontSize: 12,
+                            color: "#ffd159"
+                          }}
+                        >
+                          {formatCurrency(val)}
                         </div>
                       </td>
                     );
@@ -170,6 +202,9 @@ function PriceManagement({ prices: initialPricesList, onPricesChange }) {
           </table>
         </div>
       </div>
+
+      {/* ⚠️ Notification container */}
+      <NotificationContainer />
     </div>
   );
 }
