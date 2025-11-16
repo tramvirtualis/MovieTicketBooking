@@ -73,7 +73,7 @@ export const voucherService = {
   mapVoucherScopeFromBackend,
 
   /**
-   * Lấy tất cả voucher
+   * Lấy tất cả voucher (Admin only)
    * @param {string} scope - Optional: 'PUBLIC' hoặc 'PRIVATE'
    * @returns {Promise<Object>} Response từ server
    */
@@ -93,6 +93,36 @@ export const voucherService = {
         success: false,
         error: errorMessage,
         validationErrors: error.response?.data?.errors || null,
+      };
+    }
+  },
+
+  /**
+   * Lấy danh sách voucher công khai (Public endpoint, không cần đăng nhập)
+   * @returns {Promise<Object>} Response từ server
+   */
+  getPublicVouchers: async () => {
+    try {
+      console.log('voucherService: Calling /public/vouchers...');
+      const response = await axiosInstance.get('/public/vouchers');
+      console.log('voucherService: Response received:', response);
+      console.log('voucherService: Response data:', response.data);
+      // Endpoint public trả về trực tiếp array, không có wrapper
+      const vouchers = Array.isArray(response.data) ? response.data : (response.data.data || []);
+      console.log('voucherService: Parsed vouchers:', vouchers.length);
+      return {
+        success: true,
+        data: vouchers,
+        message: 'Lấy danh sách voucher thành công',
+      };
+    } catch (error) {
+      console.error('voucherService: Error loading public vouchers:', error);
+      console.error('voucherService: Error response:', error.response);
+      const errorMessage = error.response?.data?.message || error.message || 'Không thể lấy danh sách voucher';
+      return {
+        success: false,
+        error: errorMessage,
+        data: [],
       };
     }
   },

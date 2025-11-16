@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SEAT_TYPES, ROOM_TYPES, PROVINCES } from '../AdminDashboard/constants';
 import { generateSeats, getSeatColor } from '../AdminDashboard/utils';
 import { SAMPLE_MOVIES } from './sampleData';
+import ConfirmDeleteModal from '../Common/ConfirmDeleteModal';
 
 // Full Cinema Management (copied and adapted from Admin) scoped for manager
 function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange, complexId }) {
@@ -27,6 +28,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     format: '2D'
   });
   const [savingRoom, setSavingRoom] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     if (onCinemasChange) {
@@ -249,12 +251,22 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     }
   };
 
-  const handleDeleteRoom = async (cinema, roomId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa phòng chiếu này?')) {
-      return;
-    }
+  const handleDeleteRoom = (cinema, roomId) => {
+    const room = cinema.rooms.find(r => r.roomId === roomId);
+    setDeleteConfirm({ 
+      type: 'room', 
+      id: roomId, 
+      name: room?.roomName || 'phòng chiếu này',
+      cinema: cinema
+    });
+  };
+
+  const confirmDeleteRoom = async () => {
+    if (!deleteConfirm || deleteConfirm.type !== 'room') return;
 
     try {
+      const roomId = deleteConfirm.id;
+      const cinema = deleteConfirm.cinema;
       const { default: cinemaRoomService } = await import('../../services/cinemaRoomService');
       const result = await cinemaRoomService.deleteCinemaRoomManager(roomId);
       
@@ -386,7 +398,19 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
 
   const handleDeleteShowtime = (stId) => {
     if (!selectedCinema || !selectedRoom) return;
-    if (!window.confirm('Xóa lịch chiếu này?')) return;
+    const showtime = selectedRoom.showtimes?.find(s => s.showtimeId === stId);
+    setDeleteConfirm({ 
+      type: 'showtime', 
+      id: stId,
+      name: showtime ? `${showtime.movieTitle} - ${showtime.date} ${showtime.startTime}` : 'lịch chiếu này'
+    });
+  };
+
+  const confirmDeleteShowtime = () => {
+    if (!deleteConfirm || deleteConfirm.type !== 'showtime') return;
+    if (!selectedCinema || !selectedRoom) return;
+
+    const stId = deleteConfirm.id;
     const cinemaIndex = cinemas.findIndex(c => c.complexId === selectedCinema.complexId);
     const roomIndex = cinemas[cinemaIndex].rooms.findIndex(r => r.roomId === selectedRoom.roomId);
     const updated = [...cinemas];
@@ -396,6 +420,16 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     setCinemas(updated);
     setSelectedRoom(room);
     if (editingShowtime?.showtimeId === stId) setEditingShowtime(null);
+    setDeleteConfirm(null);
+    showNotification('Xóa lịch chiếu thành công', 'success');
+  };
+
+  const confirmDelete = async () => {
+    if (deleteConfirm?.type === 'room') {
+      await confirmDeleteRoom();
+    } else if (deleteConfirm?.type === 'showtime') {
+      confirmDeleteShowtime();
+    }
   };
 
   const handleSeatClick = async (seatId) => {
@@ -1135,6 +1169,23 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteConfirm !== null}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={confirmDelete}
+        title={deleteConfirm?.name}
+        message={
+          deleteConfirm?.type === 'room' 
+            ? `Bạn có chắc chắn muốn xóa phòng chiếu "${deleteConfirm.name}"?`
+            : deleteConfirm?.type === 'showtime'
+            ? `Bạn có chắc chắn muốn xóa lịch chiếu "${deleteConfirm.name}"?`
+            : ''
+        }
+        confirmText={deleteConfirm?.type === 'room' ? 'Xóa phòng chiếu' : 'Xóa lịch chiếu'}
+        isDeleting={savingRoom}
+      />
     </div>
   );
 }

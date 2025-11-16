@@ -1,12 +1,16 @@
 package com.example.backend.controllers;
 
 import com.example.backend.dtos.UpdateCustomerProfileRequestDTO;
+import com.example.backend.dtos.VoucherResponseDTO;
 import com.example.backend.entities.Customer;
+import com.example.backend.repositories.CustomerRepository;
 import com.example.backend.services.CustomerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,6 +27,7 @@ import java.util.stream.Collectors;
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final CustomerRepository customerRepository;
 
     @PutMapping("/{id}/profile")
     public ResponseEntity<?> updateProfile(
@@ -73,5 +78,85 @@ public class CustomerController {
 
         response.put("message", errors);
         return response;
+    }
+
+    private Long getCurrentCustomerId() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        Customer customer = customerRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với username: " + username));
+        return customer.getUserId();
+    }
+
+    @GetMapping("/vouchers")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> getUserVouchers() {
+        try {
+            Long userId = getCurrentCustomerId();
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Lấy danh sách voucher thành công");
+            response.put("data", customerService.getUserVouchers(userId));
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    @PostMapping("/vouchers/{voucherId}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> saveVoucher(@PathVariable Long voucherId) {
+        try {
+            Long userId = getCurrentCustomerId();
+            VoucherResponseDTO voucher = customerService.saveVoucher(userId, voucherId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Lưu voucher thành công");
+            response.put("data", voucher);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    @DeleteMapping("/vouchers/{voucherId}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> removeVoucher(@PathVariable Long voucherId) {
+        try {
+            Long userId = getCurrentCustomerId();
+            customerService.removeVoucher(userId, voucherId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Xóa voucher thành công");
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    @GetMapping("/vouchers/{voucherId}/check")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> checkVoucher(@PathVariable Long voucherId) {
+        try {
+            Long userId = getCurrentCustomerId();
+            boolean hasVoucher = customerService.hasVoucher(userId, voucherId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("hasVoucher", hasVoucher);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
     }
 }

@@ -2,6 +2,7 @@
 import { voucherService } from '../../services/voucherService';
 import { useEnums } from '../../hooks/useEnums';
 import cloudinaryService from '../../services/cloudinaryService';
+import ConfirmDeleteModal from '../Common/ConfirmDeleteModal';
 
 // Voucher Management Component
 function VoucherManagement({ vouchers: initialVouchersList, users: usersList, onVouchersChange }) {
@@ -33,6 +34,7 @@ function VoucherManagement({ vouchers: initialVouchersList, users: usersList, on
   const [validationErrors, setValidationErrors] = useState({});
   const [notification, setNotification] = useState(null);
   const [savingVoucher, setSavingVoucher] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   // Notification component
   const showNotification = (message, type = 'success') => {
@@ -409,11 +411,15 @@ function VoucherManagement({ vouchers: initialVouchersList, users: usersList, on
   };
 
   const handleDelete = async (voucherId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa voucher này?')) {
-      return;
-    }
+    const voucher = vouchers.find(v => v.voucherId === voucherId);
+    setDeleteConfirm({ voucherId, name: voucher?.name || 'voucher này' });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
 
     setLoading(true);
+    const voucherId = deleteConfirm.voucherId;
     try {
       const result = await voucherService.deleteVoucher(voucherId);
       if (result.success) {
@@ -929,7 +935,7 @@ function VoucherManagement({ vouchers: initialVouchersList, users: usersList, on
                           onChange={() => setFormData({ ...formData, isPublic: true })}
                           disabled={savingVoucher}
                         />
-                        Công khai (Hiển thị trên trang voucher)
+                        Công khai
                       </label>
                       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: savingVoucher ? 'not-allowed' : 'pointer', opacity: savingVoucher ? 0.5 : 1 }}>
                         <input
@@ -939,7 +945,7 @@ function VoucherManagement({ vouchers: initialVouchersList, users: usersList, on
                           onChange={() => setFormData({ ...formData, isPublic: false })}
                           disabled={savingVoucher}
                         />
-                        Riêng tư (Gán cho người dùng ở trang quản lý người dùng)
+                        Riêng tư
                       </label>
                     </div>
                   </div>
@@ -973,6 +979,17 @@ function VoucherManagement({ vouchers: initialVouchersList, users: usersList, on
             </div>
           </div>
         )}
+
+        {/* Delete Confirmation Modal */}
+        <ConfirmDeleteModal
+          isOpen={deleteConfirm !== null}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={confirmDelete}
+          title={deleteConfirm?.name}
+          message={deleteConfirm ? `Bạn có chắc chắn muốn xóa voucher "${deleteConfirm.name}"?` : ''}
+          confirmText="Xóa voucher"
+          isDeleting={loading}
+        />
       </div>
     </>
   );

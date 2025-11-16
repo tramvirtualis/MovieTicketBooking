@@ -12,14 +12,14 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
-// Manager Reports Component (filtered by managerComplexIds)
+// Manager Reports Component (for single cinema complex)
 function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
   const [timeRange, setTimeRange] = useState('30');
-  const [selectedCinema, setSelectedCinema] = useState('all');
   const [selectedMovie, setSelectedMovie] = useState('all');
 
-  const scopedCinemas = useMemo(() => {
-    return (cinemas || []).filter(c => managerComplexIds.includes(c.complexId));
+  // Manager chỉ quản lý 1 rạp duy nhất
+  const managedCinema = useMemo(() => {
+    return (cinemas || []).find(c => managerComplexIds.includes(c.complexId));
   }, [cinemas, managerComplexIds]);
 
   const scopedOrders = useMemo(() => {
@@ -50,11 +50,10 @@ function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
       if (order.status !== 'PAID') return false;
       const orderDate = new Date(order.showtime);
       if (orderDate < dateRange.startDate || orderDate > dateRange.endDate) return false;
-      if (selectedCinema !== 'all' && order.cinemaComplexId !== Number(selectedCinema)) return false;
       if (selectedMovie !== 'all' && order.movieId !== Number(selectedMovie)) return false;
       return true;
     });
-  }, [scopedOrders, dateRange, selectedCinema, selectedMovie]);
+  }, [scopedOrders, dateRange, selectedMovie]);
 
   const summaryStats = useMemo(() => {
     const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
@@ -84,19 +83,18 @@ function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
     return Object.values(movieRevenue).sort((a, b) => b.revenue - a.revenue);
   }, [filteredOrders, movies]);
 
-  const revenueByCinema = useMemo(() => {
-    const cinemaRevenue = {};
+  const revenueByTheater = useMemo(() => {
+    const theaterRevenue = {};
     filteredOrders.forEach(order => {
-      const cinemaId = order.cinemaComplexId;
-      const cinemaName = order.cinemaName || scopedCinemas.find(c => c.complexId === cinemaId)?.name || 'Unknown';
-      if (!cinemaRevenue[cinemaId]) {
-        cinemaRevenue[cinemaId] = { cinemaId, name: cinemaName, revenue: 0, tickets: 0 };
+      const theaterName = order.theaterName || `Phòng ${order.theaterId || 'N/A'}`;
+      if (!theaterRevenue[theaterName]) {
+        theaterRevenue[theaterName] = { name: theaterName, revenue: 0, tickets: 0 };
       }
-      cinemaRevenue[cinemaId].revenue += order.totalAmount || 0;
-      cinemaRevenue[cinemaId].tickets += order.seats?.length || 0;
+      theaterRevenue[theaterName].revenue += order.totalAmount || 0;
+      theaterRevenue[theaterName].tickets += order.seats?.length || 0;
     });
-    return Object.values(cinemaRevenue).sort((a, b) => b.revenue - a.revenue);
-  }, [filteredOrders, scopedCinemas]);
+    return Object.values(theaterRevenue).sort((a, b) => b.revenue - a.revenue);
+  }, [filteredOrders]);
 
   const dailyRevenue = useMemo(() => {
     const daily = {};
@@ -144,6 +142,34 @@ function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Thông tin rạp đang quản lý */}
+      <div className="admin-card" style={{ background: 'linear-gradient(135deg, rgba(232, 59, 65, 0.1) 0%, rgba(20, 15, 16, 0.8) 100%)' }}>
+        <div className="admin-card__content">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ 
+              width: '48px', 
+              height: '48px', 
+              borderRadius: '12px', 
+              background: '#e83b41',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '24px'
+            }}>
+              🎬
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#fff' }}>
+                {managedCinema?.name || 'Cụm rạp'}
+              </h2>
+              <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#c9c4c5' }}>
+                Báo cáo doanh thu & hiệu suất
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="admin-card">
         <div className="admin-card__header">
           <h2 className="admin-card__title">Bộ lọc</h2>
@@ -171,29 +197,6 @@ function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
                 <option value="30">30 ngày qua</option>
                 <option value="90">90 ngày qua</option>
                 <option value="all">Tất cả</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#c9c4c5' }}>
-                Rạp
-              </label>
-              <select
-                value={selectedCinema}
-                onChange={(e) => setSelectedCinema(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  background: 'rgba(20, 15, 16, 0.8)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  color: '#fff',
-                  fontSize: '14px'
-                }}
-              >
-                <option value="all">Tất cả rạp</option>
-                {scopedCinemas.map(c => (
-                  <option key={c.complexId} value={c.complexId}>{c.name}</option>
-                ))}
               </select>
             </div>
             <div>
@@ -317,17 +320,14 @@ function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
 
         <div className="admin-card">
           <div className="admin-card__header">
-            <h2 className="admin-card__title">Doanh thu theo rạp</h2>
+            <h2 className="admin-card__title">Doanh thu theo phòng chiếu</h2>
           </div>
           <div className="admin-card__content">
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={revenueByCinema}>
+              <BarChart data={revenueByTheater}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                 <XAxis 
                   dataKey="name" 
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
                   stroke="#c9c4c5"
                   fontSize={12}
                 />
@@ -346,7 +346,7 @@ function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
                   formatter={(value) => formatPrice(value)}
                 />
                 <Legend />
-                <Bar dataKey="revenue" fill="#4caf50" name="Doanh thu" />
+                <Bar dataKey="revenue" fill="#2196f3" name="Doanh thu" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -443,5 +443,3 @@ function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
 }
 
 export default ManagerReports;
-
-

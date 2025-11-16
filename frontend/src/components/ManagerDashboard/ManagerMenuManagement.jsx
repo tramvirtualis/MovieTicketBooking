@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/admin/food-beverage-management.css';
 import managerMenuService from '../../services/managerMenuService';
+import ConfirmDeleteModal from '../Common/ConfirmDeleteModal';
 
 export default function ManagerMenuManagement({ complexId }) {
   const [availableItems, setAvailableItems] = useState([]);
@@ -8,6 +9,7 @@ export default function ManagerMenuManagement({ complexId }) {
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     if (complexId) {
@@ -97,17 +99,25 @@ export default function ManagerMenuManagement({ complexId }) {
     }
   };
 
-  const handleRemoveFromMenu = async (foodComboId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa sản phẩm này khỏi menu?')) {
-      return;
-    }
+  const handleRemoveFromMenu = (foodComboId) => {
+    const item = menuItems.find(i => i.id === foodComboId);
+    setDeleteConfirm({ 
+      id: foodComboId, 
+      name: item?.name || 'sản phẩm này'
+    });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
 
     if (!complexId) {
       showNotification('Không tìm thấy thông tin cụm rạp', 'error');
+      setDeleteConfirm(null);
       return;
     }
 
     setLoading(true);
+    const foodComboId = deleteConfirm.id;
     try {
       const result = await managerMenuService.removeFoodComboFromMenu(complexId, foodComboId);
       
@@ -429,6 +439,17 @@ export default function ManagerMenuManagement({ complexId }) {
             </div>
           )}
         </div>
+
+        {/* Delete Confirmation Modal */}
+        <ConfirmDeleteModal
+          isOpen={deleteConfirm !== null}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={confirmDelete}
+          title={deleteConfirm?.name}
+          message={deleteConfirm ? `Bạn có chắc chắn muốn xóa sản phẩm "${deleteConfirm.name}" khỏi menu?` : ''}
+          confirmText="Xóa khỏi menu"
+          isDeleting={loading}
+        />
       </div>
     </>
   );

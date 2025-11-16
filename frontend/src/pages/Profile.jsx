@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import interstellar from '../assets/images/interstellar.jpg';
@@ -6,6 +7,7 @@ import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
 import driveMyCar from '../assets/images/drive-my-car.jpg';
 import { updateCustomerProfile } from '../services/customer.js';
+import { customerVoucherService } from '../services/customerVoucherService';
 
 const PROVINCES = [
   'Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Hải Phòng', 'An Giang', 'Bà Rịa - Vũng Tàu',
@@ -37,38 +39,7 @@ const initialUserData = {
   favoriteMovies: storedUser.favoriteMovies || 0,
 };
 
-const vouchers = [
-  {
-    id: 1,
-    code: 'GIAM50K',
-    title: 'Giảm 50.000đ',
-    description: 'Áp dụng cho đơn hàng từ 200.000đ',
-    discount: 50000,
-    expiryDate: '2025-12-31',
-    status: 'available',
-    image: 'https://images.unsplash.com/photo-1511735111819-9a3f7709049c?q=80&w=1200&auto=format&fit=crop'
-  },
-  {
-    id: 2,
-    code: 'COMBO2025',
-    title: 'Combo bắp nước miễn phí',
-    description: 'Tặng combo bắp nước khi mua 2 vé',
-    discount: 0,
-    expiryDate: '2025-11-30',
-    status: 'available',
-    image: 'https://images.unsplash.com/photo-1512428559087-560fa5ceab42?q=80&w=1200&auto=format&fit=crop'
-  },
-  {
-    id: 3,
-    code: 'VIP100K',
-    title: 'Giảm 100.000đ',
-    description: 'Áp dụng cho đơn hàng từ 500.000đ',
-    discount: 100000,
-    expiryDate: '2025-10-15',
-    status: 'expired',
-    image: 'https://images.unsplash.com/photo-1524985069026-dd778a71c7b4?q=80&w=1200&auto=format&fit=crop'
-  },
-];
+// Vouchers sẽ được load từ API
 
 const favoriteMovies = [
   { id: 1, title: 'Inception', poster: inception, addedDate: '2024-10-15' },
@@ -95,10 +66,69 @@ const recentBookings = [
 ];
 
 export default function Profile() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [userData, setUserData] = useState(initialUserData);
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [vouchers, setVouchers] = useState([]);
+  const [loadingVouchers, setLoadingVouchers] = useState(false);
+
+  // Read tab from URL query parameter on mount
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl && ['overview', 'vouchers', 'expenses'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    } else {
+      // If no tab in URL, default to overview (but don't add ?tab=overview to URL)
+      setActiveTab('overview');
+    }
+  }, []); // Only run on mount
+
+  // Load vouchers from API
+  useEffect(() => {
+    const loadVouchers = async () => {
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        setVouchers([]);
+        return;
+      }
+
+      setLoadingVouchers(true);
+      try {
+        const result = await customerVoucherService.getUserVouchers();
+        if (result.success) {
+          setVouchers(result.data || []);
+        } else {
+          setVouchers([]);
+        }
+      } catch (error) {
+        console.error('Error loading vouchers:', error);
+        setVouchers([]);
+      } finally {
+        setLoadingVouchers(false);
+      }
+    };
+
+    loadVouchers();
+  }, []);
+
+  // Handler to change tab and update URL
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'overview') {
+      // Remove tab parameter for overview (default tab)
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('tab');
+      setSearchParams(newSearchParams, { replace: true });
+    } else {
+      // Update URL with tab parameter
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set('tab', tab);
+      setSearchParams(newSearchParams, { replace: true });
+    }
+  };
   
   const [editData, setEditData] = useState({
     name: initialUserData.name,
@@ -128,9 +158,7 @@ export default function Profile() {
   };
 
   const stats = [
-    { label: 'Tổng số vé đã mua', value: userData.totalBookings, icon: 'ticket' },
-    { label: 'Tổng chi tiêu', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(userData.totalSpent), icon: 'money' },
-    { label: 'Thành viên từ', value: userData.joinDate ? new Date(userData.joinDate).toLocaleDateString('vi-VN') : '-', icon: 'calendar' },
+    
   ];
 
   const getIcon = (iconName) => {
@@ -290,15 +318,21 @@ export default function Profile() {
             <div className="profile-tabs">
               <button
                 className={`profile-tab ${activeTab === 'overview' ? 'profile-tab--active' : ''}`}
-                onClick={() => setActiveTab('overview')}
+                onClick={() => handleTabChange('overview')}
               >
                 Tổng quan
               </button>
               <button
                 className={`profile-tab ${activeTab === 'vouchers' ? 'profile-tab--active' : ''}`}
-                onClick={() => setActiveTab('vouchers')}
+                onClick={() => handleTabChange('vouchers')}
               >
                 Voucher
+              </button>
+              <button
+                className={`profile-tab ${activeTab === 'expenses' ? 'profile-tab--active' : ''}`}
+                onClick={() => handleTabChange('expenses')}
+              >
+                Chi tiêu
               </button>
             </div>
 
@@ -388,68 +422,143 @@ export default function Profile() {
                     <h2 className="profile-section__title">Voucher của tôi ({vouchers.length})</h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {vouchers.map((voucher) => {
-                      const discountBadge = voucher.discount > 0 
-                        ? `-${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(voucher.discount)}`
-                        : 'FREE';
-                      const isAvailable = voucher.status === 'available';
-                      return (
-                        <div 
-                          key={voucher.id} 
-                          className="group relative bg-gradient-to-br from-[#2d2627] to-[#1a1415] border border-[#4a3f41] rounded-2xl overflow-hidden hover:border-[#e83b41] transition-all duration-300 hover:shadow-xl hover:shadow-[#e83b41]/20 hover:-translate-y-1"
-                        >
-                          {/* Image Section */}
-                          <div className="relative h-48 overflow-hidden">
-                            <img
-                              src={voucher.image || 'https://via.placeholder.com/1000x430?text=Voucher'}
-                              alt={voucher.title}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-                            
-                            <div className="absolute top-3 left-3 bg-gradient-to-r from-[#e83b41] to-[#ff5258] text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-lg backdrop-blur-sm border border-white/20">
-                              {discountBadge}
-                            </div>
-                            
-                            <div className={`absolute top-3 right-3 px-3 py-1.5 rounded-lg text-xs font-bold uppercase shadow-lg backdrop-blur-sm border ${
-                              isAvailable 
-                                ? 'bg-[#4caf50] text-white border-white/20' 
-                                : 'bg-[#9e9e9e] text-white border-white/20'
-                            }`}>
-                              {isAvailable ? 'Có thể dùng' : 'Đã hết hạn'}
-                            </div>
-                          </div>
-
-                          {/* Content Section */}
-                          <div className="p-5 flex flex-col min-h-[200px]">
-                            <h3 className="text-lg font-bold text-white mb-3 line-clamp-2 leading-tight">
-                              {voucher.title}
-                            </h3>
-
-                            <div className="flex flex-wrap gap-2 mb-3">
-                              <span className="inline-flex items-center px-3 py-1.5 bg-[#4a3f41]/60 border border-[#4a3f41] rounded-lg text-xs font-semibold text-[#ffd159]">
-                                Mã: {voucher.code}
-                              </span>
-                              <span className="inline-flex items-center px-3 py-1.5 bg-[#4a3f41]/60 border border-[#4a3f41] rounded-lg text-xs font-semibold text-[#ffd159]">
-                                HSD: {new Date(voucher.expiryDate).toLocaleDateString('vi-VN')}
-                              </span>
-                            </div>
-
-                            <p className="text-sm text-[#c9c4c5] line-clamp-2 mb-4 flex-1">
-                              {voucher.description}
-                            </p>
-
-                            {isAvailable && (
-                              <div className="mt-auto">
-                                <button className="w-full bg-gradient-to-r from-[#e83b41] to-[#ff5258] hover:from-[#ff5258] hover:to-[#ff6b6b] text-white text-xs font-bold py-2.5 px-4 rounded-lg transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg uppercase tracking-wide">
-                                  Sử dụng ngay
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                    {loadingVouchers ? (
+                      <div className="col-span-full flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#e83b41] mb-4"></div>
+                          <p className="text-[#c9c4c5]">Đang tải voucher...</p>
                         </div>
-                      );
-                    })}
+                      </div>
+                    ) : vouchers.length === 0 ? (
+                      <div className="col-span-full text-center py-12">
+                        <svg className="w-16 h-16 mx-auto mb-4 text-[#4a3f41]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                        </svg>
+                        <p className="text-[#c9c4c5] text-lg">Bạn chưa có voucher nào</p>
+                        <a href="/events" className="text-[#e83b41] hover:text-[#ff5258] mt-2 inline-block">
+                          Khám phá voucher ngay →
+                        </a>
+                      </div>
+                    ) : (
+                      vouchers.map((voucher) => {
+                        const discountBadge = voucher.discountType === 'PERCENT'
+                          ? `-${voucher.discountPercent}%`
+                          : voucher.discount > 0
+                          ? `-${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(voucher.discount)}`
+                          : 'FREE';
+                        const isAvailable = voucher.status === 'available';
+                        const statusText = voucher.status === 'upcoming' ? 'Sắp diễn ra' : voucher.status === 'available' ? 'Có thể dùng' : 'Đã hết hạn';
+                        const statusColor = voucher.status === 'upcoming' ? 'bg-[#ff9800]' : voucher.status === 'available' ? 'bg-[#4caf50]' : 'bg-[#9e9e9e]';
+                        
+                        return (
+                          <div 
+                            key={voucher.voucherId || voucher.id} 
+                            className="group relative bg-gradient-to-br from-[#2d2627] to-[#1a1415] border border-[#4a3f41] rounded-2xl overflow-hidden hover:border-[#e83b41] transition-all duration-300 hover:shadow-xl hover:shadow-[#e83b41]/20 hover:-translate-y-1"
+                          >
+                            {/* Image Section */}
+                            <div className="relative h-48 overflow-hidden">
+                              <img
+                                src={voucher.image || 'https://via.placeholder.com/1000x430?text=Voucher'}
+                                alt={voucher.title || voucher.name}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                              
+                              <div className="absolute top-3 left-3 bg-gradient-to-r from-[#e83b41] to-[#ff5258] text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-lg backdrop-blur-sm border border-white/20">
+                                {discountBadge}
+                              </div>
+                              
+                              <div className={`absolute top-3 right-3 px-3 py-1.5 rounded-lg text-xs font-bold uppercase shadow-lg backdrop-blur-sm border ${statusColor} text-white border-white/20`}>
+                                {statusText}
+                              </div>
+                            </div>
+
+                            {/* Content Section */}
+                            <div className="p-5 flex flex-col min-h-[200px]">
+                              <h3 className="text-lg font-bold text-white mb-3 line-clamp-2 leading-tight">
+                                {voucher.title || voucher.name}
+                              </h3>
+
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                <span className="inline-flex items-center px-3 py-1.5 bg-[#4a3f41]/60 border border-[#4a3f41] rounded-lg text-xs font-semibold text-[#ffd159]">
+                                  Mã: {voucher.code}
+                                </span>
+                                {voucher.expiryDate && (
+                                  <span className="inline-flex items-center px-3 py-1.5 bg-[#4a3f41]/60 border border-[#4a3f41] rounded-lg text-xs font-semibold text-[#ffd159]">
+                                    HSD: {new Date(voucher.expiryDate).toLocaleDateString('vi-VN')}
+                                  </span>
+                                )}
+                              </div>
+
+                              <p className="text-sm text-[#c9c4c5] line-clamp-2 mb-4 flex-1">
+                                {voucher.description || 'Không có mô tả'}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'expenses' && (
+                <div>
+                  {/* Expenses Summary */}
+                  <div className="profile-stats-grid" style={{ marginBottom: '32px' }}>
+                    <div className="profile-stat-card">
+                      <div className="profile-stat-card__icon text-[#ffd159]">
+                        {getIcon('money')}
+                      </div>
+                      <div className="profile-stat-card__content">
+                        <div className="profile-stat-card__value">
+                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(userData.totalSpent)}
+                        </div>
+                        <div className="profile-stat-card__label">Tổng chi tiêu</div>
+                      </div>
+                    </div>
+                    <div className="profile-stat-card">
+                      <div className="profile-stat-card__icon text-[#2196f3]">
+                        {getIcon('ticket')}
+                      </div>
+                      <div className="profile-stat-card__content">
+                        <div className="profile-stat-card__value">{userData.totalBookings}</div>
+                        <div className="profile-stat-card__label">Tổng số vé đã mua</div>
+                      </div>
+                    </div>
+                    <div className="profile-stat-card">
+                      <div className="profile-stat-card__icon text-[#4caf50]">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        </svg>
+                      </div>
+                      <div className="profile-stat-card__content">
+                        <div className="profile-stat-card__value">
+                          {userData.totalBookings > 0 
+                            ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(userData.totalSpent / userData.totalBookings)
+                            : '0₫'
+                          }
+                        </div>
+                        <div className="profile-stat-card__label">Chi tiêu trung bình/vé</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Monthly Expenses */}
+                  <div className="profile-section">
+                    <h2 className="profile-section__title">Chi tiêu theo tháng</h2>
+                    <div style={{ marginTop: '20px', padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                        {['Tháng này', 'Tháng trước', '3 tháng qua'].map((period, idx) => (
+                          <div key={idx} style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <div style={{ fontSize: '13px', color: '#c9c4c5', marginBottom: '8px' }}>{period}</div>
+                            <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff' }}>
+                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(0)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

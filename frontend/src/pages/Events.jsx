@@ -1,63 +1,37 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Header from '../components/Header.jsx';
+import { customerVoucherService } from '../services/customerVoucherService';
+import { voucherService } from '../services/voucherService';
 
-// Get vouchers from AdminDashboard (stored in localStorage)
-const getPublicVouchers = () => {
+// Helper to get public vouchers from API
+const getPublicVouchers = async () => {
   try {
-    const stored = localStorage.getItem('adminVouchers');
-    if (stored) {
-      const allVouchers = JSON.parse(stored);
-      // Only return public vouchers that are active
-      return allVouchers.filter(v => v.isPublic && v.status);
+    const result = await voucherService.getPublicVouchers();
+    if (result.success && result.data) {
+      // Map vouchers from backend format
+      const mappedVouchers = (result.data || []).map(v => ({
+        voucherId: v.voucherId,
+        code: v.code,
+        name: v.name,
+        description: v.description || '',
+        discountType: v.discountType === 'VALUE' ? 'AMOUNT' : v.discountType,
+        discountValue: v.discountValue,
+        minOrder: v.minOrderAmount || 0,
+        minOrderAmount: v.minOrderAmount || 0,
+        maxDiscount: v.maxDiscountAmount || 0,
+        maxDiscountAmount: v.maxDiscountAmount || 0,
+        startDate: v.startDate ? v.startDate.split('T')[0] : '',
+        endDate: v.endDate ? v.endDate.split('T')[0] : '',
+        isPublic: v.scope === 'PUBLIC',
+        image: v.image || '',
+      }));
+      // All vouchers from public endpoint are already PUBLIC, but filter just in case
+      return mappedVouchers.filter(v => v.isPublic);
     }
   } catch (e) {
-    console.error('Failed to load vouchers from localStorage', e);
+    console.error('Failed to load vouchers from API', e);
   }
-  // Fallback to sample vouchers if no admin vouchers
-  return [
-    {
-      voucherId: 101,
-      code: 'CSCHOOL45K',
-      name: "C'School | Ưu đãi vé từ 45K",
-      description: 'Áp dụng cho học sinh, sinh viên, U22 và giáo viên trên toàn hệ thống.',
-      discountType: 'AMOUNT',
-      discountValue: 45000,
-      minOrder: 45000,
-      maxDiscount: 45000,
-      startDate: '2025-11-01',
-      endDate: '2025-12-31',
-      quantity: 1500,
-      image: 'https://images.unsplash.com/photo-1607319123379-5525198f977b?q=80&w=1200&auto=format&fit=crop'
-    },
-    {
-      voucherId: 102,
-      code: 'POPCORN30',
-      name: 'Combo bắp nước 30K',
-      description: 'Đặt vé online từ 2 ghế trở lên để nhận ngay voucher bắp nước trị giá 30.000đ.',
-      discountType: 'AMOUNT',
-      discountValue: 30000,
-      minOrder: 50000,
-      maxDiscount: 30000,
-      startDate: '2025-11-05',
-      endDate: '2025-11-30',
-      quantity: 800,
-      image: 'https://images.unsplash.com/photo-1502139214982-d0ad755818d8?q=80&w=1200&auto=format&fit=crop'
-    },
-    {
-      voucherId: 103,
-      code: 'COUPLE20',
-      name: 'Movie Night Couple',
-      description: 'Giảm 20% khi đặt ghế đôi COUPLE cho các suất chiếu sau 18h thứ 6 hàng tuần.',
-      discountType: 'PERCENT',
-      discountValue: 20,
-      minOrder: 180000,
-      maxDiscount: 70000,
-      startDate: '2025-11-08',
-      endDate: '2026-01-05',
-      quantity: 1200,
-      image: 'https://images.unsplash.com/photo-1524985069026-dd778a71c7b4?q=80&w=1200&auto=format&fit=crop'
-    }
-  ];
+  return [];
 };
 
 const formatCurrency = (value) =>
@@ -96,52 +70,102 @@ const getDaysLeft = (voucher) => {
 };
 
 export default function Events() {
-  const [, forceUpdate] = useState({});
-  const [saved, setSaved] = useState(() => {
-    try {
-      const raw = localStorage.getItem('savedVouchers');
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [vouchers, setVouchers] = useState([]);
+  const [savedVouchers, setSavedVouchers] = useState(new Set()); // Set of voucher IDs that user has saved
+  const [loading, setLoading] = useState(true);
+  const [savingVoucherId, setSavingVoucherId] = useState(null);
 
-  // Listen for storage changes to update when AdminDashboard updates vouchers
+  // Load public vouchers and user's saved vouchers
   useEffect(() => {
-    const handleStorageChange = () => {
-      forceUpdate({});
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        console.log('Events: Loading public vouchers...');
+        // Load public vouchers
+        const publicVouchers = await getPublicVouchers();
+        console.log('Events: Public vouchers loaded:', publicVouchers);
+        
+        // Load user's saved vouchers if logged in
+        const token = localStorage.getItem('jwt');
+        let savedSet = new Set();
+        if (token) {
+          try {
+            const savedResult = await customerVoucherService.getUserVouchers();
+            if (savedResult.success && savedResult.data) {
+              savedSet = new Set(savedResult.data.map(v => v.voucherId));
+              console.log('Events: Saved vouchers loaded:', savedSet.size);
+            }
+          } catch (error) {
+            console.error('Error loading saved vouchers:', error);
+          }
+        }
+
+        setSavedVouchers(savedSet);
+
+        // Map vouchers with status
+        const mappedVouchers = publicVouchers.map((voucher) => {
+          const active = isVoucherActive(voucher);
+          return {
+            ...voucher,
+            active,
+            daysLeft: getDaysLeft(voucher)
+          };
+        });
+
+        console.log('Events: Mapped vouchers:', mappedVouchers.length);
+        setVouchers(mappedVouchers);
+      } catch (error) {
+        console.error('Error loading vouchers:', error);
+        setVouchers([]);
+      } finally {
+        setLoading(false);
+      }
     };
-    window.addEventListener('storage', handleStorageChange);
-    // Also check periodically for changes (since storage event only fires in other tabs)
-    const interval = setInterval(() => {
-      forceUpdate({});
-    }, 1000);
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
+
+    loadData();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('savedVouchers', JSON.stringify(saved));
-  }, [saved]);
+  const handleSave = async (voucherId) => {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      alert('Vui lòng đăng nhập để lưu voucher');
+      window.location.href = '/signin';
+      return;
+    }
 
-  const vouchers = useMemo(() => {
-    const publicVouchers = getPublicVouchers();
-    return publicVouchers.map((voucher) => {
-      const active = isVoucherActive(voucher);
-      const remaining = Math.max(0, voucher.quantity - (saved[voucher.voucherId] ? 1 : 0));
-      return {
-        ...voucher,
-        active,
-        remaining,
-        daysLeft: getDaysLeft(voucher)
-      };
-    });
-  }, [saved]);
+    if (savedVouchers.has(voucherId)) {
+      return; // Already saved
+    }
 
-  const handleSave = (voucherId) => {
-    setSaved((prev) => ({ ...prev, [voucherId]: true }));
+    setSavingVoucherId(voucherId);
+    try {
+      console.log('Events: Saving voucher:', voucherId);
+      const result = await customerVoucherService.saveVoucher(voucherId);
+      console.log('Events: Save result:', result);
+      
+      if (result.success) {
+        setSavedVouchers(prev => new Set([...prev, voucherId]));
+        // Reload saved vouchers to ensure consistency
+        try {
+          const savedResult = await customerVoucherService.getUserVouchers();
+          if (savedResult.success && savedResult.data) {
+            setSavedVouchers(new Set(savedResult.data.map(v => v.voucherId)));
+          }
+        } catch (reloadError) {
+          console.error('Error reloading saved vouchers:', reloadError);
+        }
+      } else {
+        const errorMsg = result.error || 'Không thể lưu voucher';
+        console.error('Save failed:', errorMsg);
+        alert(errorMsg);
+      }
+    } catch (error) {
+      console.error('Error saving voucher:', error);
+      const errorMsg = error.response?.data?.message || error.message || 'Không thể lưu voucher';
+      alert(errorMsg);
+    } finally {
+      setSavingVoucherId(null);
+    }
   };
 
   return (
@@ -156,66 +180,82 @@ export default function Events() {
               Chọn và lưu các voucher phù hợp để sử dụng nhanh khi đặt vé và nhận ưu đãi ngay lập tức.
             </p>
           </div>
-          <a href="/profile" className="events-hero__cta">
+          <a href="/profile?tab=vouchers" className="events-hero__cta">
             <span className="events-hero__cta-text">Voucher của tôi</span>
-            <span className="events-hero__cta-count">{Object.keys(saved).length} voucher đã lưu</span>
+            <span className="events-hero__cta-count">{savedVouchers.size} voucher đã lưu</span>
           </a>
         </header>
 
         <section className="voucher-showcase">
-          {vouchers.map((voucher) => (
-            <article key={voucher.voucherId} className="voucher-panel">
-              <div className="voucher-panel__media">
-                <img src={voucher.image} alt={voucher.name} />
-                <span className="voucher-panel__badge">{formatDiscountBadge(voucher)}</span>
-              </div>
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#e83b41] mb-4"></div>
+              <p className="text-[#c9c4c5]">Đang tải voucher...</p>
+            </div>
+          ) : vouchers.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-[#c9c4c5] text-lg">Không có voucher nào</p>
+            </div>
+          ) : (
+            vouchers.map((voucher) => {
+              const isSaved = savedVouchers.has(voucher.voucherId);
+              const isSaving = savingVoucherId === voucher.voucherId;
+              
+              return (
+                <article key={voucher.voucherId} className="voucher-panel">
+                  <div className="voucher-panel__media">
+                    <img src={voucher.image} alt={voucher.name} />
+                    <span className="voucher-panel__badge">{formatDiscountBadge(voucher)}</span>
+                  </div>
 
-              <div className="voucher-panel__content">
-                <div className="voucher-panel__header">
-                  <h2 className="voucher-panel__title">{voucher.name}</h2>
-                  <p className="voucher-panel__description">{voucher.description}</p>
-                </div>
+                  <div className="voucher-panel__content">
+                    <div className="voucher-panel__header">
+                      <h2 className="voucher-panel__title">{voucher.name}</h2>
+                      <p className="voucher-panel__description">{voucher.description}</p>
+                    </div>
 
-                <div className="voucher-panel__meta">
-                  <div className="voucher-meta-chip">
-                    <span>Mã voucher</span>
-                    <strong>{voucher.code}</strong>
-                  </div>
-                  <div className="voucher-meta-chip">
-                    <span>Giá trị</span>
-                    <strong>{formatDiscountDetail(voucher)}</strong>
-                  </div>
-                  <div className="voucher-meta-chip">
-                    <span>Đơn tối thiểu</span>
-                    <strong>{formatCurrency(voucher.minOrder || voucher.minOrderAmount || 0)}</strong>
-                  </div>
-                  <div className="voucher-meta-chip">
-                    <span>Thời gian</span>
-                    <strong>
-                      {new Date(voucher.startDate).toLocaleDateString('vi-VN')} -{' '}
-                      {new Date(voucher.endDate).toLocaleDateString('vi-VN')}
-                    </strong>
-                  </div>
-                </div>
+                    <div className="voucher-panel__meta">
+                      <div className="voucher-meta-chip">
+                        <span>Mã voucher</span>
+                        <strong>{voucher.code}</strong>
+                      </div>
+                      <div className="voucher-meta-chip">
+                        <span>Giá trị</span>
+                        <strong>{formatDiscountDetail(voucher)}</strong>
+                      </div>
+                      <div className="voucher-meta-chip">
+                        <span>Đơn tối thiểu</span>
+                        <strong>{formatCurrency(voucher.minOrder || voucher.minOrderAmount || 0)}</strong>
+                      </div>
+                      <div className="voucher-meta-chip">
+                        <span>Thời gian</span>
+                        <strong>
+                          {new Date(voucher.startDate).toLocaleDateString('vi-VN')} -{' '}
+                          {new Date(voucher.endDate).toLocaleDateString('vi-VN')}
+                        </strong>
+                      </div>
+                    </div>
 
-                <footer className="voucher-panel__footer">
-                  <div className="voucher-panel__footer-info">
-                    <span className="voucher-panel__code">{voucher.code}</span>
-                    <span className="voucher-panel__days">
-                      {voucher.active ? `${voucher.daysLeft} ngày còn lại` : 'Đã hết hạn'}
-                    </span>
+                    <footer className="voucher-panel__footer">
+                      <div className="voucher-panel__footer-info">
+                        <span className="voucher-panel__code">{voucher.code}</span>
+                        <span className="voucher-panel__days">
+                          {voucher.active ? `${voucher.daysLeft} ngày còn lại` : 'Đã hết hạn'}
+                        </span>
+                      </div>
+                      <button
+                        className={`btn ${isSaved ? 'btn--ghost' : 'btn--primary'}`}
+                        disabled={!voucher.active || isSaved || isSaving}
+                        onClick={() => handleSave(voucher.voucherId)}
+                      >
+                        {isSaving ? 'Đang lưu...' : isSaved ? 'Đã lưu voucher' : 'Lưu voucher'}
+                      </button>
+                    </footer>
                   </div>
-                  <button
-                    className={`btn ${saved[voucher.voucherId] ? 'btn--ghost' : 'btn--primary'}`}
-                    disabled={!voucher.active || saved[voucher.voucherId]}
-                    onClick={() => handleSave(voucher.voucherId)}
-                  >
-                    {saved[voucher.voucherId] ? 'Đã lưu voucher' : 'Lưu voucher'}
-                  </button>
-                </footer>
-              </div>
-            </article>
-          ))}
+                </article>
+              );
+            })
+          )}
         </section>
       </div>
     </div>

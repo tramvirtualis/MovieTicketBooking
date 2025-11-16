@@ -9,12 +9,15 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 
 // Reports Component
 function Reports({ orders, movies, cinemas, vouchers, users }) {
-  const [timeRange, setTimeRange] = useState('30'); // '7', '30', '90', 'all'
+  const [timeRange, setTimeRange] = useState('30');
   const [selectedCinema, setSelectedCinema] = useState('all');
   const [selectedMovie, setSelectedMovie] = useState('all');
 
@@ -33,7 +36,7 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
         startDate.setDate(endDate.getDate() - 90);
         break;
       default:
-        startDate.setFullYear(2020); // All time
+        startDate.setFullYear(2020);
     }
     return { startDate, endDate };
   }, [timeRange]);
@@ -41,17 +44,12 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
   // Filter orders based on filters
   const filteredOrders = useMemo(() => {
     return (orders || []).filter(order => {
-      // Filter by payment status (only SUCCESS)
       if (order.status !== 'PAID') return false;
       
-      // Filter by date range
       const orderDate = new Date(order.showtime);
       if (orderDate < dateRange.startDate || orderDate > dateRange.endDate) return false;
       
-      // Filter by cinema
       if (selectedCinema !== 'all' && order.cinemaComplexId !== Number(selectedCinema)) return false;
-      
-      // Filter by movie
       if (selectedMovie !== 'all' && order.movieId !== Number(selectedMovie)) return false;
       
       return true;
@@ -64,11 +62,9 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
     const totalTickets = filteredOrders.reduce((sum, order) => sum + (order.seats?.length || 0), 0);
     const activeMovies = (movies || []).filter(m => m.status === 'NOW_SHOWING').length;
     const registeredCustomers = (users || []).filter(u => {
-      // Count users that are not ADMIN or MANAGER
       return u.role !== 'ADMIN' && u.role !== 'MANAGER';
     }).length;
     
-    // Active vouchers (startDate <= today <= endDate)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const activeVouchers = (vouchers || []).filter(v => {
@@ -155,30 +151,16 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
       .map((movie, idx) => ({ ...movie, rank: idx + 1 }));
   }, [revenueByMovie]);
 
-  // Voucher Usage Statistics
-  const voucherUsage = useMemo(() => {
-    // In real app, this would come from database
-    // For now, simulate based on vouchers
-    return (vouchers || [])
-      .filter(v => {
-        const today = new Date();
-        const start = new Date(v.startDate);
-        const end = new Date(v.endDate);
-        return start <= today && today <= end;
-      })
-      .map(v => ({
-        voucherId: v.voucherId,
-        name: v.name,
-        code: v.code,
-        timesUsed: Math.floor(Math.random() * 50) + 10, // Simulated
-        totalDiscount: Math.floor(Math.random() * 5000000) + 1000000 // Simulated
-      }))
-      .sort((a, b) => b.timesUsed - a.timesUsed);
-  }, [vouchers]);
+  // Cinema Performance (for pie chart)
+  const cinemaPerformance = useMemo(() => {
+    return revenueByCinema.slice(0, 5).map(c => ({
+      name: c.name,
+      value: c.revenue
+    }));
+  }, [revenueByCinema]);
 
-  // Food Combo Sales (simulated - would come from OrderCombo table)
+  // Food Combo Sales (simulated)
   const foodComboSales = useMemo(() => {
-    // Simulated data - in real app, this would come from OrderCombo + FoodCombo tables
     return [
       { id: 1, name: 'Combo 1: Bắp + Nước', quantity: 245, revenue: 11025000 },
       { id: 2, name: 'Combo 2: Bắp + Nước + Snack', quantity: 189, revenue: 11340000 },
@@ -186,6 +168,26 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
       { id: 4, name: 'Combo 4: Snack + Nước', quantity: 98, revenue: 4900000 },
     ].sort((a, b) => b.revenue - a.revenue);
   }, []);
+
+  // Peak Hours Analysis
+  const peakHours = useMemo(() => {
+    const hourRevenue = {};
+    for (let i = 0; i < 24; i++) {
+      hourRevenue[i] = 0;
+    }
+    
+    filteredOrders.forEach(order => {
+      const hour = new Date(order.showtime).getHours();
+      hourRevenue[hour] += order.totalAmount || 0;
+    });
+    
+    return Object.entries(hourRevenue)
+      .map(([hour, revenue]) => ({
+        hour: `${hour}:00`,
+        revenue
+      }))
+      .filter(h => h.revenue > 0);
+  }, [filteredOrders]);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -198,17 +200,38 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
     return new Intl.NumberFormat('vi-VN').format(num);
   };
 
+  const COLORS = ['#e83b41', '#ffd159', '#4caf50', '#2196f3', '#9c27b0'];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Header */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between',
+        marginBottom: '8px'
+      }}>
+        <div>
+          <h1 style={{ 
+            fontSize: '28px', 
+            fontWeight: 700, 
+            color: '#fff',
+            marginBottom: '8px'
+          }}>
+            Báo cáo & Thống kê
+          </h1>
+          <p style={{ color: '#c9c4c5', fontSize: '14px' }}>
+            Tổng quan hiệu suất kinh doanh và xu hướng doanh thu
+          </p>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="admin-card">
-        <div className="admin-card__header">
-          <h2 className="admin-card__title">Bộ lọc</h2>
-        </div>
         <div className="admin-card__content">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#c9c4c5' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#c9c4c5', fontWeight: 500 }}>
                 Khoảng thời gian
               </label>
               <select
@@ -221,7 +244,8 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
                   border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: '8px',
                   color: '#fff',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  cursor: 'pointer'
                 }}
               >
                 <option value="7">7 ngày qua</option>
@@ -231,7 +255,7 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#c9c4c5' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#c9c4c5', fontWeight: 500 }}>
                 Rạp
               </label>
               <select
@@ -244,7 +268,8 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
                   border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: '8px',
                   color: '#fff',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  cursor: 'pointer'
                 }}
               >
                 <option value="all">Tất cả rạp</option>
@@ -254,7 +279,7 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#c9c4c5' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#c9c4c5', fontWeight: 500 }}>
                 Phim
               </label>
               <select
@@ -267,7 +292,8 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
                   border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: '8px',
                   color: '#fff',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  cursor: 'pointer'
                 }}
               >
                 <option value="all">Tất cả phim</option>
@@ -280,11 +306,11 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+      {/* Summary Cards - 2 rows */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
         <div className="admin-stat-card">
           <div className="admin-stat-card__icon" style={{ color: '#4caf50' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="12" y1="1" x2="12" y2="23"/>
               <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
             </svg>
@@ -297,20 +323,20 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
 
         <div className="admin-stat-card">
           <div className="admin-stat-card__icon" style={{ color: '#2196f3' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
               <path d="M6 9v6M18 9v6"/>
             </svg>
           </div>
           <div className="admin-stat-card__content">
             <div className="admin-stat-card__value">{formatNumber(summaryStats.totalTickets)}</div>
-            <div className="admin-stat-card__label">Tổng vé bán</div>
+            <div className="admin-stat-card__label">Tổng vé bán ra</div>
           </div>
         </div>
 
         <div className="admin-stat-card">
           <div className="admin-stat-card__icon" style={{ color: '#ff9800' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="2" y="4" width="20" height="16" rx="2"/>
               <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
             </svg>
@@ -323,171 +349,179 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
 
         <div className="admin-stat-card">
           <div className="admin-stat-card__icon" style={{ color: '#9c27b0' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
               <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
           </div>
           <div className="admin-stat-card__content">
             <div className="admin-stat-card__value">{formatNumber(summaryStats.registeredCustomers)}</div>
-            <div className="admin-stat-card__label">Khách hàng đăng ký</div>
+            <div className="admin-stat-card__label">Khách hàng</div>
           </div>
         </div>
 
         <div className="admin-stat-card">
           <div className="admin-stat-card__icon" style={{ color: '#e83b41' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-              <line x1="12" y1="22.08" x2="12" y2="12"/>
             </svg>
           </div>
           <div className="admin-stat-card__content">
             <div className="admin-stat-card__value">{summaryStats.activeVouchers}</div>
-            <div className="admin-stat-card__label">Voucher đang hoạt động</div>
+            <div className="admin-stat-card__label">Voucher hoạt động</div>
           </div>
         </div>
       </div>
 
-      {/* Charts Section */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '24px' }}>
-        {/* Revenue by Movie */}
+      {/* Main Charts */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
+        {/* Daily Revenue - Full Width */}
         <div className="admin-card">
           <div className="admin-card__header">
-            <h2 className="admin-card__title">Doanh thu theo phim</h2>
+            <h2 className="admin-card__title">Xu hướng doanh thu (30 ngày)</h2>
           </div>
           <div className="admin-card__content">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={revenueByMovie.slice(0, 10)}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                <XAxis 
-                  dataKey="title" 
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
-                  stroke="#c9c4c5"
-                  fontSize={12}
-                />
-                <YAxis 
-                  stroke="#c9c4c5"
-                  fontSize={12}
-                  tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#2d2627', 
-                    border: '1px solid #4a3f41',
-                    borderRadius: '8px',
-                    color: '#fff'
-                  }}
-                  formatter={(value) => formatPrice(value)}
-                />
-                <Legend />
-                <Bar dataKey="revenue" fill="#e83b41" name="Doanh thu" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Revenue by Cinema */}
-        <div className="admin-card">
-          <div className="admin-card__header">
-            <h2 className="admin-card__title">Doanh thu theo rạp</h2>
-          </div>
-          <div className="admin-card__content">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={revenueByCinema}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                <XAxis 
-                  dataKey="name" 
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
-                  stroke="#c9c4c5"
-                  fontSize={12}
-                />
-                <YAxis 
-                  stroke="#c9c4c5"
-                  fontSize={12}
-                  tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#2d2627', 
-                    border: '1px solid #4a3f41',
-                    borderRadius: '8px',
-                    color: '#fff'
-                  }}
-                  formatter={(value) => formatPrice(value)}
-                />
-                <Legend />
-                <Bar dataKey="revenue" fill="#4caf50" name="Doanh thu" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Daily Revenue */}
-        <div className="admin-card" style={{ gridColumn: '1 / -1' }}>
-          <div className="admin-card__header">
-            <h2 className="admin-card__title">Doanh thu theo ngày (30 ngày qua)</h2>
-          </div>
-          <div className="admin-card__content">
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={320}>
               <LineChart data={dailyRevenue}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                <defs>
+                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ffd159" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#ffd159" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                 <XAxis 
                   dataKey="displayDate" 
                   stroke="#c9c4c5"
                   fontSize={12}
+                  tick={{ fill: '#c9c4c5' }}
                 />
                 <YAxis 
                   stroke="#c9c4c5"
                   fontSize={12}
+                  tick={{ fill: '#c9c4c5' }}
                   tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
                 />
                 <Tooltip 
                   contentStyle={{ 
-                    backgroundColor: '#2d2627', 
-                    border: '1px solid #4a3f41',
+                    backgroundColor: 'rgba(20, 15, 16, 0.95)', 
+                    border: '1px solid rgba(255,255,255,0.1)',
                     borderRadius: '8px',
-                    color: '#fff'
+                    color: '#fff',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
                   }}
-                  formatter={(value) => formatPrice(value)}
+                  formatter={(value) => [formatPrice(value), 'Doanh thu']}
                 />
-                <Legend />
                 <Line 
                   type="monotone" 
                   dataKey="revenue" 
                   stroke="#ffd159" 
-                  strokeWidth={2}
-                  name="Doanh thu"
-                  dot={{ fill: '#ffd159', r: 4 }}
+                  strokeWidth={3}
+                  dot={{ fill: '#ffd159', r: 5, strokeWidth: 2, stroke: '#1a1517' }}
+                  activeDot={{ r: 7 }}
+                  fill="url(#revenueGradient)"
                 />
               </LineChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Revenue Charts Row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '24px' }}>
+          {/* Revenue by Movie */}
+          <div className="admin-card">
+            <div className="admin-card__header">
+              <h2 className="admin-card__title">Top phim theo doanh thu</h2>
+            </div>
+            <div className="admin-card__content">
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={revenueByMovie.slice(0, 8)}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis 
+                    dataKey="title" 
+                    angle={-35}
+                    textAnchor="end"
+                    height={120}
+                    stroke="#c9c4c5"
+                    fontSize={11}
+                    tick={{ fill: '#c9c4c5' }}
+                  />
+                  <YAxis 
+                    stroke="#c9c4c5"
+                    fontSize={12}
+                    tick={{ fill: '#c9c4c5' }}
+                    tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(20, 15, 16, 0.95)', 
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px',
+                      color: '#fff'
+                    }}
+                    formatter={(value) => [formatPrice(value), 'Doanh thu']}
+                  />
+                  <Bar dataKey="revenue" fill="#e83b41" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Revenue by Cinema - Pie Chart */}
+          <div className="admin-card">
+            <div className="admin-card__header">
+              <h2 className="admin-card__title">Phân bố doanh thu theo rạp</h2>
+            </div>
+            <div className="admin-card__content">
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart>
+                  <Pie
+                    data={cinemaPerformance}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {cinemaPerformance.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(20, 15, 16, 0.95)', 
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px',
+                      color: '#fff'
+                    }}
+                    formatter={(value) => formatPrice(value)}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Tables Section */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
-        {/* Top 5 Movies by Ticket Count */}
+        {/* Top 5 Movies by Ticket */}
         <div className="admin-card">
           <div className="admin-card__header">
-            <h2 className="admin-card__title">Top 5 phim bán chạy</h2>
+            <h2 className="admin-card__title">🏆 Top 5 phim bán chạy</h2>
           </div>
           <div className="admin-card__content">
             <div className="admin-table">
               <table>
                 <thead>
                   <tr>
-                    <th>Hạng</th>
+                    <th style={{ width: '60px' }}>Hạng</th>
                     <th>Phim</th>
-                    <th>Số vé</th>
-                    <th>Doanh thu</th>
+                    <th style={{ textAlign: 'right' }}>Vé</th>
+                    <th style={{ textAlign: 'right' }}>Doanh thu</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -495,23 +529,27 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
                     <tr key={movie.movieId}>
                       <td>
                         <span style={{
-                          display: 'inline-block',
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          background: movie.rank === 1 ? '#ffd700' : movie.rank === 2 ? '#c0c0c0' : movie.rank === 3 ? '#cd7f32' : 'rgba(255,255,255,0.1)',
-                          color: '#fff',
-                          textAlign: 'center',
-                          lineHeight: '24px',
-                          fontSize: '12px',
-                          fontWeight: 700
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          background: movie.rank === 1 ? 'linear-gradient(135deg, #ffd700, #ffed4e)' : 
+                                      movie.rank === 2 ? 'linear-gradient(135deg, #c0c0c0, #e8e8e8)' : 
+                                      movie.rank === 3 ? 'linear-gradient(135deg, #cd7f32, #f4a460)' : 
+                                      'rgba(255,255,255,0.1)',
+                          color: movie.rank <= 3 ? '#000' : '#fff',
+                          fontSize: '14px',
+                          fontWeight: 700,
+                          boxShadow: movie.rank <= 3 ? '0 2px 8px rgba(0,0,0,0.3)' : 'none'
                         }}>
                           {movie.rank}
                         </span>
                       </td>
-                      <td>{movie.title}</td>
-                      <td>{formatNumber(movie.tickets)}</td>
-                      <td style={{ color: '#4caf50', fontWeight: 600 }}>{formatPrice(movie.revenue)}</td>
+                      <td style={{ fontWeight: 500 }}>{movie.title}</td>
+                      <td style={{ textAlign: 'right', color: '#2196f3' }}>{formatNumber(movie.tickets)}</td>
+                      <td style={{ textAlign: 'right', color: '#4caf50', fontWeight: 600 }}>{formatPrice(movie.revenue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -520,67 +558,27 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
           </div>
         </div>
 
-        {/* Voucher Usage Statistics */}
+        {/* Food Combo Sales */}
         <div className="admin-card">
           <div className="admin-card__header">
-            <h2 className="admin-card__title">Thống kê sử dụng voucher</h2>
+            <h2 className="admin-card__title">🍿 Doanh số combo đồ ăn</h2>
           </div>
           <div className="admin-card__content">
             <div className="admin-table">
               <table>
                 <thead>
                   <tr>
-                    <th>Voucher</th>
-                    <th>Số lần dùng</th>
-                    <th>Tổng giảm giá</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {voucherUsage.length > 0 ? (
-                    voucherUsage.map((v) => (
-                      <tr key={v.voucherId}>
-                        <td>
-                          <div style={{ fontWeight: 600 }}>{v.name}</div>
-                          <div style={{ fontSize: '12px', color: '#c9c4c5' }}>{v.code}</div>
-                        </td>
-                        <td>{formatNumber(v.timesUsed)}</td>
-                        <td style={{ color: '#e83b41', fontWeight: 600 }}>{formatPrice(v.totalDiscount)}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="3" style={{ textAlign: 'center', color: '#c9c4c5', padding: '20px' }}>
-                        Không có dữ liệu
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Food Combo Sales */}
-        <div className="admin-card" style={{ gridColumn: '1 / -1' }}>
-          <div className="admin-card__header">
-            <h2 className="admin-card__title">Doanh số combo đồ ăn</h2>
-          </div>
-          <div className="admin-card__content">
-            <div className="admin-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Tên combo</th>
-                    <th>Số lượng bán</th>
-                    <th>Doanh thu</th>
+                    <th>Combo</th>
+                    <th style={{ textAlign: 'right' }}>SL</th>
+                    <th style={{ textAlign: 'right' }}>Doanh thu</th>
                   </tr>
                 </thead>
                 <tbody>
                   {foodComboSales.map((combo) => (
                     <tr key={combo.id}>
-                      <td>{combo.name}</td>
-                      <td>{formatNumber(combo.quantity)}</td>
-                      <td style={{ color: '#4caf50', fontWeight: 600 }}>{formatPrice(combo.revenue)}</td>
+                      <td style={{ fontWeight: 500 }}>{combo.name}</td>
+                      <td style={{ textAlign: 'right', color: '#ffd159' }}>{formatNumber(combo.quantity)}</td>
+                      <td style={{ textAlign: 'right', color: '#4caf50', fontWeight: 600 }}>{formatPrice(combo.revenue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -589,6 +587,44 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
           </div>
         </div>
       </div>
+
+      {/* Peak Hours Analysis */}
+      {peakHours.length > 0 && (
+        <div className="admin-card">
+          <div className="admin-card__header">
+            <h2 className="admin-card__title">⏰ Phân tích giờ cao điểm</h2>
+          </div>
+          <div className="admin-card__content">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={peakHours}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis 
+                  dataKey="hour" 
+                  stroke="#c9c4c5"
+                  fontSize={12}
+                  tick={{ fill: '#c9c4c5' }}
+                />
+                <YAxis 
+                  stroke="#c9c4c5"
+                  fontSize={12}
+                  tick={{ fill: '#c9c4c5' }}
+                  tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(20, 15, 16, 0.95)', 
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    color: '#fff'
+                  }}
+                  formatter={(value) => [formatPrice(value), 'Doanh thu']}
+                />
+                <Bar dataKey="revenue" fill="#9c27b0" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

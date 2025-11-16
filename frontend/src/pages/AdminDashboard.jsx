@@ -599,20 +599,11 @@ const initialUsers = [
   }
 ];
 
-// All management components have been extracted to separate files:
-// - CinemaManagement: frontend/src/components/AdminDashboard/CinemaManagement.jsx
-// - MovieManagement: frontend/src/components/AdminDashboard/MovieManagement.jsx
-// - UserManagement: frontend/src/components/AdminDashboard/UserManagement.jsx
-// - VoucherManagement: frontend/src/components/AdminDashboard/VoucherManagement.jsx
-// - BookingManagement: frontend/src/components/AdminDashboard/BookingManagement.jsx
-// - Reports: frontend/src/components/AdminDashboard/Reports.jsx
-// - PriceManagement: frontend/src/components/AdminDashboard/PriceManagement.jsx
-// - VoucherAssignModal: frontend/src/components/AdminDashboard/VoucherAssignModal.jsx
 
 
 export default function AdminDashboard() {
   const { enums } = useEnums(); // Fetch enums from API
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const [activeSection, setActiveSection] = useState('reports');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [movies, setMovies] = useState(initialMovies);
   const [cinemas, setCinemas] = useState(initialCinemas);
@@ -719,18 +710,6 @@ export default function AdminDashboard() {
         </div>
         <nav className="admin-sidebar__nav">
           <button
-            className={`admin-nav-item ${activeSection === 'dashboard' ? 'admin-nav-item--active' : ''}`}
-            onClick={() => setActiveSection('dashboard')}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7"/>
-              <rect x="14" y="3" width="7" height="7"/>
-              <rect x="14" y="14" width="7" height="7"/>
-              <rect x="3" y="14" width="7" height="7"/>
-            </svg>
-            <span>Dashboard</span>
-          </button>
-          <button
             className={`admin-nav-item ${activeSection === 'movies' ? 'admin-nav-item--active' : ''}`}
             onClick={() => setActiveSection('movies')}
           >
@@ -835,7 +814,6 @@ export default function AdminDashboard() {
         <header className="admin-header">
           <div className="admin-header__left">
             <h1 className="admin-header__title">
-              {activeSection === 'dashboard' && 'Dashboard'}
               {activeSection === 'movies' && 'Quản lý phim'}
               {activeSection === 'cinemas' && 'Quản lý rạp'}
               {activeSection === 'bookings' && 'Quản lý đặt vé'}
@@ -901,85 +879,6 @@ export default function AdminDashboard() {
 
         {/* Content Area */}
         <main className="admin-content">
-          {activeSection === 'dashboard' && (
-            <div>
-              {/* Stats Grid */}
-              <div className="admin-stats-grid">
-                {stats.map((stat, idx) => (
-                  <div key={idx} className="admin-stat-card">
-                    <div className="admin-stat-card__icon" style={{ color: stat.color }}>
-                      {getIcon(stat.icon)}
-                    </div>
-                    <div className="admin-stat-card__content">
-                      <div className="admin-stat-card__value">{stat.value}</div>
-                      <div className="admin-stat-card__label">{stat.label}</div>
-                      <div className="admin-stat-card__trend" style={{ color: stat.color }}>
-                        {stat.trend}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Recent Bookings & Top Movies */}
-              <div className="admin-dashboard-grid">
-                <div className="admin-card">
-                  <div className="admin-card__header">
-                    <h2 className="admin-card__title">Đặt vé gần đây</h2>
-                    <button className="admin-card__action">Xem tất cả</button>
-                  </div>
-                  <div className="admin-card__content">
-                    <div className="admin-table">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Khách hàng</th>
-                            <th>Phim</th>
-                            <th>Rạp</th>
-                            <th>Số tiền</th>
-                            <th>Ngày</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {recentBookings.map((booking) => (
-                            <tr key={booking.id}>
-                              <td>{booking.customer}</td>
-                              <td>{booking.movie}</td>
-                              <td>{booking.cinema}</td>
-                              <td>{formatPrice(booking.amount)}</td>
-                              <td>{booking.date}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="admin-card">
-                  <div className="admin-card__header">
-                    <h2 className="admin-card__title">Phim bán chạy</h2>
-                  </div>
-                  <div className="admin-card__content">
-                    <div className="admin-top-movies">
-                      {topMovies.map((movie, idx) => (
-                        <div key={movie.id} className="admin-top-movie-item">
-                          <div className="admin-top-movie-item__rank">#{idx + 1}</div>
-                          <div className="admin-top-movie-item__info">
-                            <div className="admin-top-movie-item__title">{movie.title}</div>
-                            <div className="admin-top-movie-item__meta">
-                              {movie.bookings} vé • {formatPrice(movie.revenue)}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {activeSection === 'movies' && (
             <MovieManagement movies={movies} onMoviesChange={setMovies} />
           )}

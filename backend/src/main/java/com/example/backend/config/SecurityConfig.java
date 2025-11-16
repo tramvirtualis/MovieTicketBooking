@@ -55,12 +55,12 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints - không cần authentication
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/public/**").permitAll()  // ← THÊM DÒNG NÀY
-                
-                // Customer endpoints
-                .requestMatchers("/api/customer/**").permitAll()
+                .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/reviews/movie/**").permitAll() // Public access to movie reviews
                 .requestMatchers("/api/enums/**").permitAll() // Public access to enum values
+                
+                // Customer endpoints - cần authentication, @PreAuthorize sẽ kiểm tra role
+                .requestMatchers("/api/customer/**").authenticated()
                 
                 // Admin endpoints - cần role ADMIN
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")

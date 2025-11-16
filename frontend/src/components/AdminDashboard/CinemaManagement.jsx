@@ -3,6 +3,7 @@ import { useEnums } from '../../hooks/useEnums';
 import { enumService } from '../../services/enumService';
 import { generateSeats } from './utils';
 import cinemaComplexService from '../../services/cinemaComplexService';
+import ConfirmDeleteModal from '../Common/ConfirmDeleteModal';
 
 const PROVINCES = [
   'Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Hải Phòng', 'An Giang', 'Bà Rịa - Vũng Tàu',
@@ -33,6 +34,7 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
   const [editingCinema, setEditingCinema] = useState(null);
   const [editingRoom, setEditingRoom] = useState(null);
   const [selectedSeatType, setSelectedSeatType] = useState('NORMAL');
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [cinemaFormData, setCinemaFormData] = useState({
     name: '',
     addressDescription: '',
@@ -223,12 +225,21 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
     }
   };
 
-  const handleDeleteCinema = async (complexId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa cụm rạp này? Tất cả phòng chiếu sẽ bị xóa.')) {
-      return;
-    }
+  const handleDeleteCinema = (complexId) => {
+    const cinema = cinemas.find(c => c.complexId === complexId);
+    setDeleteConfirm({ 
+      type: 'cinema', 
+      id: complexId, 
+      name: cinema?.name || 'cụm rạp này',
+      cinema: cinema
+    });
+  };
+
+  const confirmDeleteCinema = async () => {
+    if (!deleteConfirm || deleteConfirm.type !== 'cinema') return;
 
     setLoading(true);
+    const complexId = deleteConfirm.id;
     try {
       const result = await cinemaComplexService.deleteCinemaComplex(complexId);
       
@@ -252,6 +263,7 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
           setSelectedCinema(null);
           setSelectedRoom(null);
         }
+        setDeleteConfirm(null);
         showNotification('Xóa cụm rạp thành công', 'success');
       } else {
         showNotification(result.error || 'Xóa cụm rạp thất bại', 'error');
@@ -432,12 +444,22 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
     }
   };
 
-  const handleDeleteRoom = async (cinema, roomId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa phòng chiếu này?')) {
-      return;
-    }
+  const handleDeleteRoom = (cinema, roomId) => {
+    const room = cinema.rooms.find(r => r.roomId === roomId);
+    setDeleteConfirm({ 
+      type: 'room', 
+      id: roomId, 
+      name: room?.roomName || 'phòng chiếu này',
+      cinema: cinema
+    });
+  };
+
+  const confirmDeleteRoom = async () => {
+    if (!deleteConfirm || deleteConfirm.type !== 'room') return;
 
     setLoading(true);
+    const roomId = deleteConfirm.id;
+    const cinema = deleteConfirm.cinema;
     try {
       const { default: cinemaRoomService } = await import('../../services/cinemaRoomService');
       const result = await cinemaRoomService.deleteCinemaRoom(roomId);
@@ -472,6 +494,7 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
         if (selectedRoom?.roomId === roomId) {
           setSelectedRoom(null);
         }
+        setDeleteConfirm(null);
         showNotification('Xóa phòng chiếu thành công', 'success');
       } else {
         showNotification(result.error || 'Xóa phòng chiếu thất bại', 'error');
@@ -480,6 +503,14 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
       showNotification('Có lỗi xảy ra khi xóa phòng chiếu', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (deleteConfirm?.type === 'cinema') {
+      await confirmDeleteCinema();
+    } else if (deleteConfirm?.type === 'room') {
+      await confirmDeleteRoom();
     }
   };
 
@@ -1080,6 +1111,23 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteConfirm !== null}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={confirmDelete}
+        title={deleteConfirm?.name}
+        message={
+          deleteConfirm?.type === 'cinema' 
+            ? `Bạn có chắc chắn muốn xóa cụm rạp "${deleteConfirm.name}"? Tất cả phòng chiếu sẽ bị xóa.`
+            : deleteConfirm?.type === 'room'
+            ? `Bạn có chắc chắn muốn xóa phòng chiếu "${deleteConfirm.name}"?`
+            : ''
+        }
+        confirmText={deleteConfirm?.type === 'cinema' ? 'Xóa cụm rạp' : 'Xóa phòng chiếu'}
+        isDeleting={loading}
+      />
     </div>
   </>
   );

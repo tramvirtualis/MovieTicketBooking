@@ -3,6 +3,7 @@ import { movieService } from '../../services/movieService';
 import { useEnums } from '../../hooks/useEnums';
 import { enumService } from '../../services/enumService';
 import cloudinaryService from '../../services/cloudinaryService';
+import ConfirmDeleteModal from '../Common/ConfirmDeleteModal';
 
 // Movie Management Component
 function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
@@ -1420,36 +1421,15 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
       )}
 
       {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div className="movie-modal-overlay" onClick={() => setDeleteConfirm(null)}>
-          <div className="movie-modal movie-modal--confirm" onClick={(e) => e.stopPropagation()}>
-            <div className="movie-modal__header">
-              <h2>Xác nhận xóa phim</h2>
-              <button className="movie-modal__close" onClick={() => setDeleteConfirm(null)}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </div>
-            <div className="movie-modal__content">
-              <p>Bạn có chắc chắn muốn xóa phim <strong>{deleteConfirm.title}</strong>?</p>
-              <p className="movie-modal__warning">Hành động này không thể hoàn tác.</p>
-            </div>
-            <div className="movie-modal__footer">
-              <button className="btn btn--ghost" onClick={() => setDeleteConfirm(null)}>
-                Hủy
-              </button>
-              <button
-                className="btn btn--danger"
-                onClick={() => handleDeleteMovie(deleteConfirm.movieId)}
-              >
-                Xóa phim
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDeleteModal
+        isOpen={deleteConfirm !== null}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={() => handleDeleteMovie(deleteConfirm?.movieId)}
+        title={deleteConfirm?.title}
+        message={deleteConfirm ? `Bạn có chắc chắn muốn xóa phim "${deleteConfirm.title}"?` : ''}
+        confirmText="Xóa phim"
+        isDeleting={loading}
+      />
     </div>
     </>
   );

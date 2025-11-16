@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import ManagerCinemaManagement from '../components/ManagerDashboard/ManagerCinemaManagement';
-import ManagerDashboardView from '../components/ManagerDashboard/ManagerDashboardView';
 import ManagerMovieView from '../components/ManagerDashboard/ManagerMovieView';
 import ManagerPriceView from '../components/ManagerDashboard/ManagerPriceView';
 import ManagerBookingManagement from '../components/ManagerDashboard/ManagerBookingManagement';
@@ -30,7 +29,7 @@ export default function ManagerDashboard() {
   const managerComplexIds = cinemaComplexId ? [cinemaComplexId] : [];
 
   // State management
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const [activeSection, setActiveSection] = useState('reports');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [cinemas, setCinemas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -191,18 +190,6 @@ export default function ManagerDashboard() {
         </div>
         <nav className="admin-sidebar__nav">
           <button
-            className={`admin-nav-item ${activeSection === 'dashboard' ? 'admin-nav-item--active' : ''}`}
-            onClick={() => setActiveSection('dashboard')}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7"/>
-              <rect x="14" y="3" width="7" height="7"/>
-              <rect x="14" y="14" width="7" height="7"/>
-              <rect x="3" y="14" width="7" height="7"/>
-            </svg>
-            <span>Dashboard</span>
-          </button>
-          <button
             className={`admin-nav-item ${activeSection === 'movies' ? 'admin-nav-item--active' : ''}`}
             onClick={() => setActiveSection('movies')}
           >
@@ -220,7 +207,7 @@ export default function ManagerDashboard() {
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
               <circle cx="12" cy="10" r="3"/>
             </svg>
-            <span>Quản lý cụm rạp</span>
+            <span>Quản lý rạp</span>
           </button>
           <button
             className={`admin-nav-item ${activeSection === 'bookings' ? 'admin-nav-item--active' : ''}`}
@@ -272,7 +259,6 @@ export default function ManagerDashboard() {
         <header className="admin-header">
           <div className="admin-header__left">
             <h1 className="admin-header__title">
-              {activeSection === 'dashboard' && 'Dashboard'}
               {activeSection === 'movies' && 'Danh sách phim'}
               {activeSection === 'cinemas' && 'Quản lý cụm rạp'}
               {activeSection === 'bookings' && 'Quản lý đặt vé'}
@@ -337,15 +323,6 @@ export default function ManagerDashboard() {
         </header>
 
         <main className="admin-content">
-          {activeSection === 'dashboard' && (
-            <ManagerDashboardView 
-              orders={orders}
-              movies={movies}
-              cinemas={cinemas}
-              managerComplexIds={managerComplexIds}
-            />
-          )}
-
           {activeSection === 'movies' && (
             <ManagerMovieView movies={movies} />
           )}
