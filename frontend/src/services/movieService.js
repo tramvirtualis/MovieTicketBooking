@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { enumService } from './enumService';
 
 const API_BASE_URL = 'http://localhost:8080/api';
 
@@ -129,9 +130,12 @@ export const movieService = {
         message: response.data.message || 'Tạo phim thành công',
       };
     } catch (error) {
+      // Backend validation errors được trả về trong error.response.data.message
+      const errorMessage = error.response?.data?.message || error.message || 'Không thể tạo phim';
       return {
         success: false,
-        error: error.message || 'Không thể tạo phim',
+        error: errorMessage,
+        validationErrors: error.response?.data?.errors || null, // Nếu backend trả về errors object
       };
     }
   },
@@ -151,9 +155,12 @@ export const movieService = {
         message: response.data.message || 'Cập nhật phim thành công',
       };
     } catch (error) {
+      // Backend validation errors được trả về trong error.response.data.message
+      const errorMessage = error.response?.data?.message || error.message || 'Không thể cập nhật phim';
       return {
         success: false,
-        error: error.message || 'Không thể cập nhật phim',
+        error: errorMessage,
+        validationErrors: error.response?.data?.errors || null, // Nếu backend trả về errors object
       };
     }
   },
@@ -176,6 +183,130 @@ export const movieService = {
         error: error.message || 'Không thể xóa phim',
       };
     }
+  },
+
+  // ============ MAPPING FUNCTIONS ============
+  // Helper functions to map data between backend and frontend formats
+
+  /**
+   * Map age rating from backend format to frontend display format
+   * @param {string} ageRating - Backend format (e.g., 'AGE_13_PLUS')
+   * @returns {string} Frontend format (e.g., '13+')
+   */
+  mapAgeRatingFromBackend: (ageRating) => {
+    return enumService.mapAgeRatingToDisplay(ageRating);
+  },
+
+  /**
+   * Map age rating from frontend display format to backend format
+   * @param {string} ageRating - Frontend format (e.g., '13+')
+   * @returns {string} Backend format (e.g., 'AGE_13_PLUS')
+   */
+  mapAgeRatingToBackend: (ageRating) => {
+    return enumService.mapAgeRatingFromDisplay(ageRating);
+  },
+
+  /**
+   * Map room type from frontend format to backend format
+   * @param {string} roomType - Frontend format (e.g., '2D')
+   * @returns {string} Backend format (e.g., 'TYPE_2D')
+   */
+  mapRoomTypeToBackend: (roomType) => {
+    return enumService.mapRoomTypeFromDisplay(roomType);
+  },
+
+  /**
+   * Map room type from backend format to frontend format
+   * @param {string} roomType - Backend format (e.g., 'TYPE_2D')
+   * @returns {string} Frontend format (e.g., '2D')
+   */
+  mapRoomTypeFromBackend: (roomType) => {
+    return enumService.mapRoomTypeToDisplay(roomType);
+  },
+
+  /**
+   * Map formats array from backend format to frontend format
+   * @param {Array<string>} formats - Array of backend format room types
+   * @returns {Array<string>} Array of frontend format room types
+   */
+  mapFormatsFromBackend: (formats) => {
+    if (!formats || !Array.isArray(formats)) return [];
+    return formats.map(f => enumService.mapRoomTypeToDisplay(f));
+  },
+
+  /**
+   * Map formats array from frontend format to backend format
+   * @param {Array<string>} formats - Array of frontend format room types
+   * @returns {Array<string>} Array of backend format room types
+   */
+  mapFormatsToBackend: (formats) => {
+    if (!formats || !Array.isArray(formats)) return [];
+    return formats.map(f => enumService.mapRoomTypeFromDisplay(f));
+  },
+
+  /**
+   * Extract formats and languages from movie object
+   * Handles both MovieResponseDTO format and direct entity format
+   * @param {Object} movie - Movie object from backend
+   * @returns {Object} Object with formats and languages arrays
+   */
+  extractFormatsAndLanguages: (movie) => {
+    let formats = [];
+    let languages = [];
+
+    // If movie has formats and languages directly from backend (from MovieResponseDTO)
+    if (movie.formats || movie.languages) {
+      formats = movieService.mapFormatsFromBackend(movie.formats);
+      languages = movie.languages || [];
+    }
+    // If movie has versions (fallback - from entity directly)
+    else if (movie.versions && Array.isArray(movie.versions) && movie.versions.length > 0) {
+      formats = [...new Set(movie.versions.map(v => enumService.mapRoomTypeToDisplay(v.roomType)))];
+      languages = [...new Set(movie.versions.map(v => v.language))];
+    }
+
+    return { formats, languages };
+  },
+
+  /**
+   * Map a single movie from backend format to frontend format
+   * @param {Object} movie - Movie object from backend
+   * @returns {Object} Movie object in frontend format
+   */
+  mapMovieFromBackend: (movie) => {
+    if (!movie) return null;
+
+    return {
+      ...movie,
+      ageRating: movieService.mapAgeRatingFromBackend(movie.ageRating),
+      formats: movieService.mapFormatsFromBackend(movie.formats),
+      languages: movie.languages || []
+    };
+  },
+
+  /**
+   * Map an array of movies from backend format to frontend format
+   * @param {Array<Object>} movies - Array of movie objects from backend
+   * @returns {Array<Object>} Array of movie objects in frontend format
+   */
+  mapMoviesFromBackend: (movies) => {
+    if (!movies || !Array.isArray(movies)) return [];
+    return movies.map(movie => movieService.mapMovieFromBackend(movie));
+  },
+
+  /**
+   * Map movie data from frontend format to backend format for API request
+   * @param {Object} movieData - Movie data in frontend format
+   * @returns {Object} Movie data in backend format
+   */
+  mapMovieToBackend: (movieData) => {
+    return {
+      ...movieData,
+      ageRating: movieService.mapAgeRatingToBackend(movieData.ageRating),
+      formats: movieService.mapFormatsToBackend(movieData.formats),
+      // languages are already in correct format (VIETSUB, VIETNAMESE, VIETDUB)
+      languages: movieData.languages || []
+    };
   },
 };
 

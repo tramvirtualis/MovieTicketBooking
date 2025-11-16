@@ -45,76 +45,16 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     }, 3000);
   };
 
-  // Helper function to map ageRating from backend to frontend
-  const mapAgeRatingFromBackend = (ageRating) => {
-    const mapping = {
-      'AGE_13_PLUS': '13+',
-      'AGE_16_PLUS': '16+',
-      'AGE_18_PLUS': '18+',
-      'P': 'P',
-      'K': 'K'
-    };
-    return mapping[ageRating] || ageRating;
-  };
-
-  // Helper function to map ageRating from frontend to backend
-  const mapAgeRatingToBackend = (ageRating) => {
-    const mapping = {
-      '13+': 'AGE_13_PLUS',
-      '16+': 'AGE_16_PLUS',
-      '18+': 'AGE_18_PLUS',
-      'P': 'P',
-      'K': 'K'
-    };
-    return mapping[ageRating] || ageRating;
-  };
-
-  // Helper function to map RoomType from frontend to backend
-  const mapRoomTypeToBackend = (roomType) => {
-    const mapping = {
-      '2D': 'TYPE_2D',
-      '3D': 'TYPE_3D',
-      'DELUXE': 'DELUXE'
-    };
-    return mapping[roomType] || roomType;
-  };
-
-  // Helper function to map RoomType from backend to frontend
-  const mapRoomTypeFromBackend = (roomType) => {
-    const mapping = {
-      'TYPE_2D': '2D',
-      'TYPE_3D': '3D',
-      'DELUXE': 'DELUXE',
-      '2D': '2D', // Fallback
-      '3D': '3D'  // Fallback
-    };
-    return mapping[roomType] || roomType;
-  };
-
-  // Helper function to map formats array from backend to frontend
-  const mapFormatsFromBackend = (formats) => {
-    if (!formats || !Array.isArray(formats)) return [];
-    return formats.map(f => mapRoomTypeFromBackend(f));
-  };
-
-  // Helper function to extract formats and languages from movie
-  const extractFormatsAndLanguages = (movie) => {
-    let formats = [];
-    let languages = [];
-
-    // Nếu movie có formats và languages trực tiếp từ backend (từ MovieResponseDTO)
-    if (movie.formats || movie.languages) {
-      formats = mapFormatsFromBackend(movie.formats);
-      languages = movie.languages || [];
-    }
-    // Nếu movie có versions (fallback - từ entity trực tiếp)
-    else if (movie.versions && Array.isArray(movie.versions) && movie.versions.length > 0) {
-      formats = [...new Set(movie.versions.map(v => mapRoomTypeFromBackend(v.roomType)))];
-      languages = [...new Set(movie.versions.map(v => v.language))];
-    }
-
-    return { formats, languages };
-  };
+  // Use mapping functions from movieService
+  const {
+    mapAgeRatingFromBackend,
+    mapAgeRatingToBackend,
+    mapFormatsFromBackend,
+    extractFormatsAndLanguages,
+    mapMoviesFromBackend,
+    mapMovieFromBackend,
+    mapMovieToBackend
+  } = movieService;
 
   // Load movies from API on mount
   useEffect(() => {
@@ -132,13 +72,8 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
       try {
         const result = await movieService.getAllMovies();
         if (result.success) {
-          // Map ageRating, formats từ backend format sang frontend format
-          const mappedMovies = (result.data || []).map(movie => ({
-            ...movie,
-            ageRating: mapAgeRatingFromBackend(movie.ageRating),
-            formats: mapFormatsFromBackend(movie.formats),
-            languages: movie.languages || []
-          }));
+          // Map movies from backend format to frontend format
+          const mappedMovies = mapMoviesFromBackend(result.data || []);
           setMovies(mappedMovies);
           if (onMoviesChange) {
             onMoviesChange(mappedMovies);
@@ -260,8 +195,8 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
   // Open edit movie modal
   const handleEditMovie = (movie) => {
     setEditingMovie(movie);
-    // Map ageRating từ backend format sang frontend format
-    const mappedAgeRating = mapAgeRatingFromBackend(movie.ageRating);
+    // Map movie to frontend format first
+    const mappedMovie = mapMovieFromBackend(movie);
     // Extract formats và languages từ movie
     const { formats, languages } = extractFormatsAndLanguages(movie);
     // Handle genre: convert to array if it's a string (backward compatibility)
@@ -272,7 +207,7 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
       genre: movieGenres, // Always array
       duration: movie.duration.toString(),
       releaseDate: movie.releaseDate,
-      ageRating: mappedAgeRating, // Đã được map từ backend format
+      ageRating: mappedMovie.ageRating, // Đã được map từ backend format
       actor: movie.actor,
       director: movie.director,
       description: movie.description,
@@ -290,42 +225,17 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
 
   // Save movie
   const handleSaveMovie = async () => {
-    // Validation đầy đủ các trường bắt buộc
+    // Basic client-side validation chỉ để UX tốt hơn (không duplicate business rules)
+    // Backend DTO đã có validation đầy đủ, sẽ trả về lỗi nếu có
     const errors = {};
     
+    // Chỉ validate những trường cơ bản nhất để tránh gọi API không cần thiết
     if (!formData.title || formData.title.trim() === '') {
       errors.title = 'Tên phim không được để trống';
     }
     if (!formData.genre || formData.genre.length === 0) {
       errors.genre = 'Vui lòng chọn ít nhất 1 thể loại';
     }
-    if (!formData.duration || formData.duration === '' || parseInt(formData.duration) <= 0) {
-      errors.duration = 'Thời lượng không được để trống và phải lớn hơn 0';
-    }
-    if (!formData.releaseDate || formData.releaseDate === '') {
-      errors.releaseDate = 'Ngày phát hành không được để trống';
-    }
-    if (!formData.ageRating || formData.ageRating === '') {
-      errors.ageRating = 'Độ tuổi không được để trống';
-    }
-    if (!formData.director || formData.director.trim() === '') {
-      errors.director = 'Đạo diễn không được để trống';
-    }
-    if (!formData.actor || formData.actor.trim() === '') {
-      errors.actor = 'Diễn viên không được để trống';
-    }
-    if (!formData.status || formData.status === '') {
-      errors.status = 'Trạng thái không được để trống';
-    }
-    // Note: formats và languages sẽ được xử lý sau khi backend hỗ trợ MovieVersion
-    // Tạm thời vẫn validate để đảm bảo người dùng chọn
-    if (!formData.formats || formData.formats.length === 0) {
-      errors.formats = 'Vui lòng chọn ít nhất 1 định dạng';
-    }
-    if (!formData.languages || formData.languages.length === 0) {
-      errors.languages = 'Vui lòng chọn ít nhất 1 ngôn ngữ';
-    }
-    // Validate poster - phải có URL từ Cloudinary
     if (!formData.poster || formData.poster.trim() === '') {
       errors.poster = 'Vui lòng upload poster';
     }
@@ -340,7 +250,7 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
       return;
     }
 
-    // Clear validation errors nếu validation thành công
+    // Clear validation errors
     setValidationErrors({});
 
     setLoading(true);
@@ -350,22 +260,22 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
       // Use poster URL from Cloudinary
       const posterValue = formData.poster;
 
-      // Prepare movie data for API (map ageRating và formats to backend format)
-      const movieData = {
+      // Prepare movie data for API (map to backend format)
+      const movieData = mapMovieToBackend({
         title: formData.title,
         genre: formData.genre, // Already an array
         duration: parseInt(formData.duration),
         releaseDate: formData.releaseDate,
-        ageRating: mapAgeRatingToBackend(formData.ageRating),
+        ageRating: formData.ageRating,
         actor: formData.actor || '',
         director: formData.director || '',
         description: formData.description || '',
         trailerURL: formData.trailerURL || '',
         poster: posterValue, // Có thể là URL dài hoặc base64
         status: formData.status,
-        formats: formData.formats.map(f => mapRoomTypeToBackend(f)), // Map 2D -> TYPE_2D, 3D -> TYPE_3D
+        formats: formData.formats,
         languages: formData.languages // Languages đã đúng format (VIETSUB, VIETNAMESE, VIETDUB)
-      };
+      });
 
       let result;
       if (editingMovie) {
@@ -380,12 +290,7 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
         // Reload movies from API
         const moviesResult = await movieService.getAllMovies();
         if (moviesResult.success) {
-          const mappedMovies = (moviesResult.data || []).map(movie => ({
-            ...movie,
-            ageRating: mapAgeRatingFromBackend(movie.ageRating),
-            formats: mapFormatsFromBackend(movie.formats),
-            languages: movie.languages || []
-          }));
+          const mappedMovies = mapMoviesFromBackend(moviesResult.data || []);
           setMovies(mappedMovies);
           if (onMoviesChange) {
             onMoviesChange(mappedMovies);
@@ -396,8 +301,44 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
         setPosterPreview('');
         showNotification(result.message || (editingMovie ? 'Cập nhật phim thành công' : 'Tạo phim thành công'), 'success');
       } else {
-        setError(result.error);
-        showNotification(result.error || 'Có lỗi xảy ra', 'error');
+        // Backend validation errors sẽ được trả về trong result.error hoặc result.validationErrors
+        const errorMessage = result.error || 'Có lỗi xảy ra';
+        let hasValidationErrors = false;
+        
+        // Nếu có validationErrors object từ backend (nếu backend trả về errors object)
+        if (result.validationErrors && typeof result.validationErrors === 'object') {
+          setValidationErrors(result.validationErrors);
+          hasValidationErrors = Object.keys(result.validationErrors).length > 0;
+        }
+        // Nếu error message chứa validation errors từ backend (format: "field: message, field2: message2")
+        else if (errorMessage.includes(':')) {
+          const backendErrors = {};
+          const errorParts = errorMessage.split(',');
+          errorParts.forEach(part => {
+            const [field, message] = part.split(':').map(s => s.trim());
+            if (field && message) {
+              // Map backend field names to frontend field names if needed
+              const frontendField = field; // Usually same, but can map if different
+              backendErrors[frontendField] = message;
+            }
+          });
+          
+          if (Object.keys(backendErrors).length > 0) {
+            setValidationErrors(backendErrors);
+            hasValidationErrors = true;
+          }
+        }
+        
+        // Scroll to top để người dùng thấy lỗi nếu có validation errors
+        if (hasValidationErrors) {
+          const modalContent = document.querySelector('.movie-modal__content');
+          if (modalContent) {
+            modalContent.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }
+        
+        setError(errorMessage);
+        showNotification(errorMessage, 'error');
       }
     } catch (err) {
       setError(err.message || 'Có lỗi xảy ra');
@@ -418,10 +359,7 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
         // Reload movies from API
         const moviesResult = await movieService.getAllMovies();
         if (moviesResult.success) {
-          const mappedMovies = (moviesResult.data || []).map(movie => ({
-            ...movie,
-            ageRating: mapAgeRatingFromBackend(movie.ageRating)
-          }));
+          const mappedMovies = mapMoviesFromBackend(moviesResult.data || []);
           setMovies(mappedMovies);
           if (onMoviesChange) {
             onMoviesChange(mappedMovies);

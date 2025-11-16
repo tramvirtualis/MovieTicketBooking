@@ -1,5 +1,13 @@
 package com.example.backend.services;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.example.backend.dtos.CreateMovieDTO;
 import com.example.backend.dtos.MovieResponseDTO;
 import com.example.backend.dtos.UpdateMovieDTO;
@@ -10,14 +18,8 @@ import com.example.backend.entities.enums.MovieStatus;
 import com.example.backend.entities.enums.RoomType;
 import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.MovieVersionRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -155,13 +157,11 @@ public class MovieService {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy phim với ID: " + movieId));
         
-        // Xóa tất cả MovieVersion trước khi xóa Movie
         List<MovieVersion> versions = movieVersionRepository.findByMovie(movie);
         if (!versions.isEmpty()) {
             movieVersionRepository.deleteAll(versions);
         }
         
-        // Sau đó mới xóa Movie
         movieRepository.delete(movie);
     }
     
@@ -178,7 +178,6 @@ public class MovieService {
                 .collect(Collectors.toList());
     }
     
-    // ============ PUBLIC METHODS (MỚI THÊM) ============
     
     public List<MovieResponseDTO> getNowShowingMovies() {
         List<Movie> movies = movieRepository.findNowShowingMovies();
@@ -201,7 +200,6 @@ public class MovieService {
                 .collect(Collectors.toList());
     }
     
-    // ============ HELPER METHOD ============
     
     private MovieResponseDTO convertToDTO(Movie movie) {
         List<MovieVersion> versions = movieVersionRepository.findByMovie(movie);

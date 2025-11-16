@@ -1,5 +1,14 @@
 package com.example.backend.services;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.example.backend.dtos.CreateReviewDTO;
 import com.example.backend.dtos.ReviewResponseDTO;
 import com.example.backend.entities.Movie;
@@ -8,15 +17,8 @@ import com.example.backend.entities.User;
 import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.ReviewRepository;
 import com.example.backend.repositories.UserRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
