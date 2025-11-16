@@ -34,15 +34,37 @@ public class CustomerController {
     @PutMapping("/{id}/profile")
     public ResponseEntity<?> updateProfile(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateCustomerProfileRequestDTO request) {
+            @Valid @RequestBody UpdateCustomerProfileRequestDTO request,
+            BindingResult bindingResult) {
+
+        // Check validation errors
+        if (bindingResult.hasErrors()) {
+            return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
+        }
 
         try {
             Customer updatedCustomer = customerService.updateProfile(id, request);
 
+            // Map Customer entity to response format
+            Map<String, Object> customerData = new HashMap<>();
+            customerData.put("userId", updatedCustomer.getUserId());
+            customerData.put("name", updatedCustomer.getName());
+            customerData.put("email", updatedCustomer.getEmail());
+            customerData.put("phone", updatedCustomer.getPhone());
+            customerData.put("dob", updatedCustomer.getDob());
+            
+            // Map address if exists
+            if (updatedCustomer.getAddress() != null) {
+                Map<String, Object> addressData = new HashMap<>();
+                addressData.put("description", updatedCustomer.getAddress().getDescription());
+                addressData.put("province", updatedCustomer.getAddress().getProvince());
+                customerData.put("address", addressData);
+            }
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Cập nhật thông tin thành công");
-            response.put("data", updatedCustomer);
+            response.put("data", customerData);
 
             return ResponseEntity.ok(response);
 

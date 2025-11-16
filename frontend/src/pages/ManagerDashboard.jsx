@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import ManagerCinemaManagement from '../components/ManagerDashboard/ManagerCinemaManagement';
-import ManagerMovieView from '../components/ManagerDashboard/ManagerMovieView';
+import ManagerMovieManagement from '../components/ManagerDashboard/ManagerMovieManagement';
 import ManagerPriceView from '../components/ManagerDashboard/ManagerPriceView';
 import ManagerBookingManagement from '../components/ManagerDashboard/ManagerBookingManagement';
 import ManagerReports from '../components/ManagerDashboard/ManagerReports';
@@ -324,7 +324,7 @@ export default function ManagerDashboard() {
 
         <main className="admin-content">
           {activeSection === 'movies' && (
-            <ManagerMovieView movies={movies} />
+            <ManagerMovieManagement complexId={currentComplexId || cinemaComplexId} />
           )}
 
           {activeSection === 'cinemas' && (

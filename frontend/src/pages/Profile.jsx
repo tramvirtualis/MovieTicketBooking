@@ -158,7 +158,8 @@ export default function Profile() {
   };
 
   const stats = [
-    
+    { label: 'Tổng số vé đã mua', value: userData.totalBookings, icon: 'ticket' },
+    { label: 'Tổng chi tiêu', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(userData.totalSpent), icon: 'money' },
   ];
 
   const getIcon = (iconName) => {
@@ -240,6 +241,7 @@ export default function Profile() {
         return date;
       };
   
+      // Map response data correctly
       const updatedUserData = {
         userId: updatedUser.userId || userData.userId,
         name: updatedUser.name || editData.name || "",
@@ -248,8 +250,12 @@ export default function Profile() {
         dob: formatDate(updatedUser.dob) || editData.dob || "",
         joinDate: userData.joinDate || "",
         address: {
-          description: updatedUser.address?.description || editData.addressDescription || "",
-          province: updatedUser.address?.province || editData.addressProvince || "",
+          description: (updatedUser.address && updatedUser.address.description) 
+            ? updatedUser.address.description 
+            : (editData.addressDescription || ""),
+          province: (updatedUser.address && updatedUser.address.province) 
+            ? updatedUser.address.province 
+            : (editData.addressProvince || ""),
         },
         totalBookings: userData.totalBookings || 0,
         totalSpent: userData.totalSpent || 0,

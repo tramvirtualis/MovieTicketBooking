@@ -672,7 +672,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
           </h2>
           <p style={{ margin: 0, color: '#c9c4c5', fontSize: '15px', lineHeight: 1.6 }}>
             {cinemas && cinemas.length > 0 
-              ? `Bạn đang quản lý ${cinemas.length} cụm rạp${cinemas.length > 1 ? '' : ''}. Quản lý phòng chiếu và lịch chiếu của cụm rạp.`
+              ? `Bạn đang quản lý ${cinemas.length} cụm rạp${cinemas.length > 1 ? '' : ''}.`
               : 'Chưa có cụm rạp nào được gán cho bạn. Vui lòng liên hệ admin để được gán cụm rạp.'}
           </p>
         </div>
