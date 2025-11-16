@@ -8,21 +8,31 @@ function GoogleButton() {
   return (
     <button
       type="button"
-      className="flex items-center justify-center gap-3 w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+      className="btn btn--google"
       aria-label="Continue with Google"
+      style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        gap: '10px',
+        width: '100%',
+        marginTop: '8px'
+      }}
+      disabled
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 48 48"
-        width="20"
-        height="20"
+      <svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        width="20" 
+        height="20" 
+        viewBox="0 0 48 48" 
+        aria-hidden="true"
       >
-        <path fill="#FFC107" d="..." />
-        <path fill="#FF3D00" d="..." />
-        <path fill="#4CAF50" d="..." />
-        <path fill="#1976D2" d="..." />
+        <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.602 31.91 29.197 35 24 35 16.82 35 11 29.18 11 22S16.82 9 24 9c3.59 0 6.84 1.353 9.35 3.57l5.657-5.657C34.884 3.029 29.7 1 24 1 10.745 1 0 11.745 0 25s10.745 24 24 24c12.426 0 23-9.065 23-24 0-1.604-.175-3.162-.389-4.917z"/>
+        <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.377 16.361 18.834 13 24 13c3.59 0 6.84 1.353 9.35 3.57l5.657-5.657C34.884 3.029 29.7 1 24 1 15.317 1 7.861 5.777 4.01 12.651l2.296 2.04z"/>
+        <path fill="#4CAF50" d="M24 49c5.115 0 9.81-1.743 13.49-4.72l-6.24-5.243C29.197 41.91 24.792 45 19.595 45c-7.016 0-12.94-5.026-14.51-11.742l-2.34 1.807C6.008 43.495 14.303 49 24 49z"/>
+        <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-1.32 3.91-5.725 7-10.922 7-5.057 0-9.395-3.23-10.95-7.726l-2.34 1.807C13.008 39.495 21.303 45 31 45c12.426 0 23-9.065 23-24 0-1.604-.175-3.162-.389-4.917z"/>
       </svg>
-      <span className="text-gray-700 font-medium text-sm">
+      <span style={{ fontSize: '14px', fontWeight: 500 }}>
         Tiếp tục với Google
       </span>
     </button>
