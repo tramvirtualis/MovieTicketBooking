@@ -248,6 +248,52 @@ export const voucherService = {
       };
     }
   },
+
+  /**
+   * Gán voucher cho khách hàng
+   * @param {number} voucherId - ID của voucher
+   * @param {number} customerId - ID của khách hàng
+   * @returns {Promise<Object>} Response từ server
+   */
+  assignVoucherToCustomer: async (voucherId, customerId) => {
+    try {
+      const response = await axiosInstance.post(`/admin/vouchers/${voucherId}/assign/${customerId}`);
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        message: response.data.message || 'Gán voucher cho khách hàng thành công',
+      };
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Không thể gán voucher';
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  },
+
+  /**
+   * Bỏ gán voucher khỏi khách hàng
+   * @param {number} voucherId - ID của voucher
+   * @param {number} customerId - ID của khách hàng
+   * @returns {Promise<Object>} Response từ server
+   */
+  unassignVoucherFromCustomer: async (voucherId, customerId) => {
+    try {
+      const response = await axiosInstance.delete(`/admin/vouchers/${voucherId}/unassign/${customerId}`);
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        message: response.data.message || 'Bỏ gán voucher khỏi khách hàng thành công',
+      };
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Không thể bỏ gán voucher';
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  },
 };
 
 export default voucherService;

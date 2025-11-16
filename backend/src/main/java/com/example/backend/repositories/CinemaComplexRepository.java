@@ -10,5 +10,3 @@ import java.util.Optional;
 public interface CinemaComplexRepository extends JpaRepository<CinemaComplex, Long> {
     Optional<CinemaComplex> findByComplexId(Long complexId);
 }
-
-

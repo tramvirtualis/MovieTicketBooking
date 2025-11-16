@@ -36,10 +36,11 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173", "http://localhost:3000"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
+        configuration.setExposedHeaders(Arrays.asList("Authorization")); // Thêm dòng này
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -65,8 +66,8 @@ public class SecurityConfig {
                 // Admin endpoints - cần role ADMIN
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 
-                // Manager endpoints - cần role MANAGER hoặc ADMIN
-                .requestMatchers("/api/manager/**").hasAnyRole("MANAGER", "ADMIN")
+                // Manager endpoints - cần authenticated
+                .requestMatchers("/api/manager/**").authenticated()
                 
                 // Tất cả request khác cần authentication
                 .anyRequest().authenticated()
