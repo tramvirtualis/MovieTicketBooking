@@ -4,9 +4,12 @@ import com.example.backend.dtos.CreateVoucherDTO;
 import com.example.backend.dtos.UpdateVoucherDTO;
 import com.example.backend.dtos.VoucherResponseDTO;
 import com.example.backend.entities.Voucher;
+import com.example.backend.entities.Customer;
 import com.example.backend.entities.enums.VoucherScope;
 import com.example.backend.repositories.VoucherRepository;
+import com.example.backend.repositories.CustomerRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,9 +18,11 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class VoucherService {
     
     private final VoucherRepository voucherRepository;
+    private final CustomerRepository customerRepository;
     
     @Transactional
     public VoucherResponseDTO createVoucher(CreateVoucherDTO createDTO) {
@@ -139,6 +144,47 @@ public class VoucherService {
         return voucherRepository.findByScope(scope).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+    }
+    
+    @Transactional
+    public VoucherResponseDTO assignVoucherToCustomer(Long voucherId, Long customerId) throws Exception {
+        Voucher voucher = voucherRepository.findById(voucherId)
+                .orElseThrow(() -> new Exception("Không tìm thấy voucher với ID: " + voucherId));
+        
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new Exception("Không tìm thấy khách hàng với ID: " + customerId));
+        
+        // Kiểm tra voucher đã được gán cho customer chưa
+        if (customer.getVouchers().stream().anyMatch(v -> v.getVoucherId().equals(voucherId))) {
+            throw new Exception("Voucher này đã được gán cho khách hàng rồi");
+        }
+        
+        // Thêm voucher vào danh sách vouchers của customer
+        customer.getVouchers().add(voucher);
+        customerRepository.save(customer);
+        
+        log.info("Assigned voucher ID: {} to customer ID: {}", voucherId, customerId);
+        return convertToDTO(voucher);
+    }
+    
+    @Transactional
+    public void unassignVoucherFromCustomer(Long voucherId, Long customerId) throws Exception {
+        Voucher voucher = voucherRepository.findById(voucherId)
+                .orElseThrow(() -> new Exception("Không tìm thấy voucher với ID: " + voucherId));
+        
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new Exception("Không tìm thấy khách hàng với ID: " + customerId));
+        
+        // Kiểm tra voucher có được gán cho customer không
+        if (!customer.getVouchers().stream().anyMatch(v -> v.getVoucherId().equals(voucherId))) {
+            throw new Exception("Voucher này chưa được gán cho khách hàng");
+        }
+        
+        // Xóa voucher khỏi danh sách vouchers của customer
+        customer.getVouchers().removeIf(v -> v.getVoucherId().equals(voucherId));
+        customerRepository.save(customer);
+        
+        log.info("Unassigned voucher ID: {} from customer ID: {}", voucherId, customerId);
     }
     
     private VoucherResponseDTO convertToDTO(Voucher voucher) {

@@ -1,8 +1,10 @@
 ﻿import React, { useState } from 'react';
+import { voucherService } from '../../services/voucherService';
 
 // Voucher Assign Modal Component
 function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
   const [newSelectedIds, setNewSelectedIds] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   // Filter voucher riêng tư và chưa hết hạn
   const now = new Date();
@@ -35,27 +37,32 @@ function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
     });
   };
 
-  const handleSave = () => {
-    const updatedVouchers = vouchers.map(v => {
-      if (!v.isPublic) {
-        const currentIds = v.assignedUserIds || [];
-        const isAlreadyAssigned = alreadyAssignedIds.includes(v.voucherId);
-        const isNewlySelected = newSelectedIds.includes(v.voucherId);
-        
-        if (isAlreadyAssigned) {
-          // Keep already assigned vouchers
-          return v;
-        } else if (isNewlySelected) {
-          // Add newly selected vouchers
-          return { ...v, assignedUserIds: [...currentIds, user.userId] };
-        } else {
-          // Remove if it was previously selected but not saved yet (shouldn't happen, but just in case)
-          return { ...v, assignedUserIds: currentIds.filter(id => id !== user.userId) };
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      // Gán các voucher mới được chọn
+      for (const voucherId of newSelectedIds) {
+        const result = await voucherService.assignVoucherToCustomer(voucherId, user.userId);
+        if (!result.success) {
+          throw new Error(result.error || 'Không thể gán voucher');
         }
       }
-      return v;
-    });
-    onSave(updatedVouchers);
+
+      // Cập nhật state vouchers
+      const updatedVouchers = vouchers.map(v => {
+        if (!v.isPublic && newSelectedIds.includes(v.voucherId)) {
+          const currentIds = v.assignedUserIds || [];
+          return { ...v, assignedUserIds: [...currentIds, user.userId] };
+        }
+        return v;
+      });
+
+      onSave(updatedVouchers);
+    } catch (error) {
+      alert(error.message || 'Có lỗi xảy ra khi gán voucher');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -120,9 +127,9 @@ function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
           )}
         </div>
         <div className="movie-modal__footer">
-          <button className="btn btn--ghost" onClick={onClose}>Hủy</button>
-          <button className="btn btn--primary" onClick={handleSave} disabled={newSelectedIds.length === 0}>
-            Lưu
+          <button className="btn btn--ghost" onClick={onClose} disabled={loading}>Hủy</button>
+          <button className="btn btn--primary" onClick={handleSave} disabled={newSelectedIds.length === 0 || loading}>
+            {loading ? 'Đang lưu...' : 'Lưu'}
           </button>
         </div>
       </div>

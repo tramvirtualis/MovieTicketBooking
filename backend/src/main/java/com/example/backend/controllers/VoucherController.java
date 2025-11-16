@@ -128,6 +128,36 @@ public class VoucherController {
         }
     }
     
+    @PostMapping("/api/admin/vouchers/{voucherId}/assign/{customerId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> assignVoucherToCustomer(@PathVariable Long voucherId,
+                                                      @PathVariable Long customerId) {
+        try {
+            VoucherResponseDTO voucherResponse = voucherService.assignVoucherToCustomer(voucherId, customerId);
+            return ResponseEntity.ok(
+                    createSuccessResponse("Gán voucher cho khách hàng thành công", voucherResponse)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    @DeleteMapping("/api/admin/vouchers/{voucherId}/unassign/{customerId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> unassignVoucherFromCustomer(@PathVariable Long voucherId,
+                                                          @PathVariable Long customerId) {
+        try {
+            voucherService.unassignVoucherFromCustomer(voucherId, customerId);
+            return ResponseEntity.ok(
+                    createSuccessResponse("Bỏ gán voucher khỏi khách hàng thành công", null)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
     // ============ PUBLIC ENDPOINTS ============
     
     @GetMapping("/api/public/vouchers")
