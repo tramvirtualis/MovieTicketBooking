@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { SEAT_TYPES, ROOM_TYPES, PROVINCES } from '../AdminDashboard/constants';
 import { generateSeats, getSeatColor } from '../AdminDashboard/utils';
-import { SAMPLE_MOVIES } from './sampleData';
 import ConfirmDeleteModal from '../Common/ConfirmDeleteModal';
+import movieService from '../../services/movieService';
+import { enumService } from '../../services/enumService';
 
 // Full Cinema Management (copied and adapted from Admin) scoped for manager
 function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange, complexId }) {
@@ -29,6 +30,18 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
   });
   const [savingRoom, setSavingRoom] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [movies, setMovies] = useState([]);
+  const [loadingMovies, setLoadingMovies] = useState(false);
+  const [showtimeConflict, setShowtimeConflict] = useState(null);
+  const [notification, setNotification] = useState(null);
+
+  // Notification system
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000);
+  };
 
   useEffect(() => {
     if (onCinemasChange) {
@@ -113,6 +126,26 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     setShowRoomModal(true);
   };
 
+  // Load movies for showtime management
+  useEffect(() => {
+    const loadMovies = async () => {
+      if (showShowtimeModal && !movies.length) {
+        setLoadingMovies(true);
+        try {
+          const result = await movieService.getAllMoviesManager();
+          if (result.success && result.data) {
+            setMovies(result.data);
+          }
+        } catch (error) {
+          console.error('Error loading movies:', error);
+        } finally {
+          setLoadingMovies(false);
+        }
+      }
+    };
+    loadMovies();
+  }, [showShowtimeModal]);
+
   const openShowtimes = (cinema, room) => {
     setSelectedCinema(cinema);
     setSelectedRoom(room);
@@ -125,6 +158,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
       language: 'Phụ đề',
       format: room.roomType || '2D'
     });
+    setShowtimeConflict(null);
     setShowShowtimeModal(true);
   };
 
@@ -311,39 +345,100 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
 
   // Showtime management
   const computeEndTime = (date, startTime, movieId) => {
-    const movie = SAMPLE_MOVIES.find(m => m.movieId === Number(movieId));
+    const movie = movies.find(m => m.movieId === Number(movieId));
     const duration = movie ? movie.duration : 0;
+    if (!duration || !startTime) return '';
     const start = new Date(`${date}T${startTime}:00`);
-    const end = new Date(start.getTime() + duration * 60000 + 15 * 60000);
+    const end = new Date(start.getTime() + duration * 60000 + 15 * 60000); // +15 phút buffer
     return end.toTimeString().slice(0,5);
   };
 
   const hasOverlap = (list, date, startTime, endTime, editingId) => {
+    if (!startTime || !endTime) return false;
     const s = new Date(`${date}T${startTime}:00`).getTime();
     const e = new Date(`${date}T${endTime}:00`).getTime();
-    return (list || []).some(st => {
+    const conflicts = (list || []).filter(st => {
       if (editingId && st.showtimeId === editingId) return false;
       if (st.date !== date) return false;
+      if (!st.startTime || !st.endTime) return false;
       const ss = new Date(`${st.date}T${st.startTime}:00`).getTime();
       const ee = new Date(`${st.date}T${st.endTime}:00`).getTime();
       return Math.max(s, ss) < Math.min(e, ee);
     });
+    return conflicts;
   };
+
+  // Real-time conflict checking
+  useEffect(() => {
+    if (!showShowtimeModal || !selectedRoom || !showtimeForm.date || !showtimeForm.startTime || !showtimeForm.movieId) {
+      setShowtimeConflict(null);
+      return;
+    }
+
+    const endTime = computeEndTime(showtimeForm.date, showtimeForm.startTime, showtimeForm.movieId);
+    if (!endTime) {
+      setShowtimeConflict(null);
+      return;
+    }
+
+    const conflicts = hasOverlap(
+      selectedRoom.showtimes || [],
+      showtimeForm.date,
+      showtimeForm.startTime,
+      endTime,
+      editingShowtime?.showtimeId
+    );
+
+    if (conflicts && conflicts.length > 0) {
+      const conflictShowtime = conflicts[0];
+      const conflictMovie = movies.find(m => m.movieId === conflictShowtime.movieId);
+      setShowtimeConflict({
+        message: `⚠️ Trùng với lịch chiếu: ${conflictMovie?.title || 'Phim khác'} (${conflictShowtime.startTime} - ${conflictShowtime.endTime})`,
+        conflicts
+      });
+    } else {
+      setShowtimeConflict(null);
+    }
+  }, [showtimeForm.date, showtimeForm.startTime, showtimeForm.movieId, showShowtimeModal, selectedRoom, editingShowtime, movies]);
+
+  // Group showtimes by date for timeline view
+  const showtimesByDate = useMemo(() => {
+    if (!selectedRoom?.showtimes) return {};
+    const grouped = {};
+    (selectedRoom.showtimes || []).forEach(st => {
+      if (!grouped[st.date]) {
+        grouped[st.date] = [];
+      }
+      grouped[st.date].push(st);
+    });
+    // Sort each date's showtimes by start time
+    Object.keys(grouped).forEach(date => {
+      grouped[date].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    });
+    return grouped;
+  }, [selectedRoom?.showtimes]);
 
   const handleSaveShowtime = () => {
     if (!selectedCinema || !selectedRoom) return;
     if (!showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime) {
-      alert('Vui lòng chọn phim, ngày và giờ bắt đầu');
+      showNotification('Vui lòng chọn phim, ngày và giờ bắt đầu', 'error');
       return;
     }
     const endTime = computeEndTime(showtimeForm.date, showtimeForm.startTime, showtimeForm.movieId);
+    if (!endTime) {
+      showNotification('Không thể tính giờ kết thúc. Vui lòng kiểm tra lại thông tin phim.', 'error');
+      return;
+    }
     const cinemaIndex = cinemas.findIndex(c => c.complexId === selectedCinema.complexId);
     const roomIndex = cinemas[cinemaIndex].rooms.findIndex(r => r.roomId === selectedRoom.roomId);
     const updated = [...cinemas];
     const room = { ...updated[cinemaIndex].rooms[roomIndex] };
     const current = room.showtimes || [];
-    if (hasOverlap(current, showtimeForm.date, showtimeForm.startTime, endTime, editingShowtime?.showtimeId)) {
-      alert('Khung giờ trùng với lịch chiếu hiện có (đã tính buffer 15 phút).');
+    const conflicts = hasOverlap(current, showtimeForm.date, showtimeForm.startTime, endTime, editingShowtime?.showtimeId);
+    if (conflicts && conflicts.length > 0) {
+      const conflictShowtime = conflicts[0];
+      const conflictMovie = movies.find(m => m.movieId === conflictShowtime.movieId);
+      showNotification(`Khung giờ trùng với lịch chiếu: ${conflictMovie?.title || 'Phim khác'} (${conflictShowtime.startTime} - ${conflictShowtime.endTime})`, 'error');
       return;
     }
     if (editingShowtime) {
@@ -382,6 +477,8 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
       language: 'Phụ đề',
       format: room.roomType || '2D'
     });
+    setShowtimeConflict(null);
+    showNotification(editingShowtime ? 'Cập nhật lịch chiếu thành công' : 'Thêm lịch chiếu thành công', 'success');
   };
 
   const handleEditShowtime = (st) => {
@@ -394,6 +491,14 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
       language: st.language || 'Phụ đề',
       format: st.format || (selectedRoom?.roomType || '2D')
     });
+    setShowtimeConflict(null);
+    // Scroll to form
+    setTimeout(() => {
+      const formElement = document.querySelector('.showtime-form-container');
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   };
 
   const handleDeleteShowtime = (stId) => {
@@ -927,35 +1032,86 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
         </div>
       )}
 
-      {/* Showtime Modal */}
+      {/* Showtime Modal - Redesigned */}
       {showShowtimeModal && selectedRoom && (
-        <div className="movie-modal-overlay" onClick={() => { setShowShowtimeModal(false); setSelectedRoom(null); }}>
-          <div className="movie-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '920px' }}>
+        <div className="movie-modal-overlay" onClick={() => { setShowShowtimeModal(false); setSelectedRoom(null); setShowtimeConflict(null); }}>
+          <div className="movie-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '1200px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div className="movie-modal__header">
               <h2>Lịch chiếu - {selectedRoom.roomName} • {selectedCinema?.name}</h2>
-              <button className="movie-modal__close" onClick={() => { setShowShowtimeModal(false); setSelectedRoom(null); }}>
+              <button className="movie-modal__close" onClick={() => { setShowShowtimeModal(false); setSelectedRoom(null); setShowtimeConflict(null); }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
                   <line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
               </button>
             </div>
-            <div className="movie-modal__content">
+            
+            <div className="movie-modal__content" style={{ overflowY: 'auto', flex: 1 }}>
+              {/* Form Section */}
+              <div className="showtime-form-container" style={{ 
+                background: 'rgba(255, 255, 255, 0.02)', 
+                borderRadius: '12px', 
+                padding: '24px',
+                marginBottom: '24px',
+                border: editingShowtime ? '2px solid #ffd159' : '1px solid rgba(255, 255, 255, 0.1)'
+              }}>
+                {editingShowtime && (
+                  <div style={{ 
+                    background: 'rgba(255, 209, 89, 0.1)', 
+                    border: '1px solid #ffd159',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffd159" strokeWidth="2">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    <span style={{ color: '#ffd159', fontWeight: 600 }}>Đang chỉnh sửa lịch chiếu</span>
+                    <button 
+                      className="btn btn--ghost" 
+                      onClick={() => { 
+                        setEditingShowtime(null); 
+                        setShowtimeForm({
+                          movieId: '',
+                          date: new Date().toISOString().slice(0,10),
+                          startTime: '',
+                          price: 120000,
+                          language: 'Phụ đề',
+                          format: selectedRoom.roomType || '2D'
+                        });
+                        setShowtimeConflict(null);
+                      }}
+                      style={{ marginLeft: 'auto', padding: '6px 12px', fontSize: '14px' }}
+                    >
+                      Hủy
+                    </button>
+                  </div>
+                )}
+
               <div className="movie-form">
                 <div className="movie-form__row">
-                  <div className="movie-form__group">
+                    <div className="movie-form__group" style={{ flex: 2 }}>
                     <label>Phim <span className="required">*</span></label>
+                      {loadingMovies ? (
+                        <div style={{ padding: '12px', textAlign: 'center', color: '#c9c4c5' }}>Đang tải danh sách phim...</div>
+                      ) : (
                     <select
                       value={showtimeForm.movieId}
                       onChange={(e) => setShowtimeForm({ ...showtimeForm, movieId: e.target.value })}
+                          style={{ borderColor: showtimeForm.movieId ? '#4a3f41' : '#e83b41' }}
                     >
                       <option value="">Chọn phim</option>
-                      {SAMPLE_MOVIES.map(m => (
+                          {movies.map(m => (
                         <option key={m.movieId} value={m.movieId}>
                           {m.title} • {m.duration} phút
                         </option>
                       ))}
                     </select>
+                      )}
                   </div>
                   <div className="movie-form__group">
                     <label>Ngày <span className="required">*</span></label>
@@ -963,6 +1119,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                       type="date"
                       value={showtimeForm.date}
                       onChange={(e) => setShowtimeForm({ ...showtimeForm, date: e.target.value })}
+                        min={new Date().toISOString().split('T')[0]}
                     />
                   </div>
                   <div className="movie-form__group">
@@ -974,15 +1131,56 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                     />
                   </div>
                 </div>
-                <div className="movie-form__row">
+
+                  {showtimeForm.movieId && showtimeForm.date && showtimeForm.startTime && (
+                    <div style={{ 
+                      marginTop: '12px',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      background: showtimeConflict ? 'rgba(232, 59, 65, 0.1)' : 'rgba(76, 175, 80, 0.1)',
+                      border: `1px solid ${showtimeConflict ? '#e83b41' : '#4caf50'}`,
+                      color: showtimeConflict ? '#e83b41' : '#4caf50',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      {showtimeConflict ? (
+                        <>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                          </svg>
+                          <span>{showtimeConflict.message}</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                          <span>
+                            Giờ kết thúc dự kiến: <strong>{computeEndTime(showtimeForm.date, showtimeForm.startTime, showtimeForm.movieId)}</strong>
+                            {(() => {
+                              const movie = movies.find(m => m.movieId === Number(showtimeForm.movieId));
+                              return movie ? ` (${movie.duration} phút + 15 phút buffer)` : '';
+                            })()}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="movie-form__row" style={{ marginTop: '16px' }}>
                   <div className="movie-form__group">
-                    <label>Giá vé</label>
+                      <label>Giá vé (VNĐ)</label>
                     <input
                       type="number"
                       value={showtimeForm.price}
                       onChange={(e) => setShowtimeForm({ ...showtimeForm, price: parseInt(e.target.value) || 0 })}
                       min="0"
                       step="1000"
+                        placeholder="120000"
                     />
                   </div>
                   <div className="movie-form__group">
@@ -992,9 +1190,12 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                       onChange={(e) => setShowtimeForm({ ...showtimeForm, language: e.target.value })}
                     >
                       {(() => {
-                        const mv = SAMPLE_MOVIES.find(m => String(m.movieId) === String(showtimeForm.movieId));
-                        const langs = mv?.languages || ['VIETSUB','VIETNAMESE_DUB','VIETNAMESE'];
-                        return langs.map(l => <option key={l} value={l}>{l}</option>);
+                          const mv = movies.find(m => String(m.movieId) === String(showtimeForm.movieId));
+                          // MovieResponseDTO có formats và languages
+                          const langs = mv?.languages || ['VIETSUB', 'VIETNAMESE_DUB', 'VIETNAMESE'];
+                          return langs.length > 0 ? langs.map(l => (
+                            <option key={l} value={l}>{l}</option>
+                          )) : <option value="VIETSUB">VIETSUB</option>;
                       })()}
                     </select>
                   </div>
@@ -1005,86 +1206,350 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                       onChange={(e) => setShowtimeForm({ ...showtimeForm, format: e.target.value })}
                     >
                       {(() => {
-                        const mv = SAMPLE_MOVIES.find(m => String(m.movieId) === String(showtimeForm.movieId));
-                        const fmts = mv?.formats || ['2D','3D','DELUXE'];
-                        return fmts.map(f => <option key={f} value={f}>{f}</option>);
+                          const mv = movies.find(m => String(m.movieId) === String(showtimeForm.movieId));
+                          // MovieResponseDTO có formats (RoomType enum array)
+                          const fmts = mv?.formats || [];
+                          // Map RoomType enum to display strings using enumService
+                          const displayFormats = fmts.length > 0 
+                            ? fmts.map(f => enumService.mapRoomTypeToDisplay(f))
+                            : ['2D', '3D', 'DELUXE'];
+                          return displayFormats.length > 0 ? displayFormats.map(f => (
+                            <option key={f} value={f}>{f}</option>
+                          )) : <option value={selectedRoom?.roomType || '2D'}>{selectedRoom?.roomType || '2D'}</option>;
                       })()}
                     </select>
                   </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                  {editingShowtime && (
-                    <button className="btn btn--ghost" onClick={() => { setEditingShowtime(null); }}>
-                      Hủy sửa
-                    </button>
-                  )}
-                  <button className="btn btn--primary" onClick={handleSaveShowtime}>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+                    <button 
+                      className="btn btn--primary" 
+                      onClick={handleSaveShowtime}
+                      disabled={!showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict}
+                      style={{ 
+                        opacity: (!showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict) ? 0.5 : 1,
+                        cursor: (!showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict) ? 'not-allowed' : 'pointer'
+                      }}
+                    >
                     {editingShowtime ? 'Lưu thay đổi' : 'Thêm lịch chiếu'}
                   </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="admin-table" style={{ marginTop: '16px' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Phim</th>
-                      <th>Ngày</th>
-                      <th>Bắt đầu</th>
-                      <th>Kết thúc</th>
-                      <th>Ngôn ngữ</th>
-                      <th>Định dạng</th>
-                      <th>Giá</th>
-                      <th>Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(selectedRoom.showtimes || []).length === 0 ? (
-                      <tr>
-                        <td colSpan="8" style={{ textAlign: 'center', color: '#c9c4c5' }}>
-                          Chưa có lịch chiếu cho phòng này
-                        </td>
-                      </tr>
-                    ) : (
-                      (selectedRoom.showtimes || [])
-                        .slice()
-                        .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))
-                        .map(st => {
-                          const mv = SAMPLE_MOVIES.find(m => m.movieId === st.movieId);
+              {/* Timeline View Section */}
+              <div style={{ marginTop: '24px' }}>
+                <h3 style={{ 
+                  color: '#fff', 
+                  fontSize: '18px', 
+                  fontWeight: 600, 
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  Lịch chiếu hiện tại
+                </h3>
+
+                {Object.keys(showtimesByDate).length === 0 ? (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: '60px 20px',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    borderRadius: '12px',
+                    border: '1px dashed rgba(255, 255, 255, 0.1)'
+                  }}>
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ margin: '0 auto 20px', opacity: 0.3 }}>
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <p style={{ color: '#c9c4c5', fontSize: '16px', margin: 0 }}>Chưa có lịch chiếu cho phòng này</p>
+                    <p style={{ color: '#999', fontSize: '14px', marginTop: '8px' }}>Thêm lịch chiếu đầu tiên bằng form phía trên</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    {Object.keys(showtimesByDate).sort().map(date => (
+                      <div key={date} style={{
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        borderRadius: '12px',
+                        padding: '20px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)'
+                      }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '12px',
+                          marginBottom: '16px',
+                          paddingBottom: '12px',
+                          borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+                        }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: '#ffd159' }}>
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                          </svg>
+                          <span style={{ 
+                            color: '#fff', 
+                            fontSize: '16px', 
+                            fontWeight: 600 
+                          }}>
+                            {new Date(date).toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                          </span>
+                          <span style={{ 
+                            color: '#c9c4c5', 
+                            fontSize: '14px',
+                            marginLeft: 'auto'
+                          }}>
+                            {showtimesByDate[date].length} suất chiếu
+                          </span>
+                        </div>
+
+                        {/* Timeline bars */}
+                        <div style={{ position: 'relative', paddingLeft: '60px', minHeight: '80px' }}>
+                          {/* Time labels */}
+                          <div style={{ 
+                            position: 'absolute', 
+                            left: 0, 
+                            top: 0, 
+                            bottom: 0, 
+                            width: '60px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            fontSize: '12px',
+                            color: '#999',
+                            paddingTop: '8px',
+                            paddingBottom: '8px'
+                          }}>
+                            <span>08:00</span>
+                            <span>12:00</span>
+                            <span>16:00</span>
+                            <span>20:00</span>
+                            <span>24:00</span>
+                          </div>
+
+                          {/* Timeline track */}
+                          <div style={{
+                            position: 'relative',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            borderRadius: '8px',
+                            height: '60px',
+                            border: '1px solid rgba(255, 255, 255, 0.1)'
+                          }}>
+                            {showtimesByDate[date].map(st => {
+                              const movie = movies.find(m => m.movieId === st.movieId);
+                              const startHour = parseInt(st.startTime.split(':')[0]);
+                              const startMin = parseInt(st.startTime.split(':')[1]);
+                              const endHour = parseInt(st.endTime.split(':')[0]);
+                              const endMin = parseInt(st.endTime.split(':')[1]);
+                              const startMinutes = startHour * 60 + startMin;
+                              const endMinutes = endHour * 60 + endMin;
+                              const left = ((startMinutes - 8 * 60) / (24 * 60 - 8 * 60)) * 100;
+                              const width = ((endMinutes - startMinutes) / (24 * 60 - 8 * 60)) * 100;
+                              const isConflict = showtimeConflict && showtimeConflict.conflicts.some(c => c.showtimeId === st.showtimeId);
+                              
                           return (
-                            <tr key={st.showtimeId}>
-                              <td>{mv ? mv.title : `#${st.movieId}`}</td>
-                              <td>{st.date}</td>
-                              <td>{st.startTime}</td>
-                              <td>{st.endTime}</td>
-                              <td>{st.language}</td>
-                              <td>{st.format}</td>
-                              <td>{new Intl.NumberFormat('vi-VN').format(st.price)}đ</td>
-                              <td>
-                                <div className="movie-table-actions">
-                                  <button className="movie-action-btn" onClick={() => handleEditShowtime(st)} title="Sửa">
+                                <div
+                                  key={st.showtimeId}
+                                  style={{
+                                    position: 'absolute',
+                                    left: `${Math.max(0, left)}%`,
+                                    width: `${Math.min(100, width)}%`,
+                                    height: '52px',
+                                    marginTop: '4px',
+                                    marginLeft: '4px',
+                                    background: isConflict || (editingShowtime && editingShowtime.showtimeId === st.showtimeId)
+                                      ? 'linear-gradient(135deg, #ffd159 0%, #ffa726 100%)'
+                                      : 'linear-gradient(135deg, #e83b41 0%, #c62828 100%)',
+                                    borderRadius: '6px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    padding: '8px 12px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                                    border: editingShowtime && editingShowtime.showtimeId === st.showtimeId ? '2px solid #ffd159' : 'none'
+                                  }}
+                                  onClick={() => handleEditShowtime(st)}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                    e.currentTarget.style.zIndex = '10';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                    e.currentTarget.style.zIndex = '1';
+                                  }}
+                                >
+                                  <div style={{ 
+                                    minWidth: 0,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    <div style={{ 
+                                      fontSize: '13px', 
+                                      fontWeight: 600, 
+                                      color: '#fff',
+                                      marginBottom: '2px'
+                                    }}>
+                                      {movie?.title || `Phim #${st.movieId}`}
+                                    </div>
+                                    <div style={{ 
+                                      fontSize: '11px', 
+                                      color: 'rgba(255, 255, 255, 0.9)',
+                                      display: 'flex',
+                                      gap: '8px',
+                                      alignItems: 'center'
+                                    }}>
+                                      <span>{st.startTime} - {st.endTime}</span>
+                                      <span style={{ opacity: 0.8 }}>•</span>
+                                      <span>{st.format}</span>
+                                      <span style={{ opacity: 0.8 }}>•</span>
+                                      <span>{new Intl.NumberFormat('vi-VN').format(st.price)}đ</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* List view below timeline */}
+                        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {showtimesByDate[date].map(st => {
+                            const movie = movies.find(m => m.movieId === st.movieId);
+                            return (
+                              <div 
+                                key={st.showtimeId}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '16px',
+                                  padding: '12px',
+                                  background: editingShowtime && editingShowtime.showtimeId === st.showtimeId
+                                    ? 'rgba(255, 209, 89, 0.1)'
+                                    : 'rgba(255, 255, 255, 0.03)',
+                                  borderRadius: '8px',
+                                  border: editingShowtime && editingShowtime.showtimeId === st.showtimeId
+                                    ? '1px solid #ffd159'
+                                    : '1px solid transparent',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ 
+                                    fontSize: '14px', 
+                                    fontWeight: 600, 
+                                    color: '#fff',
+                                    marginBottom: '4px'
+                                  }}>
+                                    {movie?.title || `Phim #${st.movieId}`}
+                                  </div>
+                                  <div style={{ 
+                                    fontSize: '12px', 
+                                    color: '#c9c4c5',
+                                    display: 'flex',
+                                    gap: '12px',
+                                    flexWrap: 'wrap'
+                                  }}>
+                                    <span>🕐 {st.startTime} - {st.endTime}</span>
+                                    <span>🎬 {st.format}</span>
+                                    <span>🗣️ {st.language}</span>
+                                    <span>💰 {new Intl.NumberFormat('vi-VN').format(st.price)}đ</span>
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button 
+                                    className="movie-action-btn" 
+                                    onClick={() => handleEditShowtime(st)} 
+                                    title="Sửa"
+                                    style={{
+                                      background: editingShowtime && editingShowtime.showtimeId === st.showtimeId
+                                        ? '#ffd159'
+                                        : 'rgba(255, 255, 255, 0.1)',
+                                      color: editingShowtime && editingShowtime.showtimeId === st.showtimeId
+                                        ? '#2d2627'
+                                        : '#fff'
+                                    }}
+                                  >
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                                     </svg>
                                   </button>
-                                  <button className="movie-action-btn movie-action-btn--delete" onClick={() => handleDeleteShowtime(st.showtimeId)} title="Xóa">
+                                  <button 
+                                    className="movie-action-btn movie-action-btn--delete" 
+                                    onClick={() => handleDeleteShowtime(st.showtimeId)} 
+                                    title="Xóa"
+                                  >
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                       <polyline points="3 6 5 6 21 6"/>
                                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                                     </svg>
                                   </button>
                                 </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                    )}
-                  </tbody>
-                </table>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Notification Toast */}
+      {notification && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 10000,
+          padding: '16px 20px',
+          borderRadius: '12px',
+          background: notification.type === 'success' 
+            ? 'rgba(76, 175, 80, 0.95)' 
+            : 'rgba(244, 67, 54, 0.95)',
+          color: '#fff',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          minWidth: '300px',
+          maxWidth: '500px',
+          animation: 'slideInRight 0.3s ease-out'
+        }}>
+          <div style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            {notification.type === 'success' ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            )}
+          </div>
+          <span style={{ fontSize: '14px', fontWeight: 500 }}>{notification.message}</span>
         </div>
       )}
 

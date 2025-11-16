@@ -46,10 +46,30 @@ axiosInstance.interceptors.response.use(
 
 export const cinemaComplexService = {
   /**
-   * Lấy tất cả cụm rạp
+   * Lấy tất cả cụm rạp (Public - không cần authentication)
    * @returns {Promise<Object>} Response từ server
    */
   getAllCinemaComplexes: async () => {
+    try {
+      const response = await axiosInstance.get('/public/cinema-complexes');
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        message: response.data.message || 'Lấy danh sách cụm rạp thành công',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể lấy danh sách cụm rạp',
+      };
+    }
+  },
+
+  /**
+   * Lấy tất cả cụm rạp (Admin - cần authentication)
+   * @returns {Promise<Object>} Response từ server
+   */
+  getAllCinemaComplexesAdmin: async () => {
     try {
       const response = await axiosInstance.get('/admin/cinema-complexes');
       return {

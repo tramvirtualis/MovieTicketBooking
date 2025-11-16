@@ -17,17 +17,34 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/admin/cinema-complexes")
 @RequiredArgsConstructor
 @CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000"}, 
              allowedHeaders = "*", 
              allowCredentials = "true")
-@PreAuthorize("hasRole('ADMIN')")
 public class CinemaComplexController {
     
     private final CinemaComplexService cinemaComplexService;
     
-    @GetMapping
+    // ============ PUBLIC ENDPOINTS ============
+    
+    /**
+     * Lấy danh sách tất cả cụm rạp (Public - không cần authentication)
+     */
+    @GetMapping("/api/public/cinema-complexes")
+    public ResponseEntity<?> getAllCinemaComplexesPublic() {
+        try {
+            List<CinemaComplexResponseDTO> complexes = cinemaComplexService.getAllCinemaComplexes();
+            return ResponseEntity.ok(createSuccessResponse("Lấy danh sách cụm rạp thành công", complexes));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    // ============ ADMIN ENDPOINTS (CẦN AUTHENTICATION) ============
+    
+    @GetMapping("/api/admin/cinema-complexes")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getAllCinemaComplexes() {
         try {
             List<CinemaComplexResponseDTO> complexes = cinemaComplexService.getAllCinemaComplexes();
@@ -38,7 +55,8 @@ public class CinemaComplexController {
         }
     }
     
-    @GetMapping("/{complexId}")
+    @GetMapping("/api/admin/cinema-complexes/{complexId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getCinemaComplexById(@PathVariable Long complexId) {
         try {
             CinemaComplexResponseDTO complex = cinemaComplexService.getCinemaComplexById(complexId);
@@ -52,7 +70,8 @@ public class CinemaComplexController {
         }
     }
     
-    @PostMapping
+    @PostMapping("/api/admin/cinema-complexes")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createCinemaComplex(@Valid @RequestBody CreateCinemaComplexDTO createDTO,
                                                   BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
@@ -70,7 +89,8 @@ public class CinemaComplexController {
         }
     }
     
-    @PutMapping("/{complexId}")
+    @PutMapping("/api/admin/cinema-complexes/{complexId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateCinemaComplex(@PathVariable Long complexId,
                                                 @Valid @RequestBody CreateCinemaComplexDTO updateDTO,
                                                 BindingResult bindingResult) {
@@ -90,7 +110,8 @@ public class CinemaComplexController {
         }
     }
     
-    @DeleteMapping("/{complexId}")
+    @DeleteMapping("/api/admin/cinema-complexes/{complexId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteCinemaComplex(@PathVariable Long complexId) {
         try {
             cinemaComplexService.deleteCinemaComplex(complexId);

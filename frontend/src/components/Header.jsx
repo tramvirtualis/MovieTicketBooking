@@ -1,26 +1,47 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import NotificationBell from './NotificationBell';
-
-const cinemas = [
-  { name: 'Quốc Thanh', province: 'TP.HCM' },
-  { name: 'Hai Bà Trưng', province: 'TP.HCM' },
-  { name: 'Sinh Viên', province: 'TP.HCM' },
-  { name: 'Satra Quận 6', province: 'TP.HCM' },
-  { name: 'Huế', province: 'TP. Huế' },
-  { name: 'Đà Lạt', province: 'Lâm Đồng' },
-  { name: 'Mỹ Tho', province: 'Đồng Tháp' },
-  { name: 'Lâm Đồng', province: 'Đức Trọng' },
-  { name: 'Kiên Giang', province: 'An Giang' },
-];
+import { cinemaComplexService } from '../services/cinemaComplexService';
 
 export default function Header({ children }) {
   const navigate = useNavigate();
   const [showCinemaDropdown, setShowCinemaDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [user, setUser] = useState(null); // lưu thông tin user
+  const [cinemas, setCinemas] = useState([]); // danh sách cụm rạp từ API
+  const [loadingCinemas, setLoadingCinemas] = useState(true);
   const dropdownRef = useRef(null);
   const userDropdownRef = useRef(null);
+
+  // Load danh sách cụm rạp từ API
+  useEffect(() => {
+    const loadCinemas = async () => {
+      setLoadingCinemas(true);
+      try {
+        const result = await cinemaComplexService.getAllCinemaComplexes();
+        if (result.success && result.data) {
+          // Map dữ liệu từ API về format cần thiết
+          const mappedCinemas = result.data.map(cinema => ({
+            complexId: cinema.complexId,
+            name: cinema.name,
+            province: cinema.addressProvince || cinema.fullAddress?.split(',').pop()?.trim() || '',
+            fullAddress: cinema.fullAddress || `${cinema.addressDescription || ''}, ${cinema.addressProvince || ''}`.trim()
+          }));
+          setCinemas(mappedCinemas);
+        } else {
+          console.error('Failed to load cinemas:', result.error);
+          setCinemas([]);
+        }
+      } catch (error) {
+        console.error('Error loading cinemas:', error);
+        setCinemas([]);
+      } finally {
+        setLoadingCinemas(false);
+      }
+    };
+
+    loadCinemas();
+  }, []);
 
   useEffect(() => {
     // Lấy user từ localStorage khi load
@@ -102,16 +123,36 @@ export default function Header({ children }) {
             </button>
             {showCinemaDropdown && (
               <div className="cinema-dropdown">
-                {cinemas.map((cinema, idx) => (
-                  <Link
-                    key={idx}
-                    to={`/cinema/${encodeURIComponent(cinema.name)}?province=${encodeURIComponent(cinema.province)}`}
-                    className="cinema-dropdown__item"
-                    onClick={() => setShowCinemaDropdown(false)}
-                  >
-                    Cinestar {cinema.name} ({cinema.province})
-                  </Link>
-                ))}
+                {loadingCinemas ? (
+                  <div className="cinema-dropdown__item" style={{ 
+                    textAlign: 'center', 
+                    padding: '12px',
+                    color: '#c9c4c5',
+                    cursor: 'default'
+                  }}>
+                    Đang tải...
+                  </div>
+                ) : cinemas.length === 0 ? (
+                  <div className="cinema-dropdown__item" style={{ 
+                    textAlign: 'center', 
+                    padding: '12px',
+                    color: '#c9c4c5',
+                    cursor: 'default'
+                  }}>
+                    Không có cụm rạp nào
+                  </div>
+                ) : (
+                  cinemas.map((cinema) => (
+                    <Link
+                      key={cinema.complexId}
+                      to={`/cinema/${encodeURIComponent(cinema.name)}?province=${encodeURIComponent(cinema.province)}`}
+                      className="cinema-dropdown__item"
+                      onClick={() => setShowCinemaDropdown(false)}
+                    >
+                      {cinema.name} {cinema.province && `(${cinema.province})`}
+                    </Link>
+                  ))
+                )}
               </div>
             )}
           </div>

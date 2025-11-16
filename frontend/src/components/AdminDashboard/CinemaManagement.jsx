@@ -54,7 +54,7 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
     const loadCinemaComplexes = async () => {
       setLoading(true);
       try {
-        const result = await cinemaComplexService.getAllCinemaComplexes();
+        const result = await cinemaComplexService.getAllCinemaComplexesAdmin();
         if (result.success) {
           // Map backend data to frontend format
           let mappedCinemas = result.data.map(item => ({
