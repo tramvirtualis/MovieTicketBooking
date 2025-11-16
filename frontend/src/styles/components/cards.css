@@ -382,6 +382,7 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
 }
 
 .movie-card__meta {

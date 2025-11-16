@@ -301,6 +301,7 @@
   margin: 0 0 8px;
   color: #fff;
   line-height: 1.2;
+  font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
   background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.9) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

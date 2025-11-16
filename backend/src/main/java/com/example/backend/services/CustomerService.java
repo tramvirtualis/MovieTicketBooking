@@ -1,16 +1,20 @@
 package com.example.backend.services;
 
+import com.example.backend.dtos.MovieResponseDTO;
 import com.example.backend.dtos.UpdateCustomerProfileRequestDTO;
 import com.example.backend.dtos.VoucherResponseDTO;
 import com.example.backend.entities.Address;
 import com.example.backend.entities.Customer;
+import com.example.backend.entities.Movie;
 import com.example.backend.entities.User;
 import com.example.backend.entities.Voucher;
 import com.example.backend.repositories.AddressRepository;
 import com.example.backend.repositories.CustomerRepository;
+import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.UserRepository;
 import com.example.backend.repositories.VoucherRepository;
-import lombok.RequiredArgsConstructor;
+import com.example.backend.services.MovieService;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,13 +24,30 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class CustomerService {
 
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
     private final CustomerRepository customerRepository;
     private final VoucherRepository voucherRepository;
+    private final MovieRepository movieRepository;
+    private final MovieService movieService;
+
+    // Constructor injection with @Lazy for MovieService to avoid circular dependency
+    public CustomerService(
+            UserRepository userRepository,
+            AddressRepository addressRepository,
+            CustomerRepository customerRepository,
+            VoucherRepository voucherRepository,
+            MovieRepository movieRepository,
+            @Lazy MovieService movieService) {
+        this.userRepository = userRepository;
+        this.addressRepository = addressRepository;
+        this.customerRepository = customerRepository;
+        this.voucherRepository = voucherRepository;
+        this.movieRepository = movieRepository;
+        this.movieService = movieService;
+    }
 
     public Customer updateProfile(Long userId, UpdateCustomerProfileRequestDTO req) throws Exception {
         User user = userRepository.findById(userId)
@@ -166,5 +187,91 @@ public class CustomerService {
                 .scope(voucher.getScope())
                 .image(voucher.getImage())
                 .build();
+    }
+
+    // ============ FAVORITE MOVIES METHODS ============
+
+    @Transactional(readOnly = true)
+    public List<MovieResponseDTO> getFavoriteMovies(Long userId) {
+        Customer customer = customerRepository.findByIdWithFavorites(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + userId));
+
+        if (customer.getFavorites() == null || customer.getFavorites().isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return customer.getFavorites().stream()
+                .map(movie -> movieService.getMovieById(movie.getMovieId()))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public MovieResponseDTO addFavorite(Long userId, Long movieId) {
+        Customer customer = customerRepository.findByIdWithFavorites(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + userId));
+
+        Movie movie = movieRepository.findById(movieId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy phim với ID: " + movieId));
+
+        // Initialize favorites list if null
+        if (customer.getFavorites() == null) {
+            customer.setFavorites(new ArrayList<>());
+        }
+
+        // Kiểm tra xem phim đã được yêu thích chưa (kiểm tra bằng movieId thay vì object)
+        boolean alreadyExists = customer.getFavorites().stream()
+                .anyMatch(m -> m.getMovieId().equals(movieId));
+        
+        if (alreadyExists) {
+            throw new RuntimeException("Phim này đã được thêm vào yêu thích");
+        }
+
+        // Add movie to customer's favorites list
+        customer.getFavorites().add(movie);
+        customerRepository.save(customer);
+
+        return movieService.getMovieById(movieId);
+    }
+
+    @Transactional
+    public void removeFavorite(Long userId, Long movieId) {
+        Customer customer = customerRepository.findByIdWithFavorites(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + userId));
+
+        // Initialize favorites list if null
+        if (customer.getFavorites() == null) {
+            customer.setFavorites(new ArrayList<>());
+        }
+
+        // Kiểm tra bằng movieId
+        boolean exists = customer.getFavorites().stream()
+                .anyMatch(m -> m.getMovieId().equals(movieId));
+
+        if (!exists) {
+            throw new RuntimeException("Phim này chưa được thêm vào yêu thích");
+        }
+
+        // Remove movie bằng cách filter
+        customer.setFavorites(
+            customer.getFavorites().stream()
+                .filter(m -> !m.getMovieId().equals(movieId))
+                .collect(Collectors.toList())
+        );
+        customerRepository.save(customer);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasFavorite(Long userId, Long movieId) {
+        Customer customer = customerRepository.findByIdWithFavorites(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + userId));
+
+        // Initialize favorites list if null
+        if (customer.getFavorites() == null) {
+            return false;
+        }
+
+        // Kiểm tra bằng movieId
+        return customer.getFavorites().stream()
+                .anyMatch(m -> m.getMovieId().equals(movieId));
     }
 }

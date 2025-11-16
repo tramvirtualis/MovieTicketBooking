@@ -1,102 +1,127 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
-
-// Sample data - in real app, fetch from API/localStorage
-const sampleFavoriteMovies = [
-  {
-    id: 1,
-    title: 'Inception',
-    poster: 'https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg',
-    genre: 'ACTION',
-    year: 2010,
-    addedDate: '2024-10-15',
-    rating: null
-  },
-  {
-    id: 2,
-    title: 'Interstellar',
-    poster: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
-    genre: 'SCI-FI',
-    year: 2014,
-    addedDate: '2024-09-20',
-    rating: null
-  },
-  {
-    id: 3,
-    title: 'The Dark Knight',
-    poster: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
-    genre: 'ACTION',
-    year: 2008,
-    addedDate: '2024-08-10',
-    rating: 5,
-    reviewDate: '2024-08-15',
-    reviewText: 'Một kiệt tác điện ảnh không thể phủ nhận. Heath Ledger đã tạo nên một Joker đáng sợ và đầy ám ảnh, một trong những vai diễn phản diện xuất sắc nhất mọi thời đại. Christopher Nolan đã xây dựng một câu chuyện phức tạp, đầy kịch tính với những cảnh hành động mãn nhãn. Bộ phim không chỉ là một siêu anh hùng đơn thuần mà còn là một tác phẩm nghệ thuật về sự đối đầu giữa thiện và ác, về ranh giới mỏng manh giữa người hùng và kẻ phản diện.'
-  },
-  {
-    id: 4,
-    title: 'Drive My Car',
-    poster: 'https://image.tmdb.org/t/p/w500/lXi2YKI3m30qtX9c9B5GPz8b3uaw.jpg',
-    genre: 'DRAMA',
-    year: 2021,
-    addedDate: '2024-07-05',
-    rating: 4,
-    reviewDate: '2024-07-10',
-    reviewText: 'Một bộ phim chậm rãi, sâu sắc và đầy cảm xúc. Đạo diễn Ryusuke Hamaguchi đã tạo nên một tác phẩm về sự mất mát, đau buồn và cách con người đối mặt với quá khứ. Diễn xuất xuất sắc, đặc biệt là từ Hidetoshi Nishijima. Bộ phim yêu cầu sự kiên nhẫn từ người xem nhưng phần thưởng là những khoảnh khắc chân thực và đầy ý nghĩa.'
-  },
-  {
-    id: 5,
-    title: 'Parasite',
-    poster: 'https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',
-    genre: 'THRILLER',
-    year: 2019,
-    addedDate: '2024-06-12',
-    rating: 5,
-    reviewDate: '2024-06-20',
-    reviewText: 'Bong Joon-ho đã tạo nên một bộ phim xuất sắc, kết hợp hoàn hảo giữa hài kịch, kịch tính và phê phán xã hội. Cách kể chuyện thông minh, kịch bản xuất sắc với những bước ngoặt bất ngờ. Bộ phim phản ánh sâu sắc về khoảng cách giàu nghèo và sự phân tầng xã hội. Một tác phẩm đáng xem nhiều lần để cảm nhận hết những tầng ý nghĩa.'
-  }
-];
+import { favoriteService } from '../services/favoriteService';
+import { movieService } from '../services/movieService';
+import { enumService } from '../services/enumService';
 
 export default function Library() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('favorites');
   const [expandedReviews, setExpandedReviews] = useState(new Set());
-  const [favorites, setFavorites] = useState(() => {
-    try {
-      const stored = localStorage.getItem('favoriteMovies');
-      return stored ? JSON.parse(stored) : sampleFavoriteMovies.filter(m => !m.rating);
-    } catch {
-      return sampleFavoriteMovies.filter(m => !m.rating);
-    }
-  });
-  const [ratedMovies, setRatedMovies] = useState(() => {
-    try {
-      const stored = localStorage.getItem('ratedMovies');
-      return stored ? JSON.parse(stored) : sampleFavoriteMovies.filter(m => m.rating);
-    } catch {
-      return sampleFavoriteMovies.filter(m => m.rating);
-    }
-  });
+  const [favorites, setFavorites] = useState([]);
+  const [ratedMovies, setRatedMovies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [removingMovieId, setRemovingMovieId] = useState(null);
 
+  // Load favorite movies from API
   useEffect(() => {
-    // Sync with localStorage
-    try {
-      const storedFavs = localStorage.getItem('favoriteMovies');
-      const storedRated = localStorage.getItem('ratedMovies');
-      if (storedFavs) setFavorites(JSON.parse(storedFavs));
-      if (storedRated) setRatedMovies(JSON.parse(storedRated));
-    } catch (e) {
-      console.error('Error loading library data:', e);
-    }
+    const loadFavorites = async () => {
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        setLoading(false);
+        setFavorites([]);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const result = await favoriteService.getFavoriteMovies();
+        console.log('Library: getFavoriteMovies result:', result);
+        
+        if (result.success) {
+          // Map movies from backend format to frontend format
+          const mappedMovies = (result.data || []).map(movie => {
+            try {
+              if (!movie) {
+                console.warn('Library: Null movie found in favorites list');
+                return null;
+              }
+              
+              const mapped = movieService.mapMovieFromBackend(movie);
+              if (!mapped) {
+                console.warn('Library: Failed to map movie:', movie);
+                return null;
+              }
+              
+              // Map genre to Vietnamese
+              let genreDisplay = '';
+              if (mapped.genre) {
+                if (Array.isArray(mapped.genre)) {
+                  genreDisplay = mapped.genre.map(g => enumService.mapGenreToVietnamese(g)).join(', ');
+                } else if (mapped.genres && Array.isArray(mapped.genres)) {
+                  genreDisplay = mapped.genres.map(g => enumService.mapGenreToVietnamese(g)).join(', ');
+                } else {
+                  genreDisplay = enumService.mapGenresToVietnamese(mapped.genre);
+                }
+              }
+              
+              return {
+                id: mapped.movieId,
+                movieId: mapped.movieId,
+                title: mapped.title || mapped.originalTitle || '',
+                poster: mapped.poster || '',
+                genre: genreDisplay,
+                year: mapped.releaseDate ? new Date(mapped.releaseDate).getFullYear() : null,
+                addedDate: new Date().toISOString().split('T')[0], // Since we don't store added date, use current date
+                rating: null
+              };
+            } catch (mapErr) {
+              console.error('Library: Error mapping movie:', mapErr, movie);
+              return null;
+            }
+          }).filter(movie => movie !== null); // Filter out null values
+          
+          console.log('Library: Mapped favorites:', mappedMovies);
+          setFavorites(mappedMovies);
+        } else {
+          console.error('Library: Failed to load favorites:', result.error);
+          setError(result.error || 'Không thể tải danh sách phim yêu thích');
+          setFavorites([]);
+        }
+      } catch (err) {
+        console.error('Library: Error loading favorites:', err);
+        console.error('Library: Error details:', err.stack);
+        setError(err.message || 'Có lỗi xảy ra khi tải danh sách phim yêu thích');
+        setFavorites([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFavorites();
   }, []);
 
-  const handleRemoveFavorite = (movieId) => {
-    const updated = favorites.filter(m => m.id !== movieId);
-    setFavorites(updated);
+  const handleRemoveFavorite = async (movieId) => {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      alert('Vui lòng đăng nhập để xóa phim yêu thích');
+      navigate('/login');
+      return;
+    }
+
+    if (!window.confirm('Bạn có chắc chắn muốn xóa phim này khỏi danh sách yêu thích?')) {
+      return;
+    }
+
+    setRemovingMovieId(movieId);
     try {
-      localStorage.setItem('favoriteMovies', JSON.stringify(updated));
-    } catch (e) {
-      console.error('Error saving favorites:', e);
+      const result = await favoriteService.removeFavorite(movieId);
+      if (result.success) {
+        // Remove from local state
+        setFavorites(prev => prev.filter(m => m.movieId !== movieId && m.id !== movieId));
+      } else {
+        alert(result.error || 'Không thể xóa phim khỏi yêu thích');
+      }
+    } catch (err) {
+      console.error('Error removing favorite:', err);
+      alert(err.message || 'Có lỗi xảy ra khi xóa phim yêu thích');
+    } finally {
+      setRemovingMovieId(null);
     }
   };
 
@@ -201,7 +226,30 @@ export default function Library() {
 
           {activeTab === 'favorites' && (
             <div className="library-section">
-              {favorites.length === 0 ? (
+              {loading ? (
+                <div className="library-empty">
+                  <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                    <div className="spinner" style={{ margin: '0 auto 20px', width: '40px', height: '40px', border: '4px solid rgba(255, 255, 255, 0.1)', borderTopColor: '#ffd159', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+                    <p>Đang tải danh sách phim yêu thích...</p>
+                  </div>
+                  <style>{`
+                    @keyframes spin {
+                      to { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                </div>
+              ) : error ? (
+                <div className="library-empty">
+                  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <h3>Có lỗi xảy ra</h3>
+                  <p>{error}</p>
+                  <button onClick={() => window.location.reload()} className="btn btn--primary">Thử lại</button>
+                </div>
+              ) : favorites.length === 0 ? (
                 <div className="library-empty">
                   <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -213,10 +261,10 @@ export default function Library() {
               ) : (
                 <div className="library-grid">
                   {favorites.map((movie) => (
-                    <div key={movie.id} className="library-card library-card--favorite">
-                      <Link to={`/movie/${encodeURIComponent(movie.title)}`} className="library-card__link">
+                    <div key={movie.movieId || movie.id} className="library-card library-card--favorite">
+                      <Link to={`/movie/${movie.movieId || movie.id}`} className="library-card__link">
                         <div className="library-card__poster">
-                          <img src={movie.poster} alt={movie.title} />
+                          <img src={movie.poster || '/placeholder-movie.jpg'} alt={movie.title} onError={(e) => { e.target.src = '/placeholder-movie.jpg'; }} />
                           <div className="library-card__overlay">
                            
                           </div>
@@ -229,9 +277,9 @@ export default function Library() {
                         <div className="library-card__content">
                           <h3 className="library-card__title">{movie.title}</h3>
                           <div className="library-card__meta">
-                            <span>{movie.year}</span>
-                            <span>•</span>
-                            <span>{movie.genre}</span>
+                            {movie.year && <span>{movie.year}</span>}
+                            {movie.year && movie.genre && <span>•</span>}
+                            {movie.genre && <span>{movie.genre}</span>}
                           </div>
                         </div>
                       </Link>
@@ -239,8 +287,9 @@ export default function Library() {
                         className="library-card__remove"
                         onClick={(e) => {
                           e.preventDefault();
-                          handleRemoveFavorite(movie.id);
+                          handleRemoveFavorite(movie.movieId || movie.id);
                         }}
+                        disabled={removingMovieId === (movie.movieId || movie.id)}
                         title="Xóa khỏi yêu thích"
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

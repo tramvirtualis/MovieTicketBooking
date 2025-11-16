@@ -1,4 +1,5 @@
 import { SEAT_TYPES } from './constants';
+import { enumService } from '../../services/enumService';
 
 // Generate seats for a room with realistic layout
 export function generateSeats(rows, cols) {
@@ -48,9 +49,10 @@ export function generateSeats(rows, cols) {
   return seats;
 }
 
-// Format genre for display
+// Format genre for display - Map to Vietnamese
 export const formatGenre = (genre) => {
-  return genre.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  if (!genre) return '';
+  return enumService.mapGenreToVietnamese(genre);
 };
 
 // Format status for display

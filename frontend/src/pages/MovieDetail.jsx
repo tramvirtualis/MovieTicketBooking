@@ -3,6 +3,10 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import BookingModal from '../components/BookingModal.jsx';
+import { movieService } from '../services/movieService';
+import { reviewService } from '../services/reviewService';
+import { enumService } from '../services/enumService';
+import { favoriteService } from '../services/favoriteService';
 
 export default function MovieDetail() {
   const { id } = useParams();
@@ -12,38 +16,17 @@ export default function MovieDetail() {
     return Object.fromEntries(searchParams.entries());
   }, [searchParams]);
 
-  // Handle hash navigation for backward compatibility
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash && hash.startsWith('#movie')) {
-      const hashParams = new URLSearchParams(hash.substring(6)); // Remove '#movie'
-      const title = hashParams.get('title');
-      if (title && !id) {
-        // Navigate to proper route if we have title from hash but no id param
-        navigate(`/movie/${encodeURIComponent(title)}`, { replace: true });
-      }
-    }
-  }, [id, navigate]);
-
-  const sample = {
-    id: 'inception',
-    title: 'Inception (T16)',
-    duration: 147,
-    genre: 'Sci‑Fi, Action',
-    formats: ['2D', '3D'],
-    language: 'Khác',
-    rating: 'T16',
-    status: query.status || 'NOW_SHOWING', // NOW_SHOWING, COMING_SOON, ENDED
-    desc: 'Trong tương lai gần, một tay trộm hành tinh thức lenh, nơi Predator nợ nần – kẻ bị săn đuổi có cơ hội nhận lại tự do – tìm thấy một mục tiêu không ngờ tới là một bé gái bản lĩnh.',
-    director: 'Christopher Nolan',
-    cast: 'Leonardo DiCaprio, Joseph Gordon‑Levitt, Ellen Page',
-    poster: query.poster || '',
-    release: 'Thứ Sáu, 07/11/2025',
-  };
+  // State for movie data
+  const [movie, setMovie] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
 
   const [showBooking, setShowBooking] = useState(false);
   const [showTrailer, setShowTrailer] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [loadingFavorite, setLoadingFavorite] = useState(false);
   const [expandedReviews, setExpandedReviews] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const reviewsPerPage = 4;
@@ -51,80 +34,225 @@ export default function MovieDetail() {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [pendingBookingUrl, setPendingBookingUrl] = useState(null);
 
-  const reviews = [
-    {
-      id: 1,
-      userId: 'user1',
-      userName: 'Nguyễn Văn A',
-      avatar: 'https://ui-avatars.com/api/?name=Nguyen+Van+A&background=e83b41&color=fff&size=128',
-      rating: 5,
-      reviewText: 'Một kiệt tác điện ảnh không thể phủ nhận. Christopher Nolan đã tạo nên một tác phẩm xuất sắc với cốt truyện phức tạp, đầy kịch tính. Diễn xuất của Leonardo DiCaprio và toàn bộ dàn cast đều xuất sắc. Hiệu ứng hình ảnh và âm thanh đỉnh cao, tạo nên một trải nghiệm điện ảnh đáng nhớ.',
-      reviewDate: '2024-11-05'
-    },
-    {
-      id: 2,
-      userId: 'user2',
-      userName: 'Trần Thị B',
-      avatar: 'https://ui-avatars.com/api/?name=Tran+Thi+B&background=7b61ff&color=fff&size=128',
-      rating: 4,
-      reviewText: 'Bộ phim hay nhưng hơi khó hiểu với những người mới xem lần đầu. Cần xem lại nhiều lần để hiểu hết các tầng ý nghĩa. Tuy nhiên, đây vẫn là một tác phẩm đáng xem.',
-      reviewDate: '2024-11-03'
-    },
-    {
-      id: 3,
-      userId: 'user3',
-      userName: 'Lê Văn C',
-      avatar: 'https://ui-avatars.com/api/?name=Le+Van+C&background=ffd159&color=1a1415&size=128',
-      rating: 5,
-      reviewText: 'Tuyệt vời! Một trong những bộ phim hay nhất mà tôi từng xem. Cốt truyện độc đáo, kỹ thuật quay phim xuất sắc.',
-      reviewDate: '2024-11-01'
-    },
-    {
-      id: 4,
-      userId: 'user4',
-      userName: 'Phạm Thị D',
-      avatar: 'https://ui-avatars.com/api/?name=Pham+Thi+D&background=4caf50&color=fff&size=128',
-      rating: 3,
-      reviewText: 'Phim ổn nhưng không quá xuất sắc như mọi người nói. Cốt truyện hơi rối, một số phần hơi dài dòng.',
-      reviewDate: '2024-10-28'
-    },
-    {
-      id: 5,
-      userId: 'user5',
-      userName: 'Hoàng Văn E',
-      avatar: 'https://ui-avatars.com/api/?name=Hoang+Van+E&background=e83b41&color=fff&size=128',
-      rating: 5,
-      reviewText: 'Tuyệt vời! Một bộ phim đáng xem nhiều lần. Mỗi lần xem lại đều phát hiện thêm chi tiết mới. Nolan thực sự là bậc thầy.',
-      reviewDate: '2024-10-25'
-    },
-    {
-      id: 6,
-      userId: 'user6',
-      userName: 'Võ Thị F',
-      avatar: 'https://ui-avatars.com/api/?name=Vo+Thi+F&background=7b61ff&color=fff&size=128',
-      rating: 4,
-      reviewText: 'Phim hay, cốt truyện thú vị. Tuy nhiên một số cảnh hơi khó hiểu, cần tập trung cao độ khi xem.',
-      reviewDate: '2024-10-22'
-    },
-    {
-      id: 7,
-      userId: 'user7',
-      userName: 'Đỗ Văn G',
-      avatar: 'https://ui-avatars.com/api/?name=Do+Van+G&background=ffd159&color=1a1415&size=128',
-      rating: 5,
-      reviewText: 'Kiệt tác! Một trong những bộ phim hay nhất thập kỷ. Âm thanh và hình ảnh đỉnh cao, cốt truyện xuất sắc.',
-      reviewDate: '2024-10-20'
-    },
-    {
-      id: 8,
-      userId: 'user8',
-      userName: 'Bùi Thị H',
-      avatar: 'https://ui-avatars.com/api/?name=Bui+Thi+H&background=4caf50&color=fff&size=128',
-      rating: 4,
-      reviewText: 'Phim tốt, đáng xem. Diễn xuất tốt, kỹ thuật quay phim ấn tượng.',
-      reviewDate: '2024-10-18'
+  // Load movie data from API
+  useEffect(() => {
+    const loadMovie = async () => {
+      if (!id) return;
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Check if id is a number (movieId) or string (title)
+        const movieId = parseInt(id, 10);
+        
+        if (!isNaN(movieId)) {
+          // id is a number, use it directly
+          const result = await movieService.getPublicMovieById(movieId);
+          if (result.success && result.data) {
+            const mappedMovie = mapMovieFromBackend(result.data);
+            setMovie(mappedMovie);
+            
+            // Load reviews and favorite status after movie is loaded
+            loadReviews(movieId);
+            checkFavoriteStatus(movieId);
+          } else {
+            setError(result.error || 'Không tìm thấy phim');
+          }
+        } else {
+          // id is a string (title), need to search for movie by title
+          const title = decodeURIComponent(id);
+          const allMoviesResult = await movieService.getPublicMovies();
+          
+          if (allMoviesResult.success && allMoviesResult.data) {
+            // Map movies from backend format
+            const mappedMovies = allMoviesResult.data.map(m => movieService.mapMovieFromBackend(m));
+            const foundMovie = mappedMovies.find(
+              m => m.originalTitle && m.originalTitle.toLowerCase() === title.toLowerCase()
+            );
+            
+            if (foundMovie) {
+              setMovie(foundMovie);
+              loadReviews(foundMovie.movieId);
+              checkFavoriteStatus(foundMovie.movieId);
+            } else {
+              setError('Không tìm thấy phim');
+            }
+          } else {
+            setError('Không thể tải danh sách phim');
+          }
+        }
+      } catch (err) {
+        console.error('Error loading movie:', err);
+        setError(err.message || 'Không thể tải thông tin phim');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadMovie();
+  }, [id]);
+
+  // Check favorite status
+  const checkFavoriteStatus = async (movieId) => {
+    if (!movieId) return;
+
+    try {
+      const result = await favoriteService.checkFavorite(movieId);
+      if (result.success) {
+        setIsFavorite(result.hasFavorite);
+      } else {
+        // Nếu lỗi (có thể do chưa đăng nhập), mặc định là false
+        setIsFavorite(false);
+      }
+    } catch (err) {
+      console.error('Error checking favorite status:', err);
+      setIsFavorite(false);
     }
-  ];
+  };
+
+  // Toggle favorite
+  const handleToggleFavorite = async () => {
+    if (!movie || !movie.movieId) return;
+
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      alert('Vui lòng đăng nhập để thêm phim vào yêu thích');
+      return;
+    }
+
+    setLoadingFavorite(true);
+    try {
+      if (isFavorite) {
+        // Remove from favorites
+        const result = await favoriteService.removeFavorite(movie.movieId);
+        if (result.success) {
+          setIsFavorite(false);
+        } else {
+          alert(result.error || 'Không thể xóa phim khỏi yêu thích');
+        }
+      } else {
+        // Add to favorites
+        const result = await favoriteService.addFavorite(movie.movieId);
+        if (result.success) {
+          setIsFavorite(true);
+        } else {
+          alert(result.error || 'Không thể thêm phim vào yêu thích');
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling favorite:', err);
+      alert(err.message || 'Có lỗi xảy ra');
+    } finally {
+      setLoadingFavorite(false);
+    }
+  };
+
+  // Load reviews
+  const loadReviews = async (movieId) => {
+    if (!movieId) return;
+
+    setLoadingReviews(true);
+    try {
+      const reviewsData = await reviewService.getReviewsByMovie(movieId);
+      const mappedReviews = reviewsData.map(review => ({
+        id: review.reviewId,
+        userId: review.userId,
+        userName: review.userName || review.user?.name || 'Người dùng',
+        avatar: review.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(review.userName || 'User')}&background=e83b41&color=fff&size=128`,
+        rating: review.rating || 0,
+        reviewText: review.context || review.reviewText || '',
+        reviewDate: review.createdAt || review.createdUpdate || new Date().toISOString().split('T')[0]
+      }));
+      setReviews(mappedReviews);
+    } catch (err) {
+      console.error('Error loading reviews:', err);
+      setReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  // Map movie from backend format to frontend format
+  const mapMovieFromBackend = (movieData) => {
+    if (!movieData) return null;
+
+    // Map age rating
+    const ageRatingDisplay = enumService.mapAgeRatingToDisplay(movieData.ageRating);
+    // Nếu là số (13+, 16+, 18+) thì thêm prefix "T", còn "P" hoặc "K" thì giữ nguyên
+    let ratingBadge = ageRatingDisplay || 'P';
+    if (ratingBadge && /^\d+\+?$/.test(ratingBadge)) {
+      // Có số, thêm prefix "T"
+      ratingBadge = `T${ratingBadge.replace(/[^0-9]/g, '')}`;
+    }
+    // Nếu là "P" hoặc "K" thì giữ nguyên, không thêm prefix "T"
+
+    // Map formats
+    const formats = movieService.mapFormatsFromBackend(movieData.formats || []);
+
+    // Map genres to Vietnamese string
+    const genreString = movieData.genre && Array.isArray(movieData.genre)
+      ? movieData.genre.map(g => enumService.mapGenreToVietnamese(g)).join(', ')
+      : (movieData.genre ? enumService.mapGenreToVietnamese(movieData.genre) : '');
+
+    // Map languages
+    const languages = movieData.languages || [];
+    const languageDisplay = languages.length > 0 
+      ? languages.map(lang => {
+          const langMap = {
+            'VIETSUB': 'Phụ đề',
+            'VIETNAMESE': 'Tiếng Việt',
+            'VIETDUB': 'Lồng tiếng'
+          };
+          return langMap[lang] || lang;
+        }).join(', ')
+      : 'Khác';
+
+    // Format release date
+    const releaseDate = movieData.releaseDate 
+      ? new Date(movieData.releaseDate).toLocaleDateString('vi-VN', {
+          weekday: 'long',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        })
+      : '';
+
+    // Extract YouTube ID from trailerURL
+    const trailerUrl = movieData.trailerURL || '';
+    let trailerYoutubeId = '';
+    if (trailerUrl) {
+      const match = trailerUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
+      if (match) {
+        trailerYoutubeId = match[1];
+      }
+    }
+
+    return {
+      movieId: movieData.movieId,
+      id: movieData.movieId,
+      title: movieData.title || '', // Title without rating badge
+      originalTitle: movieData.title,
+      duration: movieData.duration || 0,
+      genre: genreString,
+      genres: movieData.genre || [],
+      formats: formats,
+      language: languageDisplay,
+      languages: languages,
+      rating: ratingBadge,
+      ageRating: movieData.ageRating,
+      status: movieData.status || 'NOW_SHOWING',
+      desc: movieData.description || '',
+      director: movieData.director || '',
+      cast: movieData.actor || '',
+      poster: movieData.poster || '',
+      release: releaseDate,
+      releaseDate: movieData.releaseDate,
+      trailerURL: trailerUrl,
+      trailerYoutubeId: trailerYoutubeId
+    };
+  };
+
 
   const averageRating = reviews.length > 0 
     ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
@@ -188,8 +316,51 @@ export default function MovieDetail() {
     });
   };
 
-  // YouTube video ID của phim (thay bằng ID thực tế)
-  const trailerYoutubeId = '8hP9D6kZseM';
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen cinema-mood">
+        <Header />
+        <main className="main">
+          <section className="section">
+            <div className="container" style={{ textAlign: 'center', padding: '60px 20px' }}>
+              <div style={{ fontSize: '18px', color: 'rgba(255, 255, 255, 0.6)' }}>Đang tải thông tin phim...</div>
+            </div>
+          </section>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !movie) {
+    return (
+      <div className="min-h-screen cinema-mood">
+        <Header />
+        <main className="main">
+          <section className="section">
+            <div className="container" style={{ textAlign: 'center', padding: '60px 20px' }}>
+              <div style={{ fontSize: '18px', color: '#e83b41', marginBottom: '16px' }}>
+                {error || 'Không tìm thấy phim'}
+              </div>
+              <button 
+                className="btn btn--primary"
+                onClick={() => navigate('/')}
+                style={{ padding: '12px 24px' }}
+              >
+                Về trang chủ
+              </button>
+            </div>
+          </section>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  // YouTube video ID từ trailerURL
+  const trailerYoutubeId = movie.trailerYoutubeId || '8hP9D6kZseM';
 
   return (
     <div className="min-h-screen cinema-mood">
@@ -200,8 +371,8 @@ export default function MovieDetail() {
           <div className="container" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '20px' }}>
             <div>
               <div className="card" style={{ overflow: 'hidden' }}>
-                {sample.poster ? (
-                  <img src={sample.poster} alt={sample.title} className="card__img" />
+                {movie.poster ? (
+                  <img src={movie.poster} alt={movie.title} className="card__img" />
                 ) : (
                   <div className="card__img" style={{ display: 'grid', placeItems: 'center', background: '#251e1f' }}>Không có poster</div>
                 )}
@@ -209,14 +380,17 @@ export default function MovieDetail() {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                <h1 className="section__title" style={{ fontSize: 'clamp(24px, 3vw, 32px)', margin: 0, fontWeight: 900 }}>{sample.title}</h1>
-                <span className="badge-rating" title="Độ tuổi khuyến nghị">{sample.rating}</span>
-                {Array.isArray(sample.formats) && sample.formats.map((f) => (
+                <h1 className="section__title" style={{ fontSize: 'clamp(24px, 3vw, 32px)', margin: 0, fontWeight: 900 }}>{movie.title || movie.originalTitle || ''}</h1>
+                {movie.rating && (
+                  <span className="badge-rating" title="Độ tuổi khuyến nghị">{movie.rating}</span>
+                )}
+                {Array.isArray(movie.formats) && movie.formats.length > 0 && movie.formats.map((f) => (
                   <span key={f} className="badge-format" title="Định dạng">{f}</span>
                 ))}
                 <button
                   className={`favorite-btn ${isFavorite ? 'favorite-btn--active' : ''}`}
-                  onClick={() => setIsFavorite(!isFavorite)}
+                  onClick={handleToggleFavorite}
+                  disabled={loadingFavorite}
                   aria-label={isFavorite ? 'Bỏ yêu thích' : 'Yêu thích'}
                   title={isFavorite ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
                 >
@@ -229,54 +403,54 @@ export default function MovieDetail() {
               {/* Movie Info Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '20px' }}>
                 <div className="movie-info-card">
-                  <div className="movie-info-card__icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="4" width="20" height="16" rx="2"/>
-                      <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
+                  <div className="movie-info-card__icon" style={{ color: '#ffd159' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffd159" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159', stroke: '#ffd159' }}>
+                      <rect x="2" y="4" width="20" height="16" rx="2" stroke="#ffd159"/>
+                      <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20" stroke="#ffd159"/>
                     </svg>
                   </div>
                   <div>
                     <div className="movie-info-card__label">Thể loại</div>
-                    <div className="movie-info-card__value">{sample.genre}</div>
+                    <div className="movie-info-card__value">{movie.genre || 'N/A'}</div>
                   </div>
                 </div>
                 <div className="movie-info-card">
-                  <div className="movie-info-card__icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"/>
-                      <polyline points="12 6 12 12 16 14"/>
+                  <div className="movie-info-card__icon" style={{ color: '#ffd159' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffd159" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159', stroke: '#ffd159' }}>
+                      <circle cx="12" cy="12" r="10" stroke="#ffd159"/>
+                      <polyline points="12 6 12 12 16 14" stroke="#ffd159"/>
                     </svg>
                   </div>
                   <div>
                     <div className="movie-info-card__label">Thời lượng</div>
-                    <div className="movie-info-card__value">{sample.duration} phút</div>
+                    <div className="movie-info-card__value">{movie.duration || 0} phút</div>
                   </div>
                 </div>
                 <div className="movie-info-card">
-                  <div className="movie-info-card__icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"/>
-                      <line x1="2" y1="12" x2="22" y2="12"/>
-                      <line x1="12" y1="2" x2="12" y2="22"/>
+                  <div className="movie-info-card__icon" style={{ color: '#ffd159' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffd159" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159', stroke: '#ffd159' }}>
+                      <circle cx="12" cy="12" r="10" stroke="#ffd159"/>
+                      <line x1="2" y1="12" x2="22" y2="12" stroke="#ffd159"/>
+                      <line x1="12" y1="2" x2="12" y2="22" stroke="#ffd159"/>
                     </svg>
                   </div>
                   <div>
                     <div className="movie-info-card__label">Ngôn ngữ</div>
-                    <div className="movie-info-card__value">{sample.language}</div>
+                    <div className="movie-info-card__value">{movie.language || 'Khác'}</div>
                   </div>
                 </div>
                 <div className="movie-info-card">
-                  <div className="movie-info-card__icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                      <line x1="16" y1="2" x2="16" y2="6"/>
-                      <line x1="8" y1="2" x2="8" y2="6"/>
-                      <line x1="3" y1="10" x2="21" y2="10"/>
+                  <div className="movie-info-card__icon" style={{ color: '#ffd159' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffd159" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159', stroke: '#ffd159' }}>
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="#ffd159"/>
+                      <line x1="16" y1="2" x2="16" y2="6" stroke="#ffd159"/>
+                      <line x1="8" y1="2" x2="8" y2="6" stroke="#ffd159"/>
+                      <line x1="3" y1="10" x2="21" y2="10" stroke="#ffd159"/>
                     </svg>
                   </div>
                   <div>
                     <div className="movie-info-card__label">Ngày khởi chiếu</div>
-                    <div className="movie-info-card__value">{sample.release}</div>
+                    <div className="movie-info-card__value">{movie.release || 'N/A'}</div>
                   </div>
                 </div>
               </div>
@@ -285,48 +459,48 @@ export default function MovieDetail() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
                 <div className="movie-detail-section">
                   <div className="movie-detail-section__header">
-                    <span className="movie-detail-section__icon">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                        <line x1="9" y1="3" x2="9" y2="21"/>
-                        <line x1="3" y1="9" x2="21" y2="9"/>
+                    <span className="movie-detail-section__icon" style={{ color: '#ffd159' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffd159" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159', stroke: '#ffd159' }}>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke="#ffd159"/>
+                        <line x1="9" y1="3" x2="9" y2="21" stroke="#ffd159"/>
+                        <line x1="3" y1="9" x2="21" y2="9" stroke="#ffd159"/>
                       </svg>
                     </span>
                     <span className="movie-detail-section__title">Đạo diễn</span>
                   </div>
-                  <div className="movie-detail-section__content">{sample.director}</div>
+                  <div className="movie-detail-section__content">{movie.director || 'N/A'}</div>
                 </div>
                 <div className="movie-detail-section">
                   <div className="movie-detail-section__header">
-                    <span className="movie-detail-section__icon">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                        <circle cx="12" cy="7" r="4"/>
+                    <span className="movie-detail-section__icon" style={{ color: '#ffd159' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffd159" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159', stroke: '#ffd159' }}>
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="#ffd159"/>
+                        <circle cx="12" cy="7" r="4" stroke="#ffd159"/>
                       </svg>
                     </span>
                     <span className="movie-detail-section__title">Diễn viên</span>
                   </div>
-                  <div className="movie-detail-section__content">{sample.cast}</div>
+                  <div className="movie-detail-section__content">{movie.cast || 'N/A'}</div>
                 </div>
               </div>
 
               {/* Synopsis Section */}
               <div className="movie-synopsis">
                 <div className="movie-synopsis__header">
-                  <span className="movie-synopsis__icon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                  <span className="movie-synopsis__icon" style={{ color: '#ffd159' }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffd159" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159', stroke: '#ffd159' }}>
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="#ffd159"/>
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="#ffd159"/>
                     </svg>
                   </span>
                   <span className="movie-synopsis__title">Nội dung</span>
                 </div>
-                <p className="movie-synopsis__text">{sample.desc}</p>
+                <p className="movie-synopsis__text">{movie.desc || 'Chưa có mô tả'}</p>
               </div>
 
               {/* Action Buttons */}
               <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
-                {sample.status !== 'ENDED' && (
+                {movie.status !== 'ENDED' && (
                   <button className="btn btn--primary" onClick={() => setShowBooking(true)} style={{ fontSize: '16px', padding: '14px 24px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
@@ -335,12 +509,14 @@ export default function MovieDetail() {
                     Mua vé
                   </button>
                 )}
+                {movie.trailerURL && (
                 <button className="btn btn--ghost" onClick={() => setShowTrailer(true)} style={{ fontSize: '16px', padding: '14px 24px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="5 3 19 12 5 21 5 3"/>
                   </svg>
                   Xem Trailer
                 </button>
+                )}
               </div>
             </div>
           </div>
@@ -477,7 +653,7 @@ export default function MovieDetail() {
       <BookingModal
         isOpen={showBooking}
         onClose={() => setShowBooking(false)}
-        movieTitle={sample.title}
+        movieTitle={movie.title || movie.originalTitle || ''}
         onShowtimeClick={(bookingUrl) => {
           setPendingBookingUrl(bookingUrl);
           setAgeConfirmed(false);
@@ -485,7 +661,7 @@ export default function MovieDetail() {
           setShowBooking(false); // Đóng modal chọn suất
         }}
         options={{
-          movieId: sample.movieId || 1,
+          movieId: movie.movieId || movie.id || 1,
           cinemas: [
             { id: 'cns_q6', name: 'Cinestar Satra Quận 6 (TPHCM)', province: 'Hồ Chí Minh' },
             { id: 'cns_qt', name: 'Cinestar Quốc Thanh (TPHCM)', province: 'Hồ Chí Minh' },
@@ -565,14 +741,14 @@ export default function MovieDetail() {
                 marginBottom: '12px',
                 fontWeight: 600
               }}>
-                Phim: {sample.title.replace(/\s*\(T\d+\)\s*/g, '')}
+                Phim: {movie?.originalTitle || movie?.title?.replace(/\s*\(T\d+\)\s*/g, '') || 'N/A'}
               </div>
               <div style={{ 
                 fontSize: '14px', 
                 color: '#c9c4c5',
                 lineHeight: '1.6'
               }}>
-                <strong style={{ color: '#ffd159' }}>{sample.rating}:</strong> Phim dành cho khán giả từ đủ {sample.rating.replace('T', '')} tuổi trở lên ({sample.rating.replace('T', '')}+)
+                <strong style={{ color: '#ffd159' }}>{movie?.rating || 'N/A'}:</strong> Phim dành cho khán giả từ đủ {movie?.rating?.replace(/[^0-9]/g, '') || 'N/A'} tuổi trở lên ({movie?.rating?.replace(/[^0-9]/g, '') || 'N/A'}+)
               </div>
             </div>
 
@@ -605,7 +781,7 @@ export default function MovieDetail() {
                   flex: 1
                 }}
               >
-                Tôi xác nhận rằng tôi đã đủ {sample.rating.replace('T', '')} tuổi trở lên và đủ điều kiện để xem phim này.
+                Tôi xác nhận rằng tôi đã đủ {movie?.rating?.replace(/[^0-9]/g, '') || 'N/A'} tuổi trở lên và đủ điều kiện để xem phim này.
               </label>
             </div>
 

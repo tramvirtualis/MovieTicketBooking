@@ -97,7 +97,7 @@ export const movieService = {
   },
 
   /**
-   * Lấy phim theo ID
+   * Lấy phim theo ID (Admin only)
    * @param {number} movieId - ID của phim
    * @returns {Promise<Object>} Response từ server
    */
@@ -112,6 +112,50 @@ export const movieService = {
       return {
         success: false,
         error: error.message || 'Không thể lấy thông tin phim',
+      };
+    }
+  },
+
+  /**
+   * Lấy phim theo ID (Public endpoint, không cần đăng nhập)
+   * @param {number} movieId - ID của phim
+   * @returns {Promise<Object>} Response từ server
+   */
+  getPublicMovieById: async (movieId) => {
+    try {
+      const response = await axiosInstance.get(`/public/movies/${movieId}`);
+      // Endpoint public trả về trực tiếp MovieResponseDTO, không có wrapper
+      const movie = response.data;
+      return {
+        success: true,
+        data: movie,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể lấy thông tin phim',
+      };
+    }
+  },
+
+  /**
+   * Lấy tất cả phim (Public endpoint, không cần đăng nhập)
+   * @returns {Promise<Object>} Response từ server
+   */
+  getPublicMovies: async () => {
+    try {
+      const response = await axiosInstance.get('/public/movies');
+      // Endpoint public trả về trực tiếp array, không có wrapper
+      const movies = Array.isArray(response.data) ? response.data : [];
+      return {
+        success: true,
+        data: movies,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể lấy danh sách phim',
+        data: [],
       };
     }
   },

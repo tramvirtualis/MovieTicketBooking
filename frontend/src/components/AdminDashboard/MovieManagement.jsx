@@ -380,12 +380,10 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     }
   };
 
-  // Format genre for display
+  // Format genre for display - Map to Vietnamese
   const formatGenre = (genre) => {
     if (!genre) return '';
-    // Replace underscores with spaces, then capitalize first letter of each word
-    // Special handling for SCI_FI -> Sci-Fi
-    return genre.replace(/_/g, '-').replace(/\b\w/g, l => l.toUpperCase());
+    return enumService.mapGenreToVietnamese(genre);
   };
 
   // Format status for display

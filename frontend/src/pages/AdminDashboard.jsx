@@ -22,6 +22,7 @@ import VoucherManagement from '../components/AdminDashboard/VoucherManagement';
 import BookingManagement from '../components/AdminDashboard/BookingManagement';
 import Reports from '../components/AdminDashboard/Reports';
 import PriceManagement from '../components/AdminDashboard/PriceManagement';
+import BannerManagement from '../components/AdminDashboard/BannerManagement';
 import cloudinaryService from '../services/cloudinaryService';
 
 // Add CSS animation for spinner and notification
@@ -612,6 +613,7 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState(initialBookingOrders);
   const [prices, setPrices] = useState(initialPrices);
   const [foodBeverages, setFoodBeverages] = useState(initialFoodBeverages);
+  const [banners, setBanners] = useState([]);
 
   const getIcon = (iconName) => {
     switch (iconName) {
@@ -784,6 +786,17 @@ export default function AdminDashboard() {
             <span>Đồ ăn & Nước uống</span>
           </button>
           <button
+            className={`admin-nav-item ${activeSection === 'banners' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => setActiveSection('banners')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="9" y1="9" x2="15" y2="15"/>
+              <line x1="15" y1="9" x2="9" y2="15"/>
+            </svg>
+            <span>Quản lý banner</span>
+          </button>
+          <button
             className={`admin-nav-item ${activeSection === 'reports' ? 'admin-nav-item--active' : ''}`}
             onClick={() => setActiveSection('reports')}
           >
@@ -820,6 +833,7 @@ export default function AdminDashboard() {
               {activeSection === 'users' && 'Quản lý người dùng'}
               {activeSection === 'vouchers' && 'Quản lý voucher'}
               {activeSection === 'foodbeverages' && 'Quản lý đồ ăn & nước uống'}
+              {activeSection === 'banners' && 'Quản lý banner'}
               {activeSection === 'reports' && 'Báo cáo'}
             </h1>
           </div>
@@ -901,6 +915,10 @@ export default function AdminDashboard() {
 
           {activeSection === 'foodbeverages' && (
             <FoodBeverageManagement items={foodBeverages} onItemsChange={setFoodBeverages} />
+          )}
+
+          {activeSection === 'banners' && (
+            <BannerManagement banners={banners} onBannersChange={setBanners} />
           )}
 
               {activeSection === 'prices' && (

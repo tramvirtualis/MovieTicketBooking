@@ -1,4 +1,5 @@
 import React from 'react';
+import { enumService } from '../../services/enumService';
 
 // Manager Movie View Component (read-only)
 function ManagerMovieView({ movies }) {
@@ -27,7 +28,13 @@ function ManagerMovieView({ movies }) {
                     <img src={movie.poster} alt={movie.title} style={{ width: '60px', height: '90px', objectFit: 'cover', borderRadius: '4px' }} />
                   </td>
                   <td>{movie.title}</td>
-                  <td>{movie.genre}</td>
+                  <td>
+                    {movie.genre 
+                      ? (Array.isArray(movie.genre) 
+                          ? movie.genre.map(g => enumService.mapGenreToVietnamese(g)).join(', ')
+                          : enumService.mapGenresToVietnamese(movie.genre))
+                      : 'N/A'}
+                  </td>
                   <td>{movie.duration} phút</td>
                   <td>{movie.ageRating}</td>
                   <td>

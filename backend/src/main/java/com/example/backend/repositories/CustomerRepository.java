@@ -20,4 +20,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     @Query("SELECT DISTINCT c FROM Customer c LEFT JOIN FETCH c.vouchers WHERE c.userId = :userId")
     Optional<Customer> findByIdWithVouchers(@Param("userId") Long userId);
+
+    @Query("SELECT DISTINCT c FROM Customer c LEFT JOIN FETCH c.favorites WHERE c.userId = :userId")
+    Optional<Customer> findByIdWithFavorites(@Param("userId") Long userId);
 }

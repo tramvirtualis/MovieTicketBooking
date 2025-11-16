@@ -4,6 +4,7 @@ import Header from '../components/Header.jsx';
 import HeroCarousel from '../components/HeroCarousel.jsx';
 import Footer from '../components/Footer.jsx';
 import { Section, CardsGrid, PromosGrid } from '../components/SectionGrid.jsx';
+import { enumService } from '../services/enumService';
 import interstellar from '../assets/images/interstellar.jpg';
 import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
@@ -53,10 +54,16 @@ const extractYouTubeId = (url) => {
 
 // Helper function để format movie data từ backend
 const formatMovieData = (movie) => {
+  // Map genre to Vietnamese
+  let genreDisplay = 'N/A';
+  if (movie.genre && movie.genre.length > 0) {
+    genreDisplay = movie.genre.map(g => enumService.mapGenreToVietnamese(g)).join(', ');
+  }
+  
   return {
     movieId: movie.movieId,
     title: movie.title,
-    genre: movie.genre && movie.genre.length > 0 ? movie.genre.join(', ') : 'N/A',
+    genre: genreDisplay,
     poster: movie.poster,
     rating: mapAgeRating(movie.ageRating),
     trailerId: extractYouTubeId(movie.trailerURL)
