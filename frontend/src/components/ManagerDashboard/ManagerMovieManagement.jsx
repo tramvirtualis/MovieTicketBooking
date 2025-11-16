@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { enumService } from '../../services/enumService';
 import movieService from '../../services/movieService';
+import ConfirmDeleteModal from '../Common/ConfirmDeleteModal';
 
 // Manager Movie Management Component
 function ManagerMovieManagement({ complexId }) {
@@ -11,7 +12,8 @@ function ManagerMovieManagement({ complexId }) {
   const [notification, setNotification] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState(null);
-  const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'NOW_SHOWING', 'COMING_SOON'
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, movieId: null, movieTitle: null });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Notification component
   const showNotification = (message, type = 'success') => {
@@ -25,16 +27,31 @@ function ManagerMovieManagement({ complexId }) {
   const loadAllMovies = async () => {
     setLoadingMovies(true);
     try {
-      const result = await movieService.getAllMovies();
+      // Use manager endpoint instead of admin endpoint
+      const result = await movieService.getAllMoviesManager();
       if (result.success) {
-        // Filter movies by status if needed
+        // Load all movies, no filter by status
         let movies = result.data || [];
-        if (filterStatus !== 'all') {
-          movies = movies.filter(m => m.status === filterStatus);
-        }
+        
+        // Map movies to frontend format
+        movies = movies.map(movie => ({
+          movieId: movie.movieId,
+          title: movie.title,
+          genre: movie.genre || [],
+          duration: movie.duration,
+          ageRating: enumService.mapAgeRatingToDisplay(movie.ageRating),
+          poster: movie.poster,
+          status: movie.status,
+          releaseDate: movie.releaseDate,
+          description: movie.description,
+          actor: movie.actor,
+          director: movie.director
+        }));
+        
         // Filter out movies that are already in complex
         const complexMovieIds = new Set(complexMovies.map(m => m.movieId));
         movies = movies.filter(m => !complexMovieIds.has(m.movieId));
+        
         setAllMovies(movies);
       } else {
         showNotification(result.error || 'Không thể tải danh sách phim', 'error');
@@ -47,21 +64,31 @@ function ManagerMovieManagement({ complexId }) {
     }
   };
 
-  // Load movies for this complex (from showtimes)
+  // Load movies for this complex
   const loadComplexMovies = async () => {
     if (!complexId) return;
 
     setLoading(true);
     try {
-      // Get rooms for this complex first
-      const { default: cinemaRoomService } = await import('../../services/cinemaRoomService');
-      const roomsResult = await cinemaRoomService.getRoomsByComplexIdManager(complexId);
+      const { default: cinemaComplexService } = await import('../../services/cinemaComplexService');
+      const result = await cinemaComplexService.getComplexMoviesManager(complexId);
       
-      if (roomsResult.success && roomsResult.data && roomsResult.data.length > 0) {
-        // For now, we'll use an empty list since we don't have a showtime service
-        // In the future, you can implement API to get showtimes by complex ID
-        // and extract unique movies from those showtimes
-        setComplexMovies([]);
+      if (result.success && result.data) {
+        // Map movies from backend format to frontend format
+        const mappedMovies = result.data.map(movie => ({
+          movieId: movie.movieId,
+          title: movie.title,
+          genre: movie.genre || [],
+          duration: movie.duration,
+          ageRating: enumService.mapAgeRatingToDisplay(movie.ageRating),
+          poster: movie.poster,
+          status: movie.status,
+          releaseDate: movie.releaseDate,
+          description: movie.description,
+          actor: movie.actor,
+          director: movie.director
+        }));
+        setComplexMovies(mappedMovies);
       } else {
         setComplexMovies([]);
       }
@@ -83,49 +110,69 @@ function ManagerMovieManagement({ complexId }) {
     if (showAddModal) {
       loadAllMovies();
     }
-  }, [showAddModal, filterStatus, complexMovies]);
+  }, [showAddModal, complexMovies]);
 
-  const handleAddMovie = (movie) => {
-    // Add movie to complex movies list
-    const movieToAdd = {
-      ...movie,
-      ageRating: movie.ageRating || enumService.mapAgeRatingToDisplay(movie.ageRating)
-    };
-    
-    setComplexMovies(prev => {
-      // Check if movie already exists
-      if (prev.some(m => m.movieId === movie.movieId)) {
-        showNotification('Phim này đã có trong danh sách cụm rạp', 'error');
-        return prev;
-      }
-      return [...prev, movieToAdd];
-    });
-    
-    showNotification(`Đã thêm phim "${movie.title}" vào danh sách cụm rạp. Bạn cần tạo suất chiếu cho phim này để khách hàng có thể đặt vé.`, 'success');
-    setShowAddModal(false);
-    
-    // In a real implementation, you might want to create an association or showtime here
-    // For example:
-    // await createMovieComplexAssociation(movie.movieId, complexId);
-  };
-
-  const handleRemoveMovie = async (movieId) => {
-    if (!window.confirm('Bạn có chắc muốn xóa phim này khỏi cụm rạp? Tất cả suất chiếu của phim này sẽ bị xóa.')) {
+  const handleAddMovie = async (movie) => {
+    if (!complexId) {
+      showNotification('Không tìm thấy cụm rạp', 'error');
       return;
     }
 
     try {
-      // Remove from local state
-      setComplexMovies(prev => prev.filter(m => m.movieId !== movieId));
-      showNotification('Đã xóa phim khỏi danh sách cụm rạp', 'success');
+      const { default: cinemaComplexService } = await import('../../services/cinemaComplexService');
+      const result = await cinemaComplexService.addMovieToComplexManager(complexId, movie.movieId);
       
-      // In a real implementation, you would delete all showtimes for this movie in this complex
-      // For example:
-      // const { default: showtimeService } = await import('../../services/showtimeService');
-      // await showtimeService.deleteShowtimesByMovieAndComplex(movieId, complexId);
+      if (result.success) {
+        // Reload complex movies after adding
+        await loadComplexMovies();
+        
+        showNotification(`Đã thêm phim "${movie.title}" vào danh sách cụm rạp thành công. Bạn cần tạo suất chiếu cho phim này để khách hàng có thể đặt vé.`, 'success');
+        setShowAddModal(false);
+      } else {
+        showNotification(result.error || 'Không thể thêm phim vào cụm rạp', 'error');
+      }
+    } catch (error) {
+      console.error('Error adding movie:', error);
+      showNotification(error.message || 'Có lỗi xảy ra khi thêm phim', 'error');
+    }
+  };
+
+  const handleRemoveMovieClick = (movieId, movieTitle) => {
+    setDeleteModal({ isOpen: true, movieId, movieTitle });
+  };
+
+  const handleCloseDeleteModal = () => {
+    if (!isDeleting) {
+      setDeleteModal({ isOpen: false, movieId: null, movieTitle: null });
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    const { movieId } = deleteModal;
+    if (!complexId || !movieId) {
+      showNotification('Không tìm thấy cụm rạp hoặc phim', 'error');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const { default: cinemaComplexService } = await import('../../services/cinemaComplexService');
+      const result = await cinemaComplexService.removeMovieFromComplexManager(complexId, movieId);
+      
+      if (result.success) {
+        // Reload complex movies after removing
+        await loadComplexMovies();
+        
+        showNotification('Đã xóa phim khỏi danh sách cụm rạp thành công', 'success');
+        setDeleteModal({ isOpen: false, movieId: null, movieTitle: null });
+      } else {
+        showNotification(result.error || 'Không thể xóa phim khỏi cụm rạp', 'error');
+      }
     } catch (error) {
       console.error('Error removing movie:', error);
-      showNotification('Có lỗi xảy ra khi xóa phim', 'error');
+      showNotification(error.message || 'Có lỗi xảy ra khi xóa phim', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -273,7 +320,7 @@ function ManagerMovieManagement({ complexId }) {
                       <td>
                         <button
                           className="btn btn--ghost btn--small"
-                          onClick={() => handleRemoveMovie(movie.movieId)}
+                          onClick={() => handleRemoveMovieClick(movie.movieId, movie.title)}
                           style={{ color: '#e83b41' }}
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -306,26 +353,6 @@ function ManagerMovieManagement({ complexId }) {
               </button>
             </div>
             <div className="movie-modal__content">
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', color: '#fff', fontWeight: 500 }}>Lọc theo trạng thái:</label>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  style={{
-                    padding: '10px 16px',
-                    borderRadius: '8px',
-                    background: '#2d2627',
-                    border: '1px solid #4a3f41',
-                    color: '#fff',
-                    fontSize: '14px',
-                    minWidth: '200px'
-                  }}
-                >
-                  <option value="all">Tất cả</option>
-                  <option value="NOW_SHOWING">Đang chiếu</option>
-                  <option value="COMING_SOON">Sắp chiếu</option>
-                </select>
-              </div>
 
               {loadingMovies ? (
                 <div style={{ textAlign: 'center', padding: '40px', color: '#fff' }}>
@@ -427,6 +454,17 @@ function ManagerMovieManagement({ complexId }) {
           </div>
         </div>
       )}
+
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title={deleteModal.movieTitle || 'phim này'}
+        message="Bạn có chắc chắn muốn xóa phim này khỏi cụm rạp? Phim sẽ bị xóa khỏi danh sách cụm rạp."
+        confirmText="Xóa"
+        isDeleting={isDeleting}
+      />
     </>
   );
 }

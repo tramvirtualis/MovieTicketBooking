@@ -226,6 +226,72 @@ export const cinemaComplexService = {
       };
     }
   },
+
+  // ============ MANAGER MOVIE METHODS ============
+
+  /**
+   * Lấy danh sách phim của cụm rạp (Manager)
+   * @param {number} complexId - ID của cụm rạp
+   * @returns {Promise<Object>} Response từ server
+   */
+  getComplexMoviesManager: async (complexId) => {
+    try {
+      const response = await axiosInstance.get(`/manager/cinema-complex/${complexId}/movies`);
+      return {
+        success: true,
+        data: response.data.data || [],
+        message: response.data.message || 'Lấy danh sách phim thành công',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể lấy danh sách phim',
+        data: [],
+      };
+    }
+  },
+
+  /**
+   * Thêm phim vào cụm rạp (Manager)
+   * @param {number} complexId - ID của cụm rạp
+   * @param {number} movieId - ID của phim
+   * @returns {Promise<Object>} Response từ server
+   */
+  addMovieToComplexManager: async (complexId, movieId) => {
+    try {
+      const response = await axiosInstance.post(`/manager/cinema-complex/${complexId}/movies/${movieId}`);
+      return {
+        success: true,
+        message: response.data.message || 'Thêm phim vào cụm rạp thành công',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể thêm phim vào cụm rạp',
+      };
+    }
+  },
+
+  /**
+   * Xóa phim khỏi cụm rạp (Manager)
+   * @param {number} complexId - ID của cụm rạp
+   * @param {number} movieId - ID của phim
+   * @returns {Promise<Object>} Response từ server
+   */
+  removeMovieFromComplexManager: async (complexId, movieId) => {
+    try {
+      const response = await axiosInstance.delete(`/manager/cinema-complex/${complexId}/movies/${movieId}`);
+      return {
+        success: true,
+        message: response.data.message || 'Xóa phim khỏi cụm rạp thành công',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể xóa phim khỏi cụm rạp',
+      };
+    }
+  },
 };
 
 export default cinemaComplexService;

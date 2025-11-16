@@ -97,6 +97,60 @@ export const movieService = {
   },
 
   /**
+   * Lấy tất cả phim (Manager)
+   * @returns {Promise<Object>} Response từ server
+   */
+  getAllMoviesManager: async () => {
+    try {
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        return {
+          success: false,
+          error: 'Vui lòng đăng nhập để tiếp tục',
+        };
+      }
+
+      const response = await axiosInstance.get('/manager/movies');
+      
+      // Xử lý response data
+      let movies = [];
+      if (response.data) {
+        if (Array.isArray(response.data.data)) {
+          movies = response.data.data;
+        } else if (Array.isArray(response.data)) {
+          movies = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          movies = response.data.data;
+        }
+      }
+
+      return {
+        success: true,
+        data: movies,
+      };
+    } catch (error) {
+      let errorMessage = 'Không thể lấy danh sách phim';
+      
+      if (error.response) {
+        if (error.response.status === 401 || error.response.status === 403) {
+          errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+          // Xóa token nếu không hợp lệ
+          localStorage.removeItem('jwt');
+        } else if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  },
+
+  /**
    * Lấy phim theo ID (Admin only)
    * @param {number} movieId - ID của phim
    * @returns {Promise<Object>} Response từ server

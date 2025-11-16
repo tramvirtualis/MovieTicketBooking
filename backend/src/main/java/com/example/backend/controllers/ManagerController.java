@@ -10,14 +10,20 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.backend.dtos.CinemaComplexResponseDTO;
+import com.example.backend.dtos.MovieResponseDTO;
 import com.example.backend.entities.Manager;
+import com.example.backend.entities.Movie;
 import com.example.backend.repositories.ManagerRepository;
 import com.example.backend.services.CinemaComplexService;
+import com.example.backend.services.MovieService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,6 +38,7 @@ public class ManagerController {
     
     private final CinemaComplexService cinemaComplexService;
     private final ManagerRepository managerRepository;
+    private final MovieService movieService;
     
     @GetMapping("/cinema-complex")
     public ResponseEntity<?> getManagerCinemaComplex() {
@@ -93,6 +100,116 @@ public class ManagerController {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse("Lỗi: " + e.getMessage()));
+        }
+    }
+
+    // ============ MOVIE MANAGEMENT ENDPOINTS ============
+
+    /**
+     * Lấy danh sách tất cả phim trong hệ thống (Manager)
+     */
+    @GetMapping("/movies")
+    public ResponseEntity<?> getAllMoviesManager() {
+        try {
+            List<MovieResponseDTO> movies = movieService.getAllMovies();
+            return ResponseEntity.ok(createSuccessResponse("Lấy danh sách phim thành công", movies));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse("Có lỗi xảy ra: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Lấy danh sách phim của cụm rạp (Manager)
+     */
+    @GetMapping("/cinema-complex/{complexId}/movies")
+    public ResponseEntity<?> getComplexMovies(@PathVariable Long complexId) {
+        try {
+            // Verify manager owns this complex
+            String username = SecurityContextHolder.getContext().getAuthentication().getName();
+            Optional<Long> managerComplexId = managerRepository.findCinemaComplexIdByUsername(username);
+            
+            if (!managerComplexId.isPresent() || !managerComplexId.get().equals(complexId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(createErrorResponse("Bạn không có quyền truy cập cụm rạp này"));
+            }
+            
+            List<Movie> movies = cinemaComplexService.getMoviesByComplexId(complexId);
+            
+            // Convert to MovieResponseDTO using MovieService
+            List<MovieResponseDTO> movieDTOs = movies.stream()
+                .map(movie -> {
+                    try {
+                        return movieService.getMovieById(movie.getMovieId());
+                    } catch (Exception e) {
+                        // If movie not found, return null and filter it out
+                        return null;
+                    }
+                })
+                .filter(dto -> dto != null)
+                .collect(java.util.stream.Collectors.toList());
+            
+            return ResponseEntity.ok(createSuccessResponse("Lấy danh sách phim thành công", movieDTOs));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse("Có lỗi xảy ra: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Thêm phim vào cụm rạp (Manager)
+     */
+    @PostMapping("/cinema-complex/{complexId}/movies/{movieId}")
+    public ResponseEntity<?> addMovieToComplex(@PathVariable Long complexId, @PathVariable Long movieId) {
+        try {
+            // Verify manager owns this complex
+            String username = SecurityContextHolder.getContext().getAuthentication().getName();
+            Optional<Long> managerComplexId = managerRepository.findCinemaComplexIdByUsername(username);
+            
+            if (!managerComplexId.isPresent() || !managerComplexId.get().equals(complexId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(createErrorResponse("Bạn không có quyền truy cập cụm rạp này"));
+            }
+            
+            cinemaComplexService.addMovieToComplex(complexId, movieId);
+            
+            return ResponseEntity.ok(createSuccessResponse("Thêm phim vào cụm rạp thành công", null));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(createErrorResponse("Có lỗi xảy ra: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Xóa phim khỏi cụm rạp (Manager)
+     */
+    @DeleteMapping("/cinema-complex/{complexId}/movies/{movieId}")
+    public ResponseEntity<?> removeMovieFromComplex(@PathVariable Long complexId, @PathVariable Long movieId) {
+        try {
+            // Verify manager owns this complex
+            String username = SecurityContextHolder.getContext().getAuthentication().getName();
+            Optional<Long> managerComplexId = managerRepository.findCinemaComplexIdByUsername(username);
+            
+            if (!managerComplexId.isPresent() || !managerComplexId.get().equals(complexId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(createErrorResponse("Bạn không có quyền truy cập cụm rạp này"));
+            }
+            
+            cinemaComplexService.removeMovieFromComplex(complexId, movieId);
+            
+            return ResponseEntity.ok(createSuccessResponse("Xóa phim khỏi cụm rạp thành công", null));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(createErrorResponse("Có lỗi xảy ra: " + e.getMessage()));
         }
     }
     

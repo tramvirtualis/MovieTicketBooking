@@ -30,4 +30,12 @@ public class CinemaComplex {
         inverseJoinColumns = @JoinColumn(name = "food_combo_id")
     )
     private List<FoodCombo> foodCombos;
+
+    @ManyToMany
+    @JoinTable(
+        name = "complex_movies",
+        joinColumns = @JoinColumn(name = "complex_id"),
+        inverseJoinColumns = @JoinColumn(name = "movie_id")
+    )
+    private List<Movie> movies;
 }
