@@ -4,6 +4,7 @@ import { generateSeats, getSeatColor } from '../AdminDashboard/utils';
 import ConfirmDeleteModal from '../Common/ConfirmDeleteModal';
 import movieService from '../../services/movieService';
 import { enumService } from '../../services/enumService';
+import showtimeService from '../../services/showtimeService';
 
 // Full Cinema Management (copied and adapted from Admin) scoped for manager
 function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange, complexId }) {
@@ -24,7 +25,6 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     movieId: '',
     date: '',
     startTime: '',
-    price: 120000,
     language: 'Phụ đề',
     format: '2D'
   });
@@ -34,6 +34,8 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
   const [loadingMovies, setLoadingMovies] = useState(false);
   const [showtimeConflict, setShowtimeConflict] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [loadingShowtimes, setLoadingShowtimes] = useState(false);
+  const [savingShowtime, setSavingShowtime] = useState(false);
 
   // Notification system
   const showNotification = (message, type = 'success') => {
@@ -43,14 +45,33 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     }, 3000);
   };
 
-  useEffect(() => {
-    if (onCinemasChange) {
-      onCinemasChange(cinemas);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cinemas]);
+  // Use ref to track if we've already loaded rooms to prevent infinite loop
+  const hasLoadedRoomsRef = React.useRef(false);
+  const lastInitialCinemasListRef = React.useRef(null);
+  const prevCinemasRef = React.useRef(null);
 
   useEffect(() => {
+    // Only call onCinemasChange if cinemas actually changed
+    // Compare by complexIds to avoid unnecessary calls
+    const currentComplexIds = cinemas?.map(c => c.complexId).sort().join(',') || '';
+    const prevComplexIds = prevCinemasRef.current || '';
+    
+    if (currentComplexIds !== prevComplexIds && onCinemasChange) {
+      onCinemasChange(cinemas);
+      prevCinemasRef.current = currentComplexIds;
+    }
+  }, [cinemas, onCinemasChange]);
+
+  useEffect(() => {
+    // Check if initialCinemasList actually changed (by comparing complexIds)
+    const currentComplexIds = initialCinemasList?.map(c => c.complexId).sort().join(',') || '';
+    const lastComplexIds = lastInitialCinemasListRef.current || '';
+    
+    // Only reload if complexIds changed or if we haven't loaded yet
+    if (currentComplexIds === lastComplexIds && hasLoadedRoomsRef.current) {
+      return; // Skip if nothing changed
+    }
+    
     console.log('ManagerCinemaManagement: initialCinemasList changed:', initialCinemasList);
     console.log('ManagerCinemaManagement: initialCinemasList length:', initialCinemasList?.length || 0);
     
@@ -58,6 +79,8 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
       if (!initialCinemasList || initialCinemasList.length === 0) {
         setCinemas([]);
         setSelectedCinema(null);
+        hasLoadedRoomsRef.current = true;
+        lastInitialCinemasListRef.current = '';
         return;
       }
       
@@ -101,6 +124,10 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
         console.log('ManagerCinemaManagement: No cinemas, setting selectedCinema to null');
         setSelectedCinema(null);
       }
+      
+      // Mark as loaded and save current state
+      hasLoadedRoomsRef.current = true;
+      lastInitialCinemasListRef.current = currentComplexIds;
     };
     
     loadRoomsForCinemas();
@@ -146,7 +173,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     loadMovies();
   }, [showShowtimeModal]);
 
-  const openShowtimes = (cinema, room) => {
+  const openShowtimes = async (cinema, room) => {
     setSelectedCinema(cinema);
     setSelectedRoom(room);
     setEditingShowtime(null);
@@ -154,12 +181,81 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
       movieId: '',
       date: new Date().toISOString().slice(0,10),
       startTime: '',
-      price: 120000,
       language: 'Phụ đề',
       format: room.roomType || '2D'
     });
     setShowtimeConflict(null);
     setShowShowtimeModal(true);
+    
+    // Load showtimes from API
+    if (room.roomId) {
+      setLoadingShowtimes(true);
+      try {
+        const result = await showtimeService.getShowtimesByRoomId(room.roomId);
+        if (result.success && result.data) {
+          // Map showtimes from API to format expected by UI
+          const mappedShowtimes = result.data.map(st => {
+            // Parse LocalDateTime from backend (format: "2025-11-15T19:30:00")
+            const startDateTime = new Date(st.startTime);
+            const endDateTime = new Date(st.endTime);
+            const date = startDateTime.toISOString().split('T')[0];
+            const startTime = startDateTime.toTimeString().slice(0, 5);
+            const endTime = endDateTime.toTimeString().slice(0, 5);
+            
+            // Get movie info from movieVersion
+            const movieId = st.movieVersion?.movie?.movieId || st.movieId;
+            const language = showtimeService.mapLanguageFromBackend(st.movieVersion?.language || st.language);
+            const format = showtimeService.mapRoomTypeFromBackend(st.movieVersion?.roomType || st.format);
+            
+            return {
+              showtimeId: st.showtimeId,
+              roomId: st.cinemaRoom?.roomId || room.roomId,
+              movieId: movieId,
+              date: date,
+              startTime: startTime,
+              endTime: endTime,
+              language: language,
+              format: format,
+              movieTitle: st.movieVersion?.movie?.title || st.movieTitle
+            };
+          });
+          
+          // Update selectedRoom with showtimes
+          const updatedRoom = {
+            ...room,
+            showtimes: mappedShowtimes
+          };
+          setSelectedRoom(updatedRoom);
+          
+          // Also update in cinemas state
+          const cinemaIndex = cinemas.findIndex(c => c.complexId === cinema.complexId);
+          if (cinemaIndex !== -1) {
+            const roomIndex = cinemas[cinemaIndex].rooms.findIndex(r => r.roomId === room.roomId);
+            if (roomIndex !== -1) {
+              const updatedCinemas = [...cinemas];
+              updatedCinemas[cinemaIndex].rooms[roomIndex] = updatedRoom;
+              setCinemas(updatedCinemas);
+            }
+          }
+        } else {
+          // No showtimes or error, set empty array
+          const updatedRoom = {
+            ...room,
+            showtimes: []
+          };
+          setSelectedRoom(updatedRoom);
+        }
+      } catch (error) {
+        console.error('Error loading showtimes:', error);
+        const updatedRoom = {
+          ...room,
+          showtimes: []
+        };
+        setSelectedRoom(updatedRoom);
+      } finally {
+        setLoadingShowtimes(false);
+      }
+    }
   };
 
   const handleSaveRoom = async (e) => {
@@ -418,22 +514,21 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     return grouped;
   }, [selectedRoom?.showtimes]);
 
-  const handleSaveShowtime = () => {
+  const handleSaveShowtime = async () => {
     if (!selectedCinema || !selectedRoom) return;
     if (!showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime) {
       showNotification('Vui lòng chọn phim, ngày và giờ bắt đầu', 'error');
       return;
     }
+    
     const endTime = computeEndTime(showtimeForm.date, showtimeForm.startTime, showtimeForm.movieId);
     if (!endTime) {
       showNotification('Không thể tính giờ kết thúc. Vui lòng kiểm tra lại thông tin phim.', 'error');
       return;
     }
-    const cinemaIndex = cinemas.findIndex(c => c.complexId === selectedCinema.complexId);
-    const roomIndex = cinemas[cinemaIndex].rooms.findIndex(r => r.roomId === selectedRoom.roomId);
-    const updated = [...cinemas];
-    const room = { ...updated[cinemaIndex].rooms[roomIndex] };
-    const current = room.showtimes || [];
+    
+    // Check conflicts
+    const current = selectedRoom.showtimes || [];
     const conflicts = hasOverlap(current, showtimeForm.date, showtimeForm.startTime, endTime, editingShowtime?.showtimeId);
     if (conflicts && conflicts.length > 0) {
       const conflictShowtime = conflicts[0];
@@ -441,44 +536,167 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
       showNotification(`Khung giờ trùng với lịch chiếu: ${conflictMovie?.title || 'Phim khác'} (${conflictShowtime.startTime} - ${conflictShowtime.endTime})`, 'error');
       return;
     }
-    if (editingShowtime) {
-      room.showtimes = current.map(st =>
-        st.showtimeId === editingShowtime.showtimeId
-          ? { ...st, ...showtimeForm, movieId: Number(showtimeForm.movieId), endTime }
-          : st
-      );
-    } else {
-      const nextId = Math.max(0, ...current.map(s => s.showtimeId || 0)) + 1;
-      room.showtimes = [
-        ...current,
-        {
-          showtimeId: nextId,
-          roomId: room.roomId,
-          cinemaId: selectedCinema.complexId,
-          movieId: Number(showtimeForm.movieId),
-          date: showtimeForm.date,
-          startTime: showtimeForm.startTime,
-          endTime,
-          price: Number(showtimeForm.price) || 0,
-          language: showtimeForm.language,
-          format: showtimeForm.format
-        }
-      ];
+    
+    // Prevent multiple calls
+    if (savingShowtime) {
+      return;
     }
-    updated[cinemaIndex].rooms[roomIndex] = room;
-    setCinemas(updated);
-    setSelectedRoom(room);
-    setEditingShowtime(null);
-    setShowtimeForm({
-      movieId: '',
-      date: showtimeForm.date,
-      startTime: '',
-      price: 120000,
-      language: 'Phụ đề',
-      format: room.roomType || '2D'
-    });
-    setShowtimeConflict(null);
-    showNotification(editingShowtime ? 'Cập nhật lịch chiếu thành công' : 'Thêm lịch chiếu thành công', 'success');
+    
+    setSavingShowtime(true);
+    try {
+      // Format startTime and endTime as LocalDateTime strings
+      const startDateTime = `${showtimeForm.date}T${showtimeForm.startTime}:00`;
+      const endDateTime = `${showtimeForm.date}T${endTime}:00`;
+      
+      if (editingShowtime) {
+        // Update existing showtime
+        const result = await showtimeService.updateShowtime(editingShowtime.showtimeId, {
+          movieId: Number(showtimeForm.movieId),
+          language: showtimeForm.language,
+          roomType: showtimeForm.format,
+          startTime: startDateTime,
+          endTime: endDateTime,
+        });
+        
+        if (result.success) {
+          // Reload showtimes from API
+          const showtimesResult = await showtimeService.getShowtimesByRoomId(selectedRoom.roomId);
+          if (showtimesResult.success && showtimesResult.data) {
+            const mappedShowtimes = showtimesResult.data.map(st => {
+              const startDateTime = new Date(st.startTime);
+              const endDateTime = new Date(st.endTime);
+              const date = startDateTime.toISOString().split('T')[0];
+              const startTime = startDateTime.toTimeString().slice(0, 5);
+              const endTime = endDateTime.toTimeString().slice(0, 5);
+              const movieId = st.movieVersion?.movie?.movieId || st.movieId;
+              const language = showtimeService.mapLanguageFromBackend(st.movieVersion?.language || st.language);
+              const format = showtimeService.mapRoomTypeFromBackend(st.movieVersion?.roomType || st.format);
+              
+              return {
+                showtimeId: st.showtimeId,
+                roomId: st.cinemaRoom?.roomId || selectedRoom.roomId,
+                movieId: movieId,
+                date: date,
+                startTime: startTime,
+                endTime: endTime,
+                language: language,
+                format: format,
+                movieTitle: st.movieVersion?.movie?.title || st.movieTitle
+              };
+            });
+            
+            const updatedRoom = {
+              ...selectedRoom,
+              showtimes: mappedShowtimes
+            };
+            setSelectedRoom(updatedRoom);
+            
+            // Update in cinemas state
+            const cinemaIndex = cinemas.findIndex(c => c.complexId === selectedCinema.complexId);
+            if (cinemaIndex !== -1) {
+              const roomIndex = cinemas[cinemaIndex].rooms.findIndex(r => r.roomId === selectedRoom.roomId);
+              if (roomIndex !== -1) {
+                const updatedCinemas = [...cinemas];
+                updatedCinemas[cinemaIndex].rooms[roomIndex] = updatedRoom;
+                setCinemas(updatedCinemas);
+                if (onCinemasChange) {
+                  onCinemasChange(updatedCinemas);
+                }
+              }
+            }
+          }
+          
+          showNotification('Cập nhật lịch chiếu thành công', 'success');
+          setEditingShowtime(null);
+          setShowtimeForm({
+            movieId: '',
+            date: showtimeForm.date,
+            startTime: '',
+            language: 'Phụ đề',
+            format: selectedRoom.roomType || '2D'
+          });
+          setShowtimeConflict(null);
+        } else {
+          showNotification(result.error || 'Cập nhật lịch chiếu thất bại', 'error');
+        }
+      } else {
+        // Create new showtime
+        const result = await showtimeService.createShowtime({
+          cinemaRoomId: selectedRoom.roomId,
+          movieId: Number(showtimeForm.movieId),
+          language: showtimeForm.language,
+          roomType: showtimeForm.format,
+          startTime: startDateTime,
+          endTime: endDateTime,
+        });
+        
+        if (result.success) {
+          // Reload showtimes from API
+          const showtimesResult = await showtimeService.getShowtimesByRoomId(selectedRoom.roomId);
+          if (showtimesResult.success && showtimesResult.data) {
+            const mappedShowtimes = showtimesResult.data.map(st => {
+              const startDateTime = new Date(st.startTime);
+              const endDateTime = new Date(st.endTime);
+              const date = startDateTime.toISOString().split('T')[0];
+              const startTime = startDateTime.toTimeString().slice(0, 5);
+              const endTime = endDateTime.toTimeString().slice(0, 5);
+              const movieId = st.movieVersion?.movie?.movieId || st.movieId;
+              const language = showtimeService.mapLanguageFromBackend(st.movieVersion?.language || st.language);
+              const format = showtimeService.mapRoomTypeFromBackend(st.movieVersion?.roomType || st.format);
+              
+              return {
+                showtimeId: st.showtimeId,
+                roomId: st.cinemaRoom?.roomId || selectedRoom.roomId,
+                movieId: movieId,
+                date: date,
+                startTime: startTime,
+                endTime: endTime,
+                language: language,
+                format: format,
+                movieTitle: st.movieVersion?.movie?.title || st.movieTitle
+              };
+            });
+            
+            const updatedRoom = {
+              ...selectedRoom,
+              showtimes: mappedShowtimes
+            };
+            setSelectedRoom(updatedRoom);
+            
+            // Update in cinemas state
+            const cinemaIndex = cinemas.findIndex(c => c.complexId === selectedCinema.complexId);
+            if (cinemaIndex !== -1) {
+              const roomIndex = cinemas[cinemaIndex].rooms.findIndex(r => r.roomId === selectedRoom.roomId);
+              if (roomIndex !== -1) {
+                const updatedCinemas = [...cinemas];
+                updatedCinemas[cinemaIndex].rooms[roomIndex] = updatedRoom;
+                setCinemas(updatedCinemas);
+                if (onCinemasChange) {
+                  onCinemasChange(updatedCinemas);
+                }
+              }
+            }
+          }
+          
+          showNotification('Thêm lịch chiếu thành công', 'success');
+          setShowtimeForm({
+            movieId: '',
+            date: showtimeForm.date,
+            startTime: '',
+            language: 'Phụ đề',
+            format: selectedRoom.roomType || '2D'
+          });
+          setShowtimeConflict(null);
+        } else {
+          showNotification(result.error || 'Thêm lịch chiếu thất bại', 'error');
+        }
+      }
+    } catch (error) {
+      console.error('Error saving showtime:', error);
+      showNotification('Có lỗi xảy ra khi lưu lịch chiếu', 'error');
+    } finally {
+      setSavingShowtime(false);
+    }
   };
 
   const handleEditShowtime = (st) => {
@@ -487,7 +705,6 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
       movieId: String(st.movieId),
       date: st.date,
       startTime: st.startTime,
-      price: st.price,
       language: st.language || 'Phụ đề',
       format: st.format || (selectedRoom?.roomType || '2D')
     });
@@ -511,22 +728,80 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     });
   };
 
-  const confirmDeleteShowtime = () => {
+  const confirmDeleteShowtime = async () => {
     if (!deleteConfirm || deleteConfirm.type !== 'showtime') return;
     if (!selectedCinema || !selectedRoom) return;
 
     const stId = deleteConfirm.id;
-    const cinemaIndex = cinemas.findIndex(c => c.complexId === selectedCinema.complexId);
-    const roomIndex = cinemas[cinemaIndex].rooms.findIndex(r => r.roomId === selectedRoom.roomId);
-    const updated = [...cinemas];
-    const room = { ...updated[cinemaIndex].rooms[roomIndex] };
-    room.showtimes = (room.showtimes || []).filter(s => s.showtimeId !== stId);
-    updated[cinemaIndex].rooms[roomIndex] = room;
-    setCinemas(updated);
-    setSelectedRoom(room);
-    if (editingShowtime?.showtimeId === stId) setEditingShowtime(null);
-    setDeleteConfirm(null);
-    showNotification('Xóa lịch chiếu thành công', 'success');
+    
+    try {
+      const result = await showtimeService.deleteShowtime(stId);
+      
+      if (result.success) {
+        // Reload showtimes from API
+        const showtimesResult = await showtimeService.getShowtimesByRoomId(selectedRoom.roomId);
+        if (showtimesResult.success && showtimesResult.data) {
+          const mappedShowtimes = showtimesResult.data.map(st => {
+            const startDateTime = new Date(st.startTime);
+            const endDateTime = new Date(st.endTime);
+            const date = startDateTime.toISOString().split('T')[0];
+            const startTime = startDateTime.toTimeString().slice(0, 5);
+            const endTime = endDateTime.toTimeString().slice(0, 5);
+            const movieId = st.movieVersion?.movie?.movieId || st.movieId;
+            const language = showtimeService.mapLanguageFromBackend(st.movieVersion?.language || st.language);
+            const format = showtimeService.mapRoomTypeFromBackend(st.movieVersion?.roomType || st.format);
+            
+            return {
+              showtimeId: st.showtimeId,
+              roomId: st.cinemaRoom?.roomId || selectedRoom.roomId,
+              movieId: movieId,
+              date: date,
+              startTime: startTime,
+              endTime: endTime,
+              language: language,
+              format: format,
+              movieTitle: st.movieVersion?.movie?.title || st.movieTitle
+            };
+          });
+          
+          const updatedRoom = {
+            ...selectedRoom,
+            showtimes: mappedShowtimes
+          };
+          setSelectedRoom(updatedRoom);
+          
+          // Update in cinemas state
+          const cinemaIndex = cinemas.findIndex(c => c.complexId === selectedCinema.complexId);
+          if (cinemaIndex !== -1) {
+            const roomIndex = cinemas[cinemaIndex].rooms.findIndex(r => r.roomId === selectedRoom.roomId);
+            if (roomIndex !== -1) {
+              const updatedCinemas = [...cinemas];
+              updatedCinemas[cinemaIndex].rooms[roomIndex] = updatedRoom;
+              setCinemas(updatedCinemas);
+              if (onCinemasChange) {
+                onCinemasChange(updatedCinemas);
+              }
+            }
+          }
+        } else {
+          // No showtimes after delete, set empty array
+          const updatedRoom = {
+            ...selectedRoom,
+            showtimes: []
+          };
+          setSelectedRoom(updatedRoom);
+        }
+        
+        if (editingShowtime?.showtimeId === stId) setEditingShowtime(null);
+        setDeleteConfirm(null);
+        showNotification('Xóa lịch chiếu thành công', 'success');
+      } else {
+        showNotification(result.error || 'Xóa lịch chiếu thất bại', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting showtime:', error);
+      showNotification('Có lỗi xảy ra khi xóa lịch chiếu', 'error');
+    }
   };
 
   const confirmDelete = async () => {
@@ -764,9 +1039,10 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     );
   };
 
-  console.log('ManagerCinemaManagement: Rendering with cinemas:', cinemas);
-  console.log('ManagerCinemaManagement: cinemas.length:', cinemas?.length || 0);
-  console.log('ManagerCinemaManagement: selectedCinema:', selectedCinema);
+  // Removed console.logs to reduce noise - uncomment for debugging if needed
+  // console.log('ManagerCinemaManagement: Rendering with cinemas:', cinemas);
+  // console.log('ManagerCinemaManagement: cinemas.length:', cinemas?.length || 0);
+  // console.log('ManagerCinemaManagement: selectedCinema:', selectedCinema);
 
   return (
     <div className="cinema-management">
@@ -1079,7 +1355,6 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                           movieId: '',
                           date: new Date().toISOString().slice(0,10),
                           startTime: '',
-                          price: 120000,
                           language: 'Phụ đề',
                           format: selectedRoom.roomType || '2D'
                         });
@@ -1173,17 +1448,6 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
 
                   <div className="movie-form__row" style={{ marginTop: '16px' }}>
                   <div className="movie-form__group">
-                      <label>Giá vé (VNĐ)</label>
-                    <input
-                      type="number"
-                      value={showtimeForm.price}
-                      onChange={(e) => setShowtimeForm({ ...showtimeForm, price: parseInt(e.target.value) || 0 })}
-                      min="0"
-                      step="1000"
-                        placeholder="120000"
-                    />
-                  </div>
-                  <div className="movie-form__group">
                     <label>Ngôn ngữ</label>
                     <select
                       value={showtimeForm.language}
@@ -1192,10 +1456,19 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                       {(() => {
                           const mv = movies.find(m => String(m.movieId) === String(showtimeForm.movieId));
                           // MovieResponseDTO có formats và languages
-                          const langs = mv?.languages || ['VIETSUB', 'VIETNAMESE_DUB', 'VIETNAMESE'];
+                          // Backend enum: VIETSUB, VIETNAMESE, VIETDUB
+                          const langs = mv?.languages || ['VIETSUB', 'VIETNAMESE', 'VIETDUB'];
+                          // Map backend enum to display format
+                          const langDisplayMap = {
+                            'VIETSUB': 'Phụ đề',
+                            'VIETNAMESE': 'Tiếng Việt',
+                            'VIETDUB': 'Lồng tiếng'
+                          };
                           return langs.length > 0 ? langs.map(l => (
-                            <option key={l} value={l}>{l}</option>
-                          )) : <option value="VIETSUB">VIETSUB</option>;
+                            <option key={l} value={langDisplayMap[l] || l}>
+                              {langDisplayMap[l] || l}
+                            </option>
+                          )) : <option value="Phụ đề">Phụ đề</option>;
                       })()}
                     </select>
                   </div>
@@ -1225,13 +1498,13 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                     <button 
                       className="btn btn--primary" 
                       onClick={handleSaveShowtime}
-                      disabled={!showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict}
+                      disabled={savingShowtime || !showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict}
                       style={{ 
-                        opacity: (!showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict) ? 0.5 : 1,
-                        cursor: (!showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict) ? 'not-allowed' : 'pointer'
+                        opacity: (savingShowtime || !showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict) ? 0.5 : 1,
+                        cursor: (savingShowtime || !showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict) ? 'not-allowed' : 'pointer'
                       }}
                     >
-                    {editingShowtime ? 'Lưu thay đổi' : 'Thêm lịch chiếu'}
+                    {savingShowtime ? 'Đang xử lý...' : (editingShowtime ? 'Lưu thay đổi' : 'Thêm lịch chiếu')}
                   </button>
                   </div>
                 </div>
@@ -1255,7 +1528,18 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                   Lịch chiếu hiện tại
                 </h3>
 
-                {Object.keys(showtimesByDate).length === 0 ? (
+                {loadingShowtimes ? (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: '60px 20px',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    borderRadius: '12px',
+                    border: '1px dashed rgba(255, 255, 255, 0.1)'
+                  }}>
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#e83b41] mb-4"></div>
+                    <p style={{ color: '#c9c4c5', fontSize: '16px', margin: 0 }}>Đang tải lịch chiếu...</p>
+                  </div>
+                ) : Object.keys(showtimesByDate).length === 0 ? (
                   <div style={{ 
                     textAlign: 'center', 
                     padding: '60px 20px',
@@ -1410,7 +1694,6 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                                       <span style={{ opacity: 0.8 }}>•</span>
                                       <span>{st.format}</span>
                                       <span style={{ opacity: 0.8 }}>•</span>
-                                      <span>{new Intl.NumberFormat('vi-VN').format(st.price)}đ</span>
                                     </div>
                                   </div>
                                 </div>
@@ -1460,7 +1743,6 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                                     <span>🕐 {st.startTime} - {st.endTime}</span>
                                     <span>🎬 {st.format}</span>
                                     <span>🗣️ {st.language}</span>
-                                    <span>💰 {new Intl.NumberFormat('vi-VN').format(st.price)}đ</span>
                                   </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '8px' }}>
