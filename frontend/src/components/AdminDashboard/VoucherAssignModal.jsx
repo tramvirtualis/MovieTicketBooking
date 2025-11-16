@@ -1,10 +1,24 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState } from 'react';
 
 // Voucher Assign Modal Component
 function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
   const [newSelectedIds, setNewSelectedIds] = useState([]);
 
-  const privateVouchers = vouchers?.filter(v => v.isPublic === false) || [];
+  // Filter voucher riêng tư và chưa hết hạn
+  const now = new Date();
+  const privateVouchers = vouchers?.filter(v => {
+    if (v.isPublic === true) return false; // Chỉ lấy voucher riêng tư
+    
+    // Kiểm tra chưa hết hạn
+    if (v.endDate) {
+      const endDate = new Date(v.endDate);
+      endDate.setHours(23, 59, 59, 999); // End of day
+      if (now > endDate) return false; // Đã hết hạn
+    }
+    
+    return true;
+  }) || [];
+  
   const alreadyAssignedIds = vouchers?.filter(v => v.isPublic === false && v.assignedUserIds?.includes(user.userId)).map(v => v.voucherId) || [];
 
   const handleToggle = (voucherId) => {

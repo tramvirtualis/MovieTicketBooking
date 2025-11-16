@@ -36,10 +36,11 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173", "http://localhost:3000"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
+        configuration.setExposedHeaders(Arrays.asList("Authorization")); // Thêm dòng này
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -55,18 +56,20 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints - không cần authentication
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/public/**").permitAll()  // ← THÊM DÒNG NÀY
+                .requestMatchers("/api/public/**").permitAll()
+                .requestMatchers("/api/enums/**").permitAll()
+                .requestMatchers("/api/reviews/movie/**").permitAll()
                 
-                // Customer endpoints
+                // Customer endpoints - cho phép cả authenticated và unauthenticated
+                // (Nếu muốn chỉ authenticated thì đổi permitAll() thành authenticated())
                 .requestMatchers("/api/customer/**").permitAll()
-                .requestMatchers("/api/reviews/movie/**").permitAll() // Public access to movie reviews
-                .requestMatchers("/api/enums/**").permitAll() // Public access to enum values
                 
-                // Admin endpoints - cần role ADMIN
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // Admin endpoints - CHỈ cần authenticated (JWT hợp lệ)
+                // Role checking sẽ được xử lý trong JwtAuthenticationFilter
+                .requestMatchers("/api/admin/**").authenticated()
                 
-                // Manager endpoints - cần role MANAGER hoặc ADMIN
-                .requestMatchers("/api/manager/**").hasAnyRole("MANAGER", "ADMIN")
+                // Manager endpoints - cần authenticated
+                .requestMatchers("/api/manager/**").authenticated()
                 
                 // Tất cả request khác cần authentication
                 .anyRequest().authenticated()
