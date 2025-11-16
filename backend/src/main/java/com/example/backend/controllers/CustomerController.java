@@ -129,6 +129,24 @@ public class CustomerController {
         }
     }
 
+    // Admin endpoint để lấy vouchers của một user cụ thể
+    @GetMapping("/{userId}/vouchers")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getUserVouchersByAdmin(@PathVariable Long userId) {
+        try {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Lấy danh sách voucher thành công");
+            response.put("data", customerService.getUserVouchers(userId));
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
     @PostMapping("/vouchers/{voucherId}")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<?> saveVoucher(@PathVariable Long voucherId) {

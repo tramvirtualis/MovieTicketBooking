@@ -183,7 +183,8 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
       return;
     }
 
-    if (formData.role === 'MANAGER' && !formData.cinemaComplexId) {
+    // Manager luôn cần gán vào một cụm rạp
+    if (!formData.cinemaComplexId) {
       showToast('Manager cần gán vào một cụm rạp', 'error');
       return;
     }
@@ -198,8 +199,8 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
         addressDescription: formData.addressDescription,
         addressProvince: formData.addressProvince,
         status: formData.status,
-        role: formData.role,
-        cinemaComplexId: formData.role === 'MANAGER' ? Number(formData.cinemaComplexId) : null
+        role: 'MANAGER', // Chỉ tạo MANAGER
+        cinemaComplexId: Number(formData.cinemaComplexId)
       };
 
       const result = await userService.createStaff(staffData);
@@ -450,28 +451,26 @@ function UserManagement({ users: initialUsersList, cinemas: cinemasList, voucher
                       <label>Vai trò <span className="required">*</span></label>
                       <select
                         value={formData.role}
-                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                        disabled
+                        style={{ opacity: 0.7, cursor: 'not-allowed' }}
                       >
                         <option value="MANAGER">MANAGER</option>
-                        <option value="ADMIN">ADMIN</option>
                       </select>
                     </div>
-                    {formData.role === 'MANAGER' && (
-                      <div className="movie-form__group">
-                        <label>Cụm rạp (Manager) <span className="required">*</span></label>
-                        <select
-                          value={formData.cinemaComplexId}
-                          onChange={(e) => setFormData({ ...formData, cinemaComplexId: e.target.value })}
-                        >
-                          <option value="">Chọn cụm rạp</option>
-                          {cinemasList.map(c => (
-                            <option key={c.complexId} value={c.complexId}>
-                              #{c.complexId} - {c.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                    <div className="movie-form__group">
+                      <label>Cụm rạp (Manager) <span className="required">*</span></label>
+                      <select
+                        value={formData.cinemaComplexId}
+                        onChange={(e) => setFormData({ ...formData, cinemaComplexId: e.target.value })}
+                      >
+                        <option value="">Chọn cụm rạp</option>
+                        {cinemasList.map(c => (
+                          <option key={c.complexId} value={c.complexId}>
+                            #{c.complexId} - {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>

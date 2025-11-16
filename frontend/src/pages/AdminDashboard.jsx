@@ -14,6 +14,7 @@ import {
 import { movieService } from '../services/movieService';
 import { useEnums } from '../hooks/useEnums';
 import { enumService } from '../services/enumService';
+import { cinemaComplexService } from '../services/cinemaComplexService';
 import FoodBeverageManagement from '../components/AdminDashboard/FoodBeverageManagement';
 import MovieManagement from '../components/AdminDashboard/MovieManagement';
 import CinemaManagement from '../components/AdminDashboard/CinemaManagement';
@@ -607,13 +608,36 @@ export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('reports');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [movies, setMovies] = useState(initialMovies);
-  const [cinemas, setCinemas] = useState(initialCinemas);
+  const [cinemas, setCinemas] = useState([]);
+  const [loadingCinemas, setLoadingCinemas] = useState(true);
   const [users, setUsers] = useState(initialUsers);
   const [vouchers, setVouchers] = useState(initialVouchers);
   const [orders, setOrders] = useState(initialBookingOrders);
   const [prices, setPrices] = useState(initialPrices);
   const [foodBeverages, setFoodBeverages] = useState(initialFoodBeverages);
   const [banners, setBanners] = useState([]);
+
+  // Load cinemas from API
+  useEffect(() => {
+    const loadCinemas = async () => {
+      setLoadingCinemas(true);
+      try {
+        const result = await cinemaComplexService.getAllCinemaComplexesAdmin();
+        if (result.success && result.data) {
+          setCinemas(result.data);
+        } else {
+          console.error('Failed to load cinemas:', result.error);
+          setCinemas(initialCinemas); // Fallback to initial data
+        }
+      } catch (error) {
+        console.error('Error loading cinemas:', error);
+        setCinemas(initialCinemas); // Fallback to initial data
+      } finally {
+        setLoadingCinemas(false);
+      }
+    };
+    loadCinemas();
+  }, []);
 
   const getIcon = (iconName) => {
     switch (iconName) {

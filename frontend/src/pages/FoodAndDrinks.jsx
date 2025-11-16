@@ -2,122 +2,88 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import { cinemaComplexService } from '../services/cinemaComplexService';
 import '../styles/pages/food-drinks.css';
 import '../styles/components/food-item-card.css';
 import '../styles/components/food-cart-modal.css';
 import '../styles/components/food-cinema-selector.css';
 
-const cinemas = [
-  { id: '1', name: 'Quốc Thanh', province: 'TP.HCM' },
-  { id: '2', name: 'Hai Bà Trưng', province: 'TP.HCM' },
-  { id: '3', name: 'Sinh Viên', province: 'TP.HCM' },
-  { id: '4', name: 'Satra Quận 6', province: 'TP.HCM' },
-  { id: '5', name: 'Huế', province: 'TP. Huế' },
-  { id: '6', name: 'Đà Lạt', province: 'Lâm Đồng' },
-  { id: '7', name: 'Mỹ Tho', province: 'Đồng Tháp' },
-  { id: '8', name: 'Lâm Đồng', province: 'Đức Trọng' },
-  { id: '9', name: 'Kiên Giang', province: 'An Giang' },
-];
-
-// Sample food and drinks data - không phân loại, tất cả items trong một mảng
-const menuData = {
-  '1': [
-    {
-      id: 'f1',
-      name: 'Bắp rang bơ',
-      description: 'Bắp rang bơ thơm ngon, giòn tan',
-      price: 45000,
-      image: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=300&fit=crop'
-    },
-    {
-      id: 'f2',
-      name: 'Hotdog',
-      description: 'Xúc xích thơm ngon với sốt đặc biệt',
-      price: 55000,
-      image: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400&h=300&fit=crop'
-    },
-    {
-      id: 'f3',
-      name: 'Khoai tây chiên',
-      description: 'Khoai tây chiên giòn, nóng hổi',
-      price: 40000,
-      image: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400&h=300&fit=crop'
-    },
-    {
-      id: 'f4',
-      name: 'Gà rán',
-      description: 'Gà rán giòn, thơm ngon',
-      price: 75000,
-      image: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400&h=300&fit=crop'
-    },
-    {
-      id: 'd1',
-      name: 'Coca Cola',
-      description: 'Nước ngọt có ga',
-      price: 30000,
-      image: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&h=300&fit=crop'
-    },
-    {
-      id: 'd2',
-      name: 'Pepsi',
-      description: 'Nước ngọt có ga',
-      price: 30000,
-      image: 'https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=400&h=300&fit=crop'
-    },
-    {
-      id: 'd3',
-      name: 'Nước suối',
-      description: 'Nước suối tinh khiết',
-      price: 20000,
-      image: 'https://images.unsplash.com/photo-1548839140-5a9415c45c59?w=400&h=300&fit=crop'
-    },
-    {
-      id: 'd4',
-      name: 'Trà sữa',
-      description: 'Trà sữa thơm ngon, đậm đà',
-      price: 50000,
-      image: 'https://images.unsplash.com/photo-1564890369478-c89ca6d9cde9?w=400&h=300&fit=crop'
-    },
-    {
-      id: 'c1',
-      name: 'Combo 1: Bắp + Nước',
-      description: '1 Bắp rang bơ + 1 Nước ngọt',
-      price: 65000,
-      image: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=300&fit=crop',
-      originalPrice: 75000
-    },
-    {
-      id: 'c2',
-      name: 'Combo 2: Hotdog + Nước',
-      description: '1 Hotdog + 1 Nước ngọt',
-      price: 75000,
-      image: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400&h=300&fit=crop',
-      originalPrice: 85000
-    },
-    {
-      id: 'c3',
-      name: 'Combo 3: Gà rán + Khoai tây + Nước',
-      description: '1 Gà rán + 1 Khoai tây chiên + 1 Nước ngọt',
-      price: 120000,
-      image: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400&h=300&fit=crop',
-      originalPrice: 145000
-    }
-  ]
-};
-
-// Default menu for other cinemas (same structure)
-Object.keys(cinemas).forEach((key, index) => {
-  const cinemaId = String(index + 1);
-  if (!menuData[cinemaId]) {
-    menuData[cinemaId] = menuData['1']; // Use same menu for all cinemas
-  }
-});
-
 export default function FoodAndDrinks() {
   const navigate = useNavigate();
+  const [cinemas, setCinemas] = useState([]);
   const [selectedCinema, setSelectedCinema] = useState('');
+  const [menuItems, setMenuItems] = useState([]);
+  const [loadingCinemas, setLoadingCinemas] = useState(true);
+  const [loadingMenu, setLoadingMenu] = useState(false);
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
+
+  // Load cinemas from API
+  useEffect(() => {
+    const loadCinemas = async () => {
+      setLoadingCinemas(true);
+      try {
+        const result = await cinemaComplexService.getAllCinemaComplexes();
+        if (result.success && result.data) {
+          const mappedCinemas = result.data.map(cinema => ({
+            id: String(cinema.complexId),
+            complexId: cinema.complexId,
+            name: cinema.name,
+            province: cinema.addressProvince || ''
+          }));
+          setCinemas(mappedCinemas);
+        } else {
+          console.error('Failed to load cinemas:', result.error);
+          setCinemas([]);
+        }
+      } catch (error) {
+        console.error('Error loading cinemas:', error);
+        setCinemas([]);
+      } finally {
+        setLoadingCinemas(false);
+      }
+    };
+    loadCinemas();
+  }, []);
+
+  // Load menu items when cinema is selected
+  useEffect(() => {
+    const loadMenuItems = async () => {
+      if (!selectedCinema) {
+        setMenuItems([]);
+        return;
+      }
+
+      setLoadingMenu(true);
+      try {
+        const complexId = Number(selectedCinema);
+        const response = await fetch(`http://localhost:8080/api/public/menu/complex/${complexId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          // Map backend data to frontend format
+          const mappedItems = (result.data || []).map(item => ({
+            id: String(item.foodComboId),
+            foodComboId: item.foodComboId,
+            name: item.name || 'Món ăn',
+            description: item.description || 'Món ăn thơm ngon',
+            price: item.price ? Number(item.price) : 0,
+            image: item.image || 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=300&fit=crop'
+          }));
+          setMenuItems(mappedItems);
+        } else {
+          console.error('Failed to load menu:', result.message);
+          setMenuItems([]);
+        }
+      } catch (error) {
+        console.error('Error loading menu:', error);
+        setMenuItems([]);
+      } finally {
+        setLoadingMenu(false);
+      }
+    };
+    loadMenuItems();
+  }, [selectedCinema]);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -126,14 +92,6 @@ export default function FoodAndDrinks() {
     }).format(price);
   };
 
-  const getMenuItems = () => {
-    if (!selectedCinema || !menuData[selectedCinema]) return [];
-    
-    // Trả về mảng items trực tiếp, không phân loại
-    return menuData[selectedCinema];
-  };
-
-  const menuItems = getMenuItems();
 
   const getItemQuantity = (itemId) => {
     const cartItem = cart.find(item => item.id === itemId);
@@ -236,11 +194,12 @@ export default function FoodAndDrinks() {
                 value={selectedCinema}
                 onChange={(e) => setSelectedCinema(e.target.value)}
                 className="food-cinema-select"
+                disabled={loadingCinemas}
               >
                 <option value="">-- Chọn rạp --</option>
                 {cinemas.map((cinema) => (
                   <option key={cinema.id} value={cinema.id}>
-                    Cinestar {cinema.name} ({cinema.province})
+                    {cinema.name} {cinema.province && `(${cinema.province})`}
                   </option>
                 ))}
               </select>
@@ -250,7 +209,24 @@ export default function FoodAndDrinks() {
             {selectedCinema && (
               <>
                 {/* Menu Items Grid */}
-                {menuItems.length === 0 ? (
+                {loadingMenu ? (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: '60px 20px',
+                    color: '#c9c4c5'
+                  }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      border: '4px solid rgba(232, 59, 65, 0.3)',
+                      borderTop: '4px solid #e83b41',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite',
+                      margin: '0 auto 16px'
+                    }}></div>
+                    <p style={{ fontSize: '16px', margin: 0 }}>Đang tải menu của rạp...</p>
+                  </div>
+                ) : menuItems.length === 0 ? (
                   <div style={{ 
                     textAlign: 'center', 
                     padding: '60px 20px',
@@ -270,23 +246,19 @@ export default function FoodAndDrinks() {
                       return (
                         <div key={item.id} className="food-item-card">
                           <div className="food-item-card__image">
-                            <img src={item.image} alt={item.name} />
-                            {item.originalPrice && (
-                              <div className="food-item-card__badge">
-                                <span className="food-item-card__badge-text">Tiết kiệm</span>
-                              </div>
-                            )}
+                            <img 
+                              src={item.image || 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=300&fit=crop'} 
+                              alt={item.name}
+                              onError={(e) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=300&fit=crop';
+                              }}
+                            />
                           </div>
                           <div className="food-item-card__content">
                             <h3 className="food-item-card__title">{item.name}</h3>
-                            <p className="food-item-card__description">{item.description}</p>
+                            <p className="food-item-card__description">{item.description || 'Món ăn thơm ngon'}</p>
                             <div className="food-item-card__footer">
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-                                {item.originalPrice && (
-                                  <div className="food-item-card__price-old">
-                                    {formatPrice(item.originalPrice)}
-                                  </div>
-                                )}
                                 <div className="food-item-card__price">
                                   {formatPrice(item.price)}
                                 </div>

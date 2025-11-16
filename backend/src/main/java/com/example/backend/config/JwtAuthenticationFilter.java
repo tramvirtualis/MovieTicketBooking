@@ -31,6 +31,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String authHeader = request.getHeader("Authorization");
         String requestPath = request.getRequestURI();
         
+        // Skip JWT processing for public endpoints
+        if (requestPath.startsWith("/api/public/") || 
+            requestPath.startsWith("/api/auth/") ||
+            requestPath.startsWith("/api/enums/") ||
+            requestPath.startsWith("/api/reviews/movie/")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        
         // Only process JWT for API endpoints
         if (requestPath.startsWith("/api/") && authHeader != null && authHeader.startsWith("Bearer ")) {
             try {

@@ -1,6 +1,9 @@
 package com.example.backend.controllers;
 
 import com.example.backend.dtos.FoodComboResponseDTO;
+import com.example.backend.entities.CinemaComplex;
+import com.example.backend.entities.FoodCombo;
+import com.example.backend.repositories.CinemaComplexRepository;
 import com.example.backend.services.CinemaComplexMenuService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -11,19 +14,64 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/manager/menu")
 @RequiredArgsConstructor
 @CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000"}, 
              allowedHeaders = "*", 
              allowCredentials = "true")
-@PreAuthorize("hasRole('MANAGER')")
 public class CinemaComplexMenuController {
     
     private final CinemaComplexMenuService menuService;
+    private final CinemaComplexRepository cinemaComplexRepository;
     
-    @GetMapping("/complex/{complexId}")
+    // ============ PUBLIC ENDPOINTS ============
+    
+    /**
+     * Lấy menu của cinema complex (Public - không cần authentication)
+     */
+    @GetMapping("/api/public/menu/complex/{complexId}")
+    public ResponseEntity<?> getMenuByComplexIdPublic(@PathVariable Long complexId) {
+        System.out.println("CinemaComplexMenuController: getMenuByComplexIdPublic called with complexId: " + complexId);
+        try {
+            CinemaComplex complex = cinemaComplexRepository.findByIdWithFoodCombos(complexId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp"));
+            
+            System.out.println("CinemaComplexMenuController: Found complex: " + complex.getName());
+            System.out.println("CinemaComplexMenuController: Food combos count: " + (complex.getFoodCombos() != null ? complex.getFoodCombos().size() : 0));
+            
+            // Fetch foodCombos eagerly
+            List<FoodCombo> foodCombos = complex.getFoodCombos() != null ? complex.getFoodCombos() : java.util.Collections.emptyList();
+            List<FoodComboResponseDTO> menu = foodCombos.stream()
+                .map(foodCombo -> FoodComboResponseDTO.builder()
+                    .foodComboId(foodCombo.getFoodComboId())
+                    .name(foodCombo.getName())
+                    .price(foodCombo.getPrice())
+                    .description(foodCombo.getDescription())
+                    .image(foodCombo.getImage())
+                    .build())
+                .collect(Collectors.toList());
+            
+            System.out.println("CinemaComplexMenuController: Returning menu with " + menu.size() + " items");
+            return ResponseEntity.ok(createSuccessResponse("Lấy menu thành công", menu));
+        } catch (RuntimeException e) {
+            System.out.println("CinemaComplexMenuController: RuntimeException: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            System.out.println("CinemaComplexMenuController: Exception: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    // ============ MANAGER ENDPOINTS (CẦN AUTHENTICATION) ============
+    
+    @GetMapping("/api/manager/menu/complex/{complexId}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<?> getMenuByComplexId(@PathVariable Long complexId) {
         try {
             List<FoodComboResponseDTO> menu = menuService.getMenuByComplexId(complexId);
@@ -41,7 +89,8 @@ public class CinemaComplexMenuController {
         }
     }
     
-    @GetMapping("/available/{complexId}")
+    @GetMapping("/api/manager/menu/available/{complexId}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<?> getAvailableFoodCombos(@PathVariable Long complexId) {
         try {
             List<FoodComboResponseDTO> combos = menuService.getAvailableFoodCombos(complexId);
@@ -55,7 +104,8 @@ public class CinemaComplexMenuController {
         }
     }
     
-    @PostMapping("/complex/{complexId}/add/{foodComboId}")
+    @PostMapping("/api/manager/menu/complex/{complexId}/add/{foodComboId}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<?> addFoodComboToMenu(@PathVariable Long complexId,
                                                 @PathVariable Long foodComboId) {
         try {
@@ -74,7 +124,8 @@ public class CinemaComplexMenuController {
         }
     }
     
-    @DeleteMapping("/complex/{complexId}/remove/{foodComboId}")
+    @DeleteMapping("/api/manager/menu/complex/{complexId}/remove/{foodComboId}")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<?> removeFoodComboFromMenu(@PathVariable Long complexId,
                                                       @PathVariable Long foodComboId) {
         try {

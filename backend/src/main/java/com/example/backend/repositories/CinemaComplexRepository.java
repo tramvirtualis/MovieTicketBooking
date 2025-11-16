@@ -14,4 +14,7 @@ public interface CinemaComplexRepository extends JpaRepository<CinemaComplex, Lo
     
     @Query("SELECT c FROM CinemaComplex c LEFT JOIN FETCH c.movies WHERE c.complexId = :complexId")
     Optional<CinemaComplex> findByIdWithMovies(@Param("complexId") Long complexId);
+    
+    @Query("SELECT c FROM CinemaComplex c LEFT JOIN FETCH c.foodCombos WHERE c.complexId = :complexId")
+    Optional<CinemaComplex> findByIdWithFoodCombos(@Param("complexId") Long complexId);
 }

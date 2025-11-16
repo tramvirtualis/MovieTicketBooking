@@ -1,10 +1,63 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { voucherService } from '../../services/voucherService';
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:8080/api';
+const axiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Interceptor để thêm JWT token vào header
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('jwt');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // Voucher Assign Modal Component
 function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
   const [newSelectedIds, setNewSelectedIds] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [alreadyAssignedIds, setAlreadyAssignedIds] = useState([]);
+  const [loadingAssigned, setLoadingAssigned] = useState(true);
+
+  // Load vouchers đã gán cho user này từ backend
+  useEffect(() => {
+    const loadUserVouchers = async () => {
+      setLoadingAssigned(true);
+      try {
+        // Gọi API admin để lấy vouchers của user này (endpoint mới trong CustomerController)
+        const response = await axiosInstance.get(`/customer/${user.userId}/vouchers`);
+        const userVouchers = response.data?.data || response.data || [];
+        
+        // Lấy danh sách voucher IDs đã được gán cho user này
+        const assignedIds = userVouchers.map(v => v.voucherId || v.voucher?.voucherId).filter(Boolean);
+        setAlreadyAssignedIds(assignedIds);
+      } catch (error) {
+        console.error('Error loading user vouchers:', error);
+        // Nếu không load được, fallback về cách cũ (từ props)
+        const fallbackIds = vouchers?.filter(v => v.isPublic === false && v.assignedUserIds?.includes(user.userId)).map(v => v.voucherId) || [];
+        setAlreadyAssignedIds(fallbackIds);
+      } finally {
+        setLoadingAssigned(false);
+      }
+    };
+
+    if (user?.userId) {
+      loadUserVouchers();
+    }
+  }, [user?.userId, vouchers]);
 
   // Filter voucher riêng tư và chưa hết hạn
   const now = new Date();
@@ -20,8 +73,6 @@ function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
     
     return true;
   }) || [];
-  
-  const alreadyAssignedIds = vouchers?.filter(v => v.isPublic === false && v.assignedUserIds?.includes(user.userId)).map(v => v.voucherId) || [];
 
   const handleToggle = (voucherId) => {
     // Cannot uncheck already assigned vouchers
@@ -75,7 +126,12 @@ function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
           </button>
         </div>
         <div className="movie-modal__content">
-          {privateVouchers.length > 0 ? (
+          {loadingAssigned ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'rgba(255,255,255,0.5)' }}>
+              <div style={{ display: 'inline-block', width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.2)', borderTop: '4px solid #e83b41', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+              <p style={{ marginTop: '16px' }}>Đang tải danh sách voucher...</p>
+            </div>
+          ) : privateVouchers.length > 0 ? (
             <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: 12, background: 'rgba(20, 15, 16, 0.5)' }}>
               {privateVouchers.map(voucher => {
                 const isAlreadyAssigned = alreadyAssignedIds.includes(voucher.voucherId);
@@ -92,12 +148,19 @@ function VoucherAssignModal({ user, vouchers, onClose, onSave }) {
                       borderBottom: '1px solid rgba(255,255,255,0.1)',
                       opacity: isAlreadyAssigned ? 0.7 : 1
                     }}
+                    onClick={(e) => {
+                      if (isAlreadyAssigned) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }}
                   >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       disabled={isAlreadyAssigned}
                       onChange={() => handleToggle(voucher.voucherId)}
+                      style={{ cursor: isAlreadyAssigned ? 'not-allowed' : 'pointer' }}
                     />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
