@@ -46,6 +46,8 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
     rows: 10,
     cols: 12
   });
+  const [roomHasBookings, setRoomHasBookings] = useState(false);
+  const [checkingBookings, setCheckingBookings] = useState(false);
 
   // Load cinema complexes from API
   useEffect(() => {
@@ -172,15 +174,49 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
         const result = await cinemaComplexService.updateCinemaComplex(editingCinema.complexId, cinemaComplexData);
         
         if (result.success) {
-          // Reload cinemas from API
+          // Reload cinemas from API with rooms
           const loadResult = await cinemaComplexService.getAllCinemaComplexes();
           if (loadResult.success) {
-            const mappedCinemas = loadResult.data.map(item => ({
+            // Map backend data to frontend format
+            let mappedCinemas = loadResult.data.map(item => ({
               complexId: item.complexId,
               name: item.name,
               address: item.fullAddress || `${item.addressDescription}, ${item.addressProvince}`,
-              rooms: [] // Preserve rooms if needed
+              rooms: [] // Rooms will be loaded separately
             }));
+            
+            // Load rooms for each cinema complex
+            const { default: cinemaRoomService } = await import('../../services/cinemaRoomService');
+            const roomsPromises = mappedCinemas.map(async (cinema) => {
+              try {
+                const roomsResult = await cinemaRoomService.getRoomsByComplexId(cinema.complexId);
+                if (roomsResult.success && roomsResult.data) {
+                  return {
+                    ...cinema,
+                    rooms: roomsResult.data.map(room => ({
+                      roomId: room.roomId,
+                      roomName: room.roomName,
+                      roomType: cinemaRoomService.mapRoomTypeFromBackend(room.roomType),
+                      rows: room.rows,
+                      cols: room.cols,
+                      seats: (room.seats || []).map(seat => ({
+                        seatId: seat.seatId,
+                        type: seat.type,
+                        row: seat.seatRow, // Map seatRow -> row
+                        column: seat.seatColumn // Map seatColumn -> column
+                      }))
+                    }))
+                  };
+                }
+                return cinema;
+              } catch (error) {
+                console.error(`Error loading rooms for cinema ${cinema.complexId}:`, error);
+                return cinema;
+              }
+            });
+            
+            mappedCinemas = await Promise.all(roomsPromises);
+            
             setCinemas(mappedCinemas);
             if (onCinemasChange) {
               onCinemasChange(mappedCinemas);
@@ -197,15 +233,49 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
         const result = await cinemaComplexService.createCinemaComplex(cinemaComplexData);
         
         if (result.success) {
-          // Reload cinemas from API
+          // Reload cinemas from API with rooms
           const loadResult = await cinemaComplexService.getAllCinemaComplexes();
           if (loadResult.success) {
-            const mappedCinemas = loadResult.data.map(item => ({
+            // Map backend data to frontend format
+            let mappedCinemas = loadResult.data.map(item => ({
               complexId: item.complexId,
               name: item.name,
               address: item.fullAddress || `${item.addressDescription}, ${item.addressProvince}`,
-              rooms: []
+              rooms: [] // Rooms will be loaded separately
             }));
+            
+            // Load rooms for each cinema complex
+            const { default: cinemaRoomService } = await import('../../services/cinemaRoomService');
+            const roomsPromises = mappedCinemas.map(async (cinema) => {
+              try {
+                const roomsResult = await cinemaRoomService.getRoomsByComplexId(cinema.complexId);
+                if (roomsResult.success && roomsResult.data) {
+                  return {
+                    ...cinema,
+                    rooms: roomsResult.data.map(room => ({
+                      roomId: room.roomId,
+                      roomName: room.roomName,
+                      roomType: cinemaRoomService.mapRoomTypeFromBackend(room.roomType),
+                      rows: room.rows,
+                      cols: room.cols,
+                      seats: (room.seats || []).map(seat => ({
+                        seatId: seat.seatId,
+                        type: seat.type,
+                        row: seat.seatRow, // Map seatRow -> row
+                        column: seat.seatColumn // Map seatColumn -> column
+                      }))
+                    }))
+                  };
+                }
+                return cinema;
+              } catch (error) {
+                console.error(`Error loading rooms for cinema ${cinema.complexId}:`, error);
+                return cinema;
+              }
+            });
+            
+            mappedCinemas = await Promise.all(roomsPromises);
+            
             setCinemas(mappedCinemas);
             if (onCinemasChange) {
               onCinemasChange(mappedCinemas);
@@ -244,15 +314,49 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
       const result = await cinemaComplexService.deleteCinemaComplex(complexId);
       
       if (result.success) {
-        // Reload cinemas from API
+        // Reload cinemas from API with rooms
         const loadResult = await cinemaComplexService.getAllCinemaComplexes();
         if (loadResult.success) {
-          const mappedCinemas = loadResult.data.map(item => ({
+          // Map backend data to frontend format
+          let mappedCinemas = loadResult.data.map(item => ({
             complexId: item.complexId,
             name: item.name,
             address: item.fullAddress || `${item.addressDescription}, ${item.addressProvince}`,
-            rooms: []
+            rooms: [] // Rooms will be loaded separately
           }));
+          
+          // Load rooms for each cinema complex
+          const { default: cinemaRoomService } = await import('../../services/cinemaRoomService');
+          const roomsPromises = mappedCinemas.map(async (cinema) => {
+            try {
+              const roomsResult = await cinemaRoomService.getRoomsByComplexId(cinema.complexId);
+              if (roomsResult.success && roomsResult.data) {
+                return {
+                  ...cinema,
+                  rooms: roomsResult.data.map(room => ({
+                    roomId: room.roomId,
+                    roomName: room.roomName,
+                    roomType: cinemaRoomService.mapRoomTypeFromBackend(room.roomType),
+                    rows: room.rows,
+                    cols: room.cols,
+                    seats: (room.seats || []).map(seat => ({
+                      seatId: seat.seatId,
+                      type: seat.type,
+                      row: seat.seatRow, // Map seatRow -> row
+                      column: seat.seatColumn // Map seatColumn -> column
+                    }))
+                  }))
+                };
+              }
+              return cinema;
+            } catch (error) {
+              console.error(`Error loading rooms for cinema ${cinema.complexId}:`, error);
+              return cinema;
+            }
+          });
+          
+          mappedCinemas = await Promise.all(roomsPromises);
+          
           setCinemas(mappedCinemas);
           if (onCinemasChange) {
             onCinemasChange(mappedCinemas);
@@ -306,10 +410,11 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
     setEditingRoom(null);
     setRoomFormData({ roomName: '', roomType: '2D', rows: 10, cols: 12 });
     setSelectedCinema(cinema);
+    setRoomHasBookings(false);
     setShowRoomModal(true);
   };
 
-  const handleEditRoom = (cinema, room) => {
+  const handleEditRoom = async (cinema, room) => {
     setEditingRoom(room);
     setSelectedCinema(cinema);
     setRoomFormData({
@@ -318,6 +423,24 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
       rows: room.rows,
       cols: room.cols
     });
+    
+    // Kiểm tra xem phòng có đặt chỗ không
+    setCheckingBookings(true);
+    try {
+      const { default: cinemaRoomService } = await import('../../services/cinemaRoomService');
+      const result = await cinemaRoomService.checkRoomHasBookings(room.roomId);
+      if (result.success) {
+        setRoomHasBookings(result.hasBookings);
+      } else {
+        setRoomHasBookings(false);
+      }
+    } catch (error) {
+      console.error('Error checking bookings:', error);
+      setRoomHasBookings(false);
+    } finally {
+      setCheckingBookings(false);
+    }
+    
     setShowRoomModal(true);
   };
 
@@ -1073,6 +1196,11 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
                       onChange={(e) => setRoomFormData({ ...roomFormData, rows: parseInt(e.target.value) || 0 })}
                       min="1"
                       max="26"
+                      disabled={editingRoom && (roomHasBookings || checkingBookings)}
+                      style={{
+                        opacity: editingRoom && (roomHasBookings || checkingBookings) ? 0.6 : 1,
+                        cursor: editingRoom && (roomHasBookings || checkingBookings) ? 'not-allowed' : 'text'
+                      }}
                     />
                   </div>
                   <div className="movie-form__group">
@@ -1083,14 +1211,29 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
                       onChange={(e) => setRoomFormData({ ...roomFormData, cols: parseInt(e.target.value) || 0 })}
                       min="1"
                       max="30"
+                      disabled={editingRoom && (roomHasBookings || checkingBookings)}
+                      style={{
+                        opacity: editingRoom && (roomHasBookings || checkingBookings) ? 0.6 : 1,
+                        cursor: editingRoom && (roomHasBookings || checkingBookings) ? 'not-allowed' : 'text'
+                      }}
                     />
                   </div>
                 </div>
                 {editingRoom && (
                   <div className="movie-form__group">
-                    <p className="movie-modal__warning">
-                      ⚠️ Thay đổi số hàng/cột sẽ tạo lại toàn bộ layout ghế. Dữ liệu ghế hiện tại sẽ bị mất.
-                    </p>
+                    {checkingBookings ? (
+                      <p className="movie-modal__warning" style={{ color: '#ffd159' }}>
+                        🔄 Đang kiểm tra đặt chỗ...
+                      </p>
+                    ) : roomHasBookings ? (
+                      <p className="movie-modal__warning" style={{ color: '#e83b41' }}>
+                        ⚠️ Phòng chiếu này đã có đặt chỗ. Không thể chỉnh sửa số hàng/cột.
+                      </p>
+                    ) : (
+                      <p className="movie-modal__warning">
+                        ⚠️ Thay đổi số hàng/cột sẽ xóa toàn bộ ghế hiện tại và tạo lại layout mới.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

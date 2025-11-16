@@ -80,6 +80,20 @@ public class CinemaRoomController {
         }
     }
     
+    @GetMapping("/api/admin/cinema-rooms/{roomId}/has-bookings")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> checkRoomHasBookings(@PathVariable Long roomId) {
+        try {
+            boolean hasBookings = cinemaRoomService.hasBookings(roomId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("hasBookings", hasBookings);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
     @PutMapping("/api/admin/cinema-rooms/{roomId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateCinemaRoom(@PathVariable Long roomId,
@@ -151,6 +165,20 @@ public class CinemaRoomController {
             return ResponseEntity.ok(
                 createSuccessResponse("Lấy danh sách phòng chiếu thành công", rooms)
             );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/api/manager/cinema-rooms/{roomId}/has-bookings")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<?> checkRoomHasBookingsManager(@PathVariable Long roomId) {
+        try {
+            boolean hasBookings = cinemaRoomService.hasBookings(roomId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("hasBookings", hasBookings);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse(e.getMessage()));

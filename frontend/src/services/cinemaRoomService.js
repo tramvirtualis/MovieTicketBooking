@@ -336,6 +336,48 @@ export const cinemaRoomService = {
     }
   },
 
+  /**
+   * Kiểm tra xem phòng chiếu có đặt chỗ hay không (Admin)
+   * @param {number} roomId - ID của phòng chiếu
+   * @returns {Promise<Object>} Response từ server { hasBookings: boolean }
+   */
+  checkRoomHasBookings: async (roomId) => {
+    try {
+      const response = await axiosInstance.get(`/admin/cinema-rooms/${roomId}/has-bookings`);
+      return {
+        success: true,
+        hasBookings: response.data.hasBookings || false,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        hasBookings: false,
+        error: error.message || 'Không thể kiểm tra đặt chỗ',
+      };
+    }
+  },
+
+  /**
+   * Kiểm tra xem phòng chiếu có đặt chỗ hay không (Manager)
+   * @param {number} roomId - ID của phòng chiếu
+   * @returns {Promise<Object>} Response từ server { hasBookings: boolean }
+   */
+  checkRoomHasBookingsManager: async (roomId) => {
+    try {
+      const response = await axiosInstance.get(`/manager/cinema-rooms/${roomId}/has-bookings`);
+      return {
+        success: true,
+        hasBookings: response.data.hasBookings || false,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        hasBookings: false,
+        error: error.message || 'Không thể kiểm tra đặt chỗ',
+      };
+    }
+  },
+
   // Helper để map RoomType
   mapRoomTypeToBackend,
   mapRoomTypeFromBackend,

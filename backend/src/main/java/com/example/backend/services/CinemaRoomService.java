@@ -10,6 +10,7 @@ import com.example.backend.entities.enums.SeatType;
 import com.example.backend.repositories.CinemaComplexRepository;
 import com.example.backend.repositories.CinemaRoomRepository;
 import com.example.backend.repositories.SeatRepository;
+import com.example.backend.repositories.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ public class CinemaRoomService {
     private final CinemaRoomRepository cinemaRoomRepository;
     private final CinemaComplexRepository cinemaComplexRepository;
     private final SeatRepository seatRepository;
+    private final TicketRepository ticketRepository;
     
     @Transactional
     public CinemaRoomResponseDTO createCinemaRoom(CreateCinemaRoomDTO createDTO) {
@@ -90,29 +92,46 @@ public class CinemaRoomService {
         CinemaRoom room = cinemaRoomRepository.findById(roomId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy phòng chiếu với ID: " + roomId));
         
+        // Tính số hàng/cột hiện tại
+        int currentRows = 0;
+        int currentCols = 0;
+        if (!room.getSeatLayout().isEmpty()) {
+            currentRows = (int) room.getSeatLayout().stream()
+                .map(Seat::getSeatRow)
+                .distinct()
+                .count();
+            currentCols = (int) room.getSeatLayout().stream()
+                .mapToInt(Seat::getSeatColumn)
+                .max()
+                .orElse(0);
+        }
+        
+        // Kiểm tra nếu số hàng/cột thay đổi
+        boolean rowsOrColsChanged = currentRows != updateDTO.getRows() || currentCols != updateDTO.getCols();
+        
+        // Nếu số hàng/cột thay đổi, kiểm tra xem có đặt chỗ không
+        if (rowsOrColsChanged) {
+            boolean hasBookings = ticketRepository.existsByRoomId(roomId);
+            if (hasBookings) {
+                throw new RuntimeException("Không thể chỉnh sửa số hàng/cột khi phòng chiếu đã có đặt chỗ");
+            }
+        }
+        
         // Cập nhật thông tin phòng
         room.setRoomName(updateDTO.getRoomName());
         room.setRoomType(updateDTO.getRoomType());
         
-        // Nếu số hàng/cột thay đổi, tạo lại ghế
-        if (!room.getSeatLayout().isEmpty()) {
-            int currentRows = (int) room.getSeatLayout().stream()
-                .map(Seat::getSeatRow)
-                .distinct()
-                .count();
-            int currentCols = (int) room.getSeatLayout().stream()
-                .mapToInt(Seat::getSeatColumn)
-                .max()
-                .orElse(0);
-            
-            if (currentRows != updateDTO.getRows() || currentCols != updateDTO.getCols()) {
-                // Xóa ghế cũ
+        // Nếu số hàng/cột thay đổi, xóa ghế cũ và tạo lại ghế mới
+        if (rowsOrColsChanged) {
+            // Xóa ghế cũ (clear và xóa trong database)
+            if (!room.getSeatLayout().isEmpty()) {
+                seatRepository.deleteAll(room.getSeatLayout());
                 room.getSeatLayout().clear();
-                // Tạo ghế mới
-                List<Seat> newSeats = generateSeats(updateDTO.getRows(), updateDTO.getCols(), room);
-                room.setSeatLayout(newSeats);
             }
-        } else {
+            // Tạo ghế mới
+            List<Seat> newSeats = generateSeats(updateDTO.getRows(), updateDTO.getCols(), room);
+            room.setSeatLayout(newSeats);
+        } else if (room.getSeatLayout().isEmpty()) {
             // Nếu chưa có ghế, tạo mới
             List<Seat> seats = generateSeats(updateDTO.getRows(), updateDTO.getCols(), room);
             room.setSeatLayout(seats);
@@ -120,6 +139,15 @@ public class CinemaRoomService {
         
         CinemaRoom savedRoom = cinemaRoomRepository.save(room);
         return mapToDTO(savedRoom);
+    }
+    
+    /**
+     * Kiểm tra xem phòng chiếu có đặt chỗ hay không
+     * @param roomId ID của phòng chiếu
+     * @return true nếu có đặt chỗ, false nếu không
+     */
+    public boolean hasBookings(Long roomId) {
+        return ticketRepository.existsByRoomId(roomId);
     }
     
     @Transactional
