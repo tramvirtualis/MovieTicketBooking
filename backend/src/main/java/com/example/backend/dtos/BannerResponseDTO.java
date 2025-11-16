@@ -15,6 +15,7 @@ import lombok.Setter;
 @Builder
 public class BannerResponseDTO {
     private Long id;
+    private String name;
     private String image;
 }
 

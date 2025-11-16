@@ -21,6 +21,7 @@ public class BannerService {
     @Transactional
     public BannerResponseDTO createBanner(CreateBannerDTO createDTO) {
         Banner banner = Banner.builder()
+                .name(createDTO.getName() != null ? createDTO.getName().trim() : null)
                 .image(createDTO.getImage() != null ? createDTO.getImage().trim() : null)
                 .build();
         
@@ -32,6 +33,10 @@ public class BannerService {
     public BannerResponseDTO updateBanner(Long bannerId, UpdateBannerDTO updateDTO) {
         Banner banner = bannerRepository.findById(bannerId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy banner với ID: " + bannerId));
+        
+        if (updateDTO.getName() != null) {
+            banner.setName(updateDTO.getName().trim());
+        }
         
         if (updateDTO.getImage() != null) {
             banner.setImage(updateDTO.getImage().trim());
@@ -64,6 +69,7 @@ public class BannerService {
     private BannerResponseDTO convertToDTO(Banner banner) {
         return BannerResponseDTO.builder()
                 .id(banner.getId())
+                .name(banner.getName())
                 .image(banner.getImage())
                 .build();
     }

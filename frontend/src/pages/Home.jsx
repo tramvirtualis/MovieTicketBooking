@@ -5,15 +5,12 @@ import HeroCarousel from '../components/HeroCarousel.jsx';
 import Footer from '../components/Footer.jsx';
 import { Section, CardsGrid, PromosGrid } from '../components/SectionGrid.jsx';
 import { enumService } from '../services/enumService';
+import { bannerService } from '../services/bannerService';
+import { voucherService } from '../services/voucherService';
 import interstellar from '../assets/images/interstellar.jpg';
 import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
 import driveMyCar from '../assets/images/drive-my-car.jpg';
-
-const promos = [
-  { title: 'Mua 2 tặng 1 vé', desc: 'Áp dụng cuối tuần', image: 'https://images.unsplash.com/photo-1511735111819-9a3f7709049c?q=80&w=200&auto=format&fit=crop' },
-  { title: 'Giảm 30% combo bắp nước', desc: 'Thành viên hạng Gold', image: 'https://images.unsplash.com/photo-1512428559087-560fa5ceab42?q=80&w=200&auto=format&fit=crop' }
-];
 
 // Helper function để map AgeRating từ backend sang format frontend
 const mapAgeRating = (ageRating) => {
@@ -74,7 +71,89 @@ export default function Home() {
   const [trailerModal, setTrailerModal] = useState({ isOpen: false, videoId: null });
   const [nowShowing, setNowShowing] = useState([]);
   const [comingSoon, setComingSoon] = useState([]);
+  const [banners, setBanners] = useState([]);
+  const [promos, setPromos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingBanners, setLoadingBanners] = useState(true);
+  const [loadingPromos, setLoadingPromos] = useState(true);
+
+  // Fetch banners from backend
+  useEffect(() => {
+    const fetchBanners = async () => {
+      try {
+        setLoadingBanners(true);
+        const result = await bannerService.getPublicBanners();
+        if (result.success && result.data) {
+          // Map banners to image URLs for HeroCarousel
+          const bannerImages = result.data
+            .filter(banner => banner.image) // Only include banners with images
+            .map(banner => banner.image);
+          
+          // Fallback to default posters if no banners
+          if (bannerImages.length > 0) {
+            setBanners(bannerImages);
+          } else {
+            // Use default posters if no banners in database
+            setBanners([interstellar, inception, darkKnightRises, driveMyCar]);
+          }
+        } else {
+          // Fallback to default posters on error
+          setBanners([interstellar, inception, darkKnightRises, driveMyCar]);
+        }
+      } catch (err) {
+        console.error('Error fetching banners:', err);
+        // Fallback to default posters on error
+        setBanners([interstellar, inception, darkKnightRises, driveMyCar]);
+      } finally {
+        setLoadingBanners(false);
+      }
+    };
+
+    fetchBanners();
+  }, []);
+
+  // Fetch public vouchers from backend
+  useEffect(() => {
+    const fetchVouchers = async () => {
+      try {
+        setLoadingPromos(true);
+        const result = await voucherService.getPublicVouchers();
+        if (result.success && result.data) {
+          // Map vouchers to promo format
+          const mappedPromos = result.data
+            .filter(voucher => {
+              // Only show active vouchers
+              const now = new Date();
+              const startDate = voucher.startDate ? new Date(voucher.startDate) : null;
+              const endDate = voucher.endDate ? new Date(voucher.endDate) : null;
+              
+              if (startDate && endDate) {
+                return now >= startDate && now <= endDate;
+              }
+              return true; // Include if dates are missing
+            })
+            .slice(0, 6) // Limit to 6 vouchers
+            .map(voucher => ({
+              title: voucher.name || voucher.code || 'Voucher',
+              desc: voucher.description || `Mã: ${voucher.code || 'N/A'}`,
+              image: voucher.image || 'https://images.unsplash.com/photo-1511735111819-9a3f7709049c?q=80&w=200&auto=format&fit=crop'
+            }));
+          
+          setPromos(mappedPromos);
+        } else {
+          // Fallback to empty array on error
+          setPromos([]);
+        }
+      } catch (err) {
+        console.error('Error fetching vouchers:', err);
+        setPromos([]);
+      } finally {
+        setLoadingPromos(false);
+      }
+    };
+
+    fetchVouchers();
+  }, []);
 
   // Fetch movies from backend
   useEffect(() => {
@@ -113,7 +192,7 @@ export default function Home() {
   return (
     <div className="min-h-screen cinema-mood">
       <Header />
-      <HeroCarousel posters={[interstellar, inception, darkKnightRises, driveMyCar]} />
+      <HeroCarousel posters={banners.length > 0 ? banners : [interstellar, inception, darkKnightRises, driveMyCar]} />
       <main className="main">
         <Section id="now-showing" title="Phim Đang Chiếu" linkText="Xem tất cả">
           {loading ? (
@@ -134,7 +213,17 @@ export default function Home() {
           )}
         </Section>
         <Section id="promotions" title="Chương Trình Ưu Đãi">
-          <PromosGrid items={promos} />
+          {loadingPromos ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
+              Đang tải chương trình ưu đãi...
+            </div>
+          ) : promos.length > 0 ? (
+            <PromosGrid items={promos} />
+          ) : (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
+              Hiện chưa có chương trình ưu đãi nào
+            </div>
+          )}
         </Section>
       </main>
       <Footer />

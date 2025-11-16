@@ -108,7 +108,7 @@
 .banner-card__image-wrapper {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 3 / 1;
   overflow: hidden;
   background: rgba(10, 6, 11, 0.8);
 }
@@ -173,10 +173,11 @@
   padding: 16px;
 }
 
-.banner-card__id {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
+.banner-card__name {
+  font-size: 14px;
+  color: #fff;
   font-weight: 600;
+  font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
 }
 
 /* Banner Modal */
@@ -293,7 +294,7 @@
 
 .banner-preview__image {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 3 / 1;
   object-fit: cover;
   display: block;
 }
@@ -393,6 +394,14 @@
 
   .banner-modal {
     width: 95%;
+  }
+
+  .banner-card__image-wrapper {
+    aspect-ratio: 3 / 1;
+  }
+
+  .banner-preview__image {
+    aspect-ratio: 3 / 1;
   }
 }
 

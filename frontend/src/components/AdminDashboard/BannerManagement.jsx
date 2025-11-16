@@ -12,6 +12,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
+    name: '',
     image: '',
     imageFile: null
   });
@@ -47,6 +48,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
         if (result.success) {
           const mappedBanners = (result.data || []).map(banner => ({
             id: banner.id,
+            name: banner.name || '',
             image: banner.image || ''
           }));
           setBanners(mappedBanners);
@@ -144,6 +146,10 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
   const validateForm = () => {
     const errors = {};
     
+    if (!formData.name || formData.name.trim() === '') {
+      errors.name = 'Vui lòng nhập tên banner';
+    }
+    
     if (!formData.image || formData.image.trim() === '') {
       errors.image = 'Vui lòng upload ảnh banner';
     }
@@ -164,6 +170,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
 
     try {
       const bannerData = {
+        name: formData.name.trim(),
         image: formData.image.trim()
       };
 
@@ -182,6 +189,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
         if (reloadResult.success) {
           const mappedBanners = (reloadResult.data || []).map(banner => ({
             id: banner.id,
+            name: banner.name || '',
             image: banner.image || ''
           }));
           setBanners(mappedBanners);
@@ -212,6 +220,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
   const handleEdit = (banner) => {
     setEditingBanner(banner);
     setFormData({
+      name: banner.name || '',
       image: banner.image || '',
       imageFile: null
     });
@@ -233,6 +242,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
         if (reloadResult.success) {
           const mappedBanners = (reloadResult.data || []).map(banner => ({
             id: banner.id,
+            name: banner.name || '',
             image: banner.image || ''
           }));
           setBanners(mappedBanners);
@@ -261,6 +271,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
     setShowModal(false);
     setEditingBanner(null);
     setFormData({
+      name: '',
       image: '',
       imageFile: null
     });
@@ -273,6 +284,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
   const handleAddNew = () => {
     setEditingBanner(null);
     setFormData({
+      name: '',
       image: '',
       imageFile: null
     });
@@ -383,7 +395,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
                     </div>
                   </div>
                   <div className="banner-card__info">
-                    <span className="banner-card__id">Banner #{banner.id}</span>
+                    <span className="banner-card__name">{banner.name || `Banner #${banner.id}`}</span>
                   </div>
                 </div>
               ))}
@@ -409,6 +421,35 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
             </div>
 
             <div className="banner-modal__body">
+              {/* Name Input */}
+              <div className="banner-form-group">
+                <label className="banner-form-label">
+                  Tên Banner <span className="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="Nhập tên banner"
+                  className="banner-form-input"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: `1px solid ${validationErrors.name ? '#ff5757' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(20, 15, 16, 0.5)',
+                    color: '#fff',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'border-color 0.3s ease'
+                  }}
+                />
+                {validationErrors.name && (
+                  <div className="banner-form-error">{validationErrors.name}</div>
+                )}
+              </div>
+
               {/* Image Upload */}
               <div className="banner-form-group">
                 <label className="banner-form-label">
@@ -480,7 +521,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
               <button
                 className="btn btn--primary"
                 onClick={handleSave}
-                disabled={savingBanner || uploadingImage || !formData.image}
+                disabled={savingBanner || uploadingImage || !formData.name || !formData.image}
               >
                 {savingBanner ? (
                   <>

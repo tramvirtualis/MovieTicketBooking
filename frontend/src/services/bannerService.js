@@ -151,6 +151,27 @@ export const bannerService = {
       };
     }
   },
+
+  /**
+   * Lấy tất cả banner công khai (Public)
+   * @returns {Promise<Object>} Response từ server
+   */
+  getPublicBanners: async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/public/banners`);
+      return {
+        success: true,
+        data: Array.isArray(response.data) ? response.data : [],
+      };
+    } catch (error) {
+      console.error('Error fetching public banners:', error);
+      return {
+        success: false,
+        error: error.message || 'Không thể lấy danh sách banner',
+        data: [],
+      };
+    }
+  },
 };
 
 export default bannerService;

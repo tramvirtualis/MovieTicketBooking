@@ -15,6 +15,9 @@ import lombok.Setter;
 @AllArgsConstructor
 @Builder
 public class UpdateBannerDTO {
+    @Size(max = 255, message = "Tên banner không được vượt quá 255 ký tự")
+    private String name;
+
     @Size(max = 2000, message = "URL ảnh không được vượt quá 2000 ký tự")
     private String image;
 }
