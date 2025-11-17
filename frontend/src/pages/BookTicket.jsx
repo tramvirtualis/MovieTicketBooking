@@ -2,6 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import { cinemaRoomService } from '../services/cinemaRoomService';
+import showtimeService from '../services/showtimeService';
+import { movieService } from '../services/movieService';
+import { cinemaComplexService } from '../services/cinemaComplexService';
 
 // Generate seats for a room
 function generateSeats(rows, cols) {
@@ -149,6 +153,62 @@ export default function BookTicket() {
   const [showAgeConfirmModal, setShowAgeConfirmModal] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [pendingShowtime, setPendingShowtime] = useState(null);
+  const [roomData, setRoomData] = useState(null); // Room data from database
+  const [bookedSeatIds, setBookedSeatIds] = useState(new Set()); // Booked seat IDs from database
+  const [loadingRoom, setLoadingRoom] = useState(false);
+  const [movieData, setMovieData] = useState(null); // Movie data from database
+  const [cinemaData, setCinemaData] = useState(null); // Cinema data from database
+  const [pricesData, setPricesData] = useState([]); // Prices from database
+
+  // Load movie, cinema, and prices from database
+  useEffect(() => {
+    const loadData = async () => {
+      // Load movie if movieId exists
+      if (movieIdFromUrl || selectedMovie) {
+        const movieId = movieIdFromUrl || selectedMovie;
+        try {
+          const movieResult = await movieService.getPublicMovieById(Number(movieId));
+          if (movieResult.success && movieResult.data) {
+            setMovieData(movieResult.data);
+          }
+        } catch (error) {
+          console.error('Error loading movie:', error);
+        }
+      }
+      
+      // Load cinema if cinemaId exists
+      if (cinemaIdFromUrl || selectedCinema) {
+        const cinemaId = cinemaIdFromUrl || selectedCinema;
+        try {
+          const cinemaResult = await cinemaComplexService.getPublicCinemaComplexById(Number(cinemaId));
+          if (cinemaResult.success && cinemaResult.data) {
+            setCinemaData(cinemaResult.data);
+          }
+        } catch (error) {
+          console.error('Error loading cinema:', error);
+        }
+      }
+      
+      // Load prices
+      try {
+        const response = await fetch('http://localhost:8080/api/public/prices');
+        const result = await response.json();
+        if (result.success && result.data) {
+          // Map prices from backend format to frontend format
+          const mappedPrices = result.data.map(p => ({
+            roomType: cinemaRoomService.mapRoomTypeFromBackend(p.roomType), // Map TYPE_2D -> 2D
+            seatType: p.seatType,
+            price: p.price ? Number(p.price) : 0
+          }));
+          setPricesData(mappedPrices);
+        }
+      } catch (error) {
+        console.error('Error loading prices:', error);
+      }
+    };
+    
+    loadData();
+  }, [movieIdFromUrl, selectedMovie, cinemaIdFromUrl, selectedCinema]);
 
   // Update state when URL params change
   useEffect(() => {
@@ -159,55 +219,50 @@ export default function BookTicket() {
     }
   }, [movieIdFromUrl, cinemaIdFromUrl, showtimeFromUrl]);
 
-  // Initialize showtime from URL params
+  // Initialize showtime from URL params - load from database
   useEffect(() => {
     if (movieIdFromUrl && cinemaIdFromUrl && showtimeFromUrl && dateFromUrl && !selectedShowtime) {
-      // Find matching cinema - try by ID first, then by name
-      let cinema = cinemas.find(c => String(c.complexId) === cinemaIdFromUrl);
+      const [hours, minutes] = showtimeFromUrl.split(':');
+      const showtimeDate = new Date(dateFromUrl);
+      showtimeDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
       
-      // If not found by ID, try by name (cinemaId might be a string like 'cns_q6')
-      if (!cinema && cinemaNameFromUrl) {
-        // Try to match by name (decode URL encoding)
-        const decodedName = decodeURIComponent(cinemaNameFromUrl);
-        cinema = cinemas.find(c => {
-          const cName = c.name.toLowerCase();
-          const decoded = decodedName.toLowerCase();
-          return cName.includes(decoded) || 
-                 decoded.includes(cName) ||
-                 cName.includes(cinemaNameFromUrl.toLowerCase()) ||
-                 cinemaNameFromUrl.toLowerCase().includes(cName);
-        });
-      }
-      
-      // If still not found, use first cinema as fallback
-      if (!cinema && cinemas.length > 0) {
-        cinema = cinemas[0];
-      }
-      
-      if (cinema && cinema.rooms.length > 0) {
-        // Use first room as default (in real app, this would match the actual room from showtime)
-        const room = cinema.rooms[0];
-        if (room) {
-          const [hours, minutes] = showtimeFromUrl.split(':');
-          const showtimeDate = new Date(dateFromUrl);
-          showtimeDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-          
-          const mockShowtime = {
-            showtimeId: Date.now(), // Temporary ID
-            movieId: Number(movieIdFromUrl),
-            roomId: room.roomId,
-            startTime: showtimeDate.toISOString(),
-            endTime: new Date(showtimeDate.getTime() + 2 * 60 * 60 * 1000).toISOString() // +2 hours
-          };
-          // Directly set showtime since age confirmation was already done on MovieDetail page
-          setSelectedShowtime(mockShowtime);
-          // Also update selected cinema and movie
-          setSelectedCinema(String(cinema.complexId));
-          setSelectedMovie(movieIdFromUrl);
+      // Load actual showtime to get roomId and showtimeId
+      const loadShowtime = async () => {
+        try {
+          const showtimeResult = await showtimeService.getPublicShowtimes(
+            Number(movieIdFromUrl),
+            null, // province - will be determined from cinema
+            dateFromUrl
+          );
+          if (showtimeResult.success && showtimeResult.data) {
+            // Find showtime matching the time and cinema
+            const matchingShowtime = showtimeResult.data.find(st => {
+              const stTime = new Date(st.startTime);
+              return stTime.getHours() === parseInt(hours) && 
+                     stTime.getMinutes() === parseInt(minutes) &&
+                     String(st.cinemaComplexId) === String(cinemaIdFromUrl);
+            });
+            if (matchingShowtime) {
+              const mockShowtime = {
+                showtimeId: matchingShowtime.showtimeId,
+                movieId: Number(movieIdFromUrl),
+                roomId: matchingShowtime.cinemaRoomId,
+                startTime: matchingShowtime.startTime,
+                endTime: matchingShowtime.endTime
+              };
+              setSelectedShowtime(mockShowtime);
+              setSelectedCinema(String(matchingShowtime.cinemaComplexId));
+              setSelectedMovie(movieIdFromUrl);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading showtime:', error);
         }
-      }
+      };
+      
+      loadShowtime();
     }
-  }, [movieIdFromUrl, cinemaIdFromUrl, showtimeFromUrl, dateFromUrl, cinemaNameFromUrl, selectedShowtime]);
+  }, [movieIdFromUrl, cinemaIdFromUrl, showtimeFromUrl, dateFromUrl, selectedShowtime]);
 
   // Get available showtimes for selected movie and cinema
   const availableShowtimes = useMemo(() => {
@@ -221,36 +276,91 @@ export default function BookTicket() {
     );
   }, [selectedMovie, selectedCinema]);
 
-  // Get room for selected showtime
+  // Load room and seats from database when showtime is selected
+  useEffect(() => {
+    const loadRoomAndSeats = async () => {
+      if (!selectedShowtime || !selectedShowtime.roomId) return;
+      
+      setLoadingRoom(true);
+      try {
+        // Load room with seats
+        const roomResult = await cinemaRoomService.getPublicRoomById(selectedShowtime.roomId);
+        if (roomResult.success && roomResult.data) {
+          // Map seats from database format to frontend format
+          const mappedSeats = (roomResult.data.seats || []).map(seat => ({
+            seatId: `${seat.seatRow}${seat.seatColumn}`, // Format: "A1", "B2", etc.
+            row: seat.seatRow,
+            column: seat.seatColumn,
+            type: seat.type, // NORMAL, VIP, COUPLE
+            status: true
+          }));
+          
+          const mappedRoom = {
+            roomId: roomResult.data.roomId,
+            roomName: roomResult.data.roomName,
+            roomType: cinemaRoomService.mapRoomTypeFromBackend(roomResult.data.roomType), // Map TYPE_2D -> 2D
+            cinemaComplexId: roomResult.data.cinemaComplexId,
+            cinemaComplexName: roomResult.data.cinemaComplexName,
+            rows: roomResult.data.rows,
+            cols: roomResult.data.cols,
+            seats: mappedSeats
+          };
+          
+          setRoomData(mappedRoom);
+        }
+        
+        // Load booked seats if showtimeId exists
+        if (selectedShowtime.showtimeId && typeof selectedShowtime.showtimeId === 'number') {
+          const bookedResult = await showtimeService.getBookedSeats(selectedShowtime.showtimeId);
+          if (bookedResult.success && bookedResult.data) {
+            setBookedSeatIds(new Set(bookedResult.data));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading room and seats:', error);
+      } finally {
+        setLoadingRoom(false);
+      }
+    };
+    
+    loadRoomAndSeats();
+  }, [selectedShowtime]);
+
+  // Get room for selected showtime - use database data if available
   const selectedRoom = useMemo(() => {
+    if (roomData) return roomData; // Use data from database
     if (!selectedShowtime) return null;
+    // Fallback to hardcoded data
     const cinema = cinemas.find(c => c.rooms.some(r => r.roomId === selectedShowtime.roomId));
     if (!cinema) return null;
     return cinema.rooms.find(r => r.roomId === selectedShowtime.roomId);
-  }, [selectedShowtime]);
+  }, [selectedShowtime, roomData]);
 
-  // Get booked seats for selected showtime
+  // Get booked seats for selected showtime - use database data if available
   const bookedSeatsForShowtime = useMemo(() => {
+    if (bookedSeatIds.size > 0) return bookedSeatIds; // Use data from database
     if (!selectedShowtime) return new Set();
+    // Fallback to hardcoded data
     return new Set(
       bookedSeats
         .filter(bs => bs.showtimeId === selectedShowtime.showtimeId)
         .map(bs => bs.seatId)
     );
-  }, [selectedShowtime]);
+  }, [selectedShowtime, bookedSeatIds]);
 
-  // Calculate total price
+  // Calculate total price - use prices from database
   const totalPrice = useMemo(() => {
     if (!selectedRoom || selectedSeats.length === 0) return 0;
+    const pricesToUse = pricesData.length > 0 ? pricesData : prices; // Use database prices if available
     return selectedSeats.reduce((total, seatId) => {
       const seat = selectedRoom.seats.find(s => s.seatId === seatId);
       if (!seat) return total;
-      const priceEntry = prices.find(
+      const priceEntry = pricesToUse.find(
         p => p.roomType === selectedRoom.roomType && p.seatType === seat.type
       );
       return total + (priceEntry?.price || 0);
     }, 0);
-  }, [selectedRoom, selectedSeats]);
+  }, [selectedRoom, selectedSeats, pricesData]);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -528,13 +638,19 @@ export default function BookTicket() {
                       <div className="book-ticket-seat-selection__header">
                         <div>
                           <h2 style={{ margin: '0 0 8px', fontSize: '20px', fontWeight: 800, color: '#fff' }}>
-                            {movies.find(m => m.movieId === Number(selectedMovie || movieIdFromUrl))?.title || 'Đặt vé phim'}
+                            {movieData?.title || 'Đặt vé phim'}
                           </h2>
                           <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
-                            {cinemas.find(c => c.complexId === Number(selectedCinema || cinemaIdFromUrl))?.name || cinemaNameFromUrl} • {selectedRoom.roomName} • {selectedRoom.roomType}
+                            {cinemaData?.name || ''} • {selectedRoom?.roomName || ''} • {selectedRoom?.roomType || ''}
                           </div>
                           <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>
-                            {selectedShowtime.startTime ? new Date(selectedShowtime.startTime).toLocaleString('vi-VN') : `${dateFromUrl} ${showtimeFromUrl}`}
+                            {selectedShowtime?.startTime ? new Date(selectedShowtime.startTime).toLocaleString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric'
+                            }) : (dateFromUrl && showtimeFromUrl ? `${showtimeFromUrl} ${dateFromUrl}` : '')}
                           </div>
                         </div>
                         {!movieIdFromUrl && (
@@ -561,7 +677,8 @@ export default function BookTicket() {
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                               {selectedSeats.map(seatId => {
                                 const seat = selectedRoom.seats.find(s => s.seatId === seatId);
-                                const priceEntry = prices.find(
+                                const pricesToUse = pricesData.length > 0 ? pricesData : prices; // Use database prices if available
+                                const priceEntry = pricesToUse.find(
                                   p => p.roomType === selectedRoom.roomType && p.seatType === seat?.type
                                 );
                                 return (
@@ -589,12 +706,12 @@ export default function BookTicket() {
                                 const bookingInfo = {
                                   movieId: selectedMovie || movieIdFromUrl,
                                   cinemaId: selectedCinema || cinemaIdFromUrl,
-                                  cinemaName: cinemas.find(c => c.complexId === Number(selectedCinema || cinemaIdFromUrl))?.name || cinemaNameFromUrl,
+                                  cinemaName: cinemaData?.name || cinemaNameFromUrl,
                                   showtime: selectedShowtime,
                                   room: selectedRoom,
                                   seats: selectedSeats,
                                   totalPrice: totalPrice,
-                                  movieTitle: movies.find(m => m.movieId === Number(selectedMovie || movieIdFromUrl))?.title
+                                  movieTitle: movieData?.title || ''
                                 };
                                 localStorage.setItem('pendingBooking', JSON.stringify(bookingInfo));
                                 // Navigate to food and drinks page with ticket
@@ -641,16 +758,16 @@ export default function BookTicket() {
                         <h3>Thông tin phim</h3>
                         <div className="book-ticket-confirm__movie">
                           <img
-                            src={movies.find(m => m.movieId === Number(selectedMovie))?.poster}
+                            src={movieData?.poster || ''}
                             alt="Movie poster"
                             style={{ width: '80px', height: '120px', borderRadius: '8px', objectFit: 'cover' }}
                           />
                           <div>
                             <div style={{ fontWeight: 700, fontSize: '18px', marginBottom: '8px' }}>
-                              {movies.find(m => m.movieId === Number(selectedMovie))?.title}
+                              {movieData?.title || ''}
                             </div>
                             <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
-                              {cinemas.find(c => c.complexId === Number(selectedCinema))?.name}
+                              {cinemaData?.name || ''}
                             </div>
                             <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
                               {selectedRoom?.roomName} • {selectedRoom?.roomType}
@@ -814,8 +931,7 @@ export default function BookTicket() {
             </h2>
             
             {pendingShowtime && (() => {
-              const movie = movies.find(m => m.movieId === Number(selectedMovie || movieIdFromUrl));
-              const rating = movie?.rating || 'T16';
+              const rating = movieData?.ageRating ? movieService.mapAgeRatingFromBackend(movieData.ageRating) : 'T16';
               const ageNumber = rating.replace('T', '');
               
               return (
@@ -833,7 +949,7 @@ export default function BookTicket() {
                       marginBottom: '12px',
                       fontWeight: 600
                     }}>
-                      Phim: {movie?.title || 'N/A'}
+                      Phim: {movieData?.title || 'N/A'}
                     </div>
                     <div style={{ 
                       fontSize: '14px', 

@@ -378,6 +378,27 @@ export const cinemaRoomService = {
     }
   },
 
+  /**
+   * Lấy thông tin phòng chiếu với ghế (public - không cần đăng nhập)
+   * @param {number} roomId - ID của phòng chiếu
+   * @returns {Promise<Object>} Response từ server
+   */
+  getPublicRoomById: async (roomId) => {
+    try {
+      const response = await axiosInstance.get(`/public/cinema-rooms/${roomId}`);
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        message: response.data.message || 'Lấy thông tin phòng chiếu thành công',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể lấy thông tin phòng chiếu',
+      };
+    }
+  },
+
   // Helper để map RoomType
   mapRoomTypeToBackend,
   mapRoomTypeFromBackend,

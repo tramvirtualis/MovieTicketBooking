@@ -7,6 +7,8 @@ import { movieService } from '../services/movieService';
 import { reviewService } from '../services/reviewService';
 import { enumService } from '../services/enumService';
 import { favoriteService } from '../services/favoriteService';
+import { cinemaComplexService } from '../services/cinemaComplexService';
+import showtimeService from '../services/showtimeService';
 
 export default function MovieDetail() {
   const { id } = useParams();
@@ -33,6 +35,24 @@ export default function MovieDetail() {
   const [showAgeConfirmModal, setShowAgeConfirmModal] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [pendingBookingUrl, setPendingBookingUrl] = useState(null);
+  const [bookingOptions, setBookingOptions] = useState({
+    movieId: null,
+    cinemas: [],
+    formats: ['Tất cả'], // Default to "Tất cả", will be updated when showtimes are loaded
+    showtimes: {}
+  });
+  const [loadingShowtimes, setLoadingShowtimes] = useState(false);
+  
+  // Set movieId in bookingOptions when movie is loaded
+  useEffect(() => {
+    if (movie && movie.movieId) {
+      console.log('MovieDetail: Setting movieId in bookingOptions:', movie.movieId);
+      setBookingOptions(prev => ({
+        ...prev,
+        movieId: movie.movieId
+      }));
+    }
+  }, [movie]);
 
   // Load movie data from API
   useEffect(() => {
@@ -52,10 +72,13 @@ export default function MovieDetail() {
           if (result.success && result.data) {
             const mappedMovie = mapMovieFromBackend(result.data);
             setMovie(mappedMovie);
+            console.log('MovieDetail: Loaded movie with movieId:', mappedMovie.movieId);
             
             // Load reviews and favorite status after movie is loaded
             loadReviews(movieId);
             checkFavoriteStatus(movieId);
+            // Load booking data (cinemas) - showtimes will be loaded when modal opens
+            loadBookingData(movieId);
           } else {
             setError(result.error || 'Không tìm thấy phim');
           }
@@ -73,8 +96,10 @@ export default function MovieDetail() {
             
             if (foundMovie) {
               setMovie(foundMovie);
+              console.log('MovieDetail: Found movie with movieId:', foundMovie.movieId);
               loadReviews(foundMovie.movieId);
               checkFavoriteStatus(foundMovie.movieId);
+              loadBookingData(foundMovie.movieId);
             } else {
               setError('Không tìm thấy phim');
             }
@@ -108,6 +133,182 @@ export default function MovieDetail() {
     } catch (err) {
       console.error('Error checking favorite status:', err);
       setIsFavorite(false);
+    }
+  };
+
+  // Load booking data (cinemas)
+  const loadBookingData = async (movieId) => {
+    if (!movieId) return;
+    
+    try {
+      // Load cinemas
+      const cinemasResult = await cinemaComplexService.getAllCinemaComplexes();
+      if (!cinemasResult.success) {
+        console.error('Failed to load cinemas:', cinemasResult.error);
+        return;
+      }
+      
+      const cinemas = (cinemasResult.data || []).map(c => ({
+        id: c.complexId.toString(),
+        name: c.name,
+        province: c.addressProvince || ''
+      }));
+      
+      console.log('=== DEBUG: loadBookingData ===');
+      console.log('movieId:', movieId);
+      console.log('Cinemas loaded:', cinemas);
+      console.log('Number of cinemas:', cinemas.length);
+      
+      setBookingOptions(prev => {
+        const newOptions = {
+          ...prev,
+          movieId: movieId,
+          cinemas: cinemas
+        };
+        console.log('Setting bookingOptions:', newOptions);
+        return newOptions;
+      });
+    } catch (err) {
+      console.error('Error loading booking data:', err);
+    }
+  };
+  
+  // Map RoomType to display format - sử dụng mapping từ showtimeService
+  const mapRoomTypeToFormat = (roomType) => {
+    if (!roomType) {
+      console.warn('roomType is null/undefined');
+      return 'STANDARD';
+    }
+    // Sử dụng mapping từ showtimeService
+    const mapping = {
+      'TYPE_2D': '2D',
+      'TYPE_3D': '3D',
+      'DELUXE': 'DELUXE',
+    };
+    return mapping[roomType] || roomType;
+  };
+
+  // Load showtimes when filters change
+  const loadShowtimes = async (movieId, province, date) => {
+    if (!movieId || !date) return;
+    
+    console.log('=== DEBUG: loadShowtimes ===');
+    console.log('movieId:', movieId);
+    console.log('province:', province);
+    console.log('date:', date);
+    
+    setLoadingShowtimes(true);
+    try {
+      const result = await showtimeService.getPublicShowtimes(movieId, province, date);
+      console.log('API Response:', result);
+      
+      if (result.success && result.data) {
+        console.log('Showtimes data:', result.data);
+        console.log('Number of showtimes:', result.data.length);
+        // Group showtimes by cinema and format
+        const showtimesByCinema = {};
+        const formatsSet = new Set(); // Track unique formats
+        
+        result.data.forEach(st => {
+          console.log('Processing showtime:', {
+            showtimeId: st.showtimeId,
+            roomType: st.roomType,
+            movieVersionId: st.movieVersionId,
+            cinemaComplexId: st.cinemaComplexId,
+            cinemaComplexName: st.cinemaComplexName,
+            startTime: st.startTime
+          });
+          
+          const cinemaId = st.cinemaComplexId?.toString();
+          if (!cinemaId) {
+            console.warn('Showtime missing cinemaComplexId:', st);
+            return;
+          }
+          
+          // Map roomType to format - lấy trực tiếp từ MovieVersion
+          if (!st.roomType) {
+            console.warn('Showtime missing roomType:', st);
+            return; // Bỏ qua nếu không có roomType
+          }
+          const format = mapRoomTypeToFormat(st.roomType);
+          console.log('Mapped roomType', st.roomType, 'to format', format);
+          formatsSet.add(format);
+          
+          if (!showtimesByCinema[cinemaId]) {
+            showtimesByCinema[cinemaId] = {};
+          }
+          if (!showtimesByCinema[cinemaId][format]) {
+            showtimesByCinema[cinemaId][format] = [];
+          }
+          
+          // Format time as HH:mm
+          let time;
+          try {
+            const dateObj = new Date(st.startTime);
+            if (isNaN(dateObj.getTime())) {
+              // If parsing fails, try to parse as ISO string
+              time = st.startTime ? st.startTime.substring(11, 16) : '';
+            } else {
+              time = dateObj.toLocaleTimeString('en-GB', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: false 
+              });
+            }
+          } catch (e) {
+            // Fallback: extract time from string if it's in format "YYYY-MM-DDTHH:mm:ss"
+            if (typeof st.startTime === 'string' && st.startTime.includes('T')) {
+              time = st.startTime.substring(11, 16);
+            } else {
+              time = '';
+            }
+          }
+          
+          if (time && !showtimesByCinema[cinemaId][format].includes(time)) {
+            showtimesByCinema[cinemaId][format].push(time);
+          }
+        });
+        
+        // Sort times in each format
+        Object.keys(showtimesByCinema).forEach(cinemaId => {
+          Object.keys(showtimesByCinema[cinemaId]).forEach(format => {
+            showtimesByCinema[cinemaId][format].sort();
+          });
+        });
+        
+        // Convert formats set to array and sort, add "Tất cả" at the beginning
+        const formats = Array.from(formatsSet).sort();
+        const formatsWithAll = ['Tất cả', ...formats];
+        
+        console.log('Formats found:', formats);
+        console.log('Formats with "Tất cả":', formatsWithAll);
+        console.log('Showtimes by cinema:', showtimesByCinema);
+        
+        setBookingOptions(prev => ({
+          ...prev,
+          showtimes: showtimesByCinema,
+          formats: formatsWithAll.length > 1 ? formatsWithAll : ['Tất cả'] // Always include "Tất cả"
+        }));
+      } else {
+        console.log('No showtimes data or result.success is false');
+        console.log('Result:', result);
+        // Clear showtimes if no data, but keep "Tất cả" option
+        setBookingOptions(prev => ({
+          ...prev,
+          showtimes: {},
+          formats: ['Tất cả'] // Default to "Tất cả"
+        }));
+      }
+    } catch (err) {
+      console.error('Error loading showtimes:', err);
+      console.error('Error details:', err.response?.data || err.message);
+      setBookingOptions(prev => ({
+        ...prev,
+        showtimes: {},
+        formats: ['Tất cả'] // Default to "Tất cả"
+      }));
+    } finally {
+      setLoadingShowtimes(false);
     }
   };
 
@@ -650,6 +851,7 @@ export default function MovieDetail() {
         </section>
       </main>
 
+      {console.log('MovieDetail: Rendering BookingModal with bookingOptions:', bookingOptions)}
       <BookingModal
         isOpen={showBooking}
         onClose={() => setShowBooking(false)}
@@ -660,26 +862,8 @@ export default function MovieDetail() {
           setShowAgeConfirmModal(true);
           setShowBooking(false); // Đóng modal chọn suất
         }}
-        options={{
-          movieId: movie.movieId || movie.id || 1,
-          cinemas: [
-            { id: 'cns_q6', name: 'Cinestar Satra Quận 6 (TPHCM)', province: 'Hồ Chí Minh' },
-            { id: 'cns_qt', name: 'Cinestar Quốc Thanh (TPHCM)', province: 'Hồ Chí Minh' },
-            { id: 'cns_hbt', name: 'Cinestar Hai Bà Trưng (TPHCM)', province: 'Hồ Chí Minh' },
-            { id: 'cns_hn1', name: 'Cinestar Hà Nội 1', province: 'Hà Nội' },
-            { id: 'cns_hn2', name: 'Cinestar Hà Nội 2', province: 'Hà Nội' },
-            { id: 'cns_dn', name: 'Cinestar Đà Nẵng', province: 'Đà Nẵng' },
-          ],
-          formats: ['STANDARD', 'IMAX 2D'],
-          showtimes: {
-            cns_q6: { STANDARD: ['19:30', '21:30'] },
-            cns_qt: { STANDARD: ['22:10'] },
-            cns_hbt: { STANDARD: ['20:10', '22:30'] },
-            cns_hn1: { STANDARD: ['18:00', '20:30'] },
-            cns_hn2: { STANDARD: ['19:00', '21:00'] },
-            cns_dn: { STANDARD: ['17:30', '19:45'] }
-          }
-        }}
+        onFiltersChange={loadShowtimes}
+        options={bookingOptions}
       />
 
       {/* Age Confirmation Modal */}

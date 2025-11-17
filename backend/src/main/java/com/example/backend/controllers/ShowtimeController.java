@@ -232,6 +232,75 @@ public class ShowtimeController {
         }
     }
     
+    // ============ PUBLIC ENDPOINTS ============
+    
+    /**
+     * Lấy showtimes public theo movieId, province và date (không cần đăng nhập)
+     */
+    @GetMapping("/api/public/showtimes")
+    public ResponseEntity<?> getPublicShowtimes(
+            @RequestParam Long movieId,
+            @RequestParam(required = false) String province,
+            @RequestParam String date) {
+        try {
+            System.out.println("=== ShowtimeController.getPublicShowtimes ===");
+            System.out.println("movieId: " + movieId);
+            System.out.println("province: " + province);
+            System.out.println("date: " + date);
+            
+            java.time.LocalDate localDate = java.time.LocalDate.parse(date);
+            List<ShowtimeResponseDTO> showtimes = showtimeService.getPublicShowtimes(movieId, province, localDate);
+            
+            System.out.println("Returning " + showtimes.size() + " showtimes");
+            
+            return ResponseEntity.ok(
+                createSuccessResponse("Lấy danh sách lịch chiếu thành công", showtimes)
+            );
+        } catch (Exception e) {
+            System.err.println("ERROR in getPublicShowtimes: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    /**
+     * DEBUG endpoint: Kiểm tra showtimes trong database (không filter)
+     */
+    @GetMapping("/api/debug/showtimes/{movieId}")
+    public ResponseEntity<?> debugShowtimes(@PathVariable Long movieId) {
+        try {
+            List<ShowtimeResponseDTO> allShowtimes = showtimeService.debugGetAllShowtimesByMovie(movieId);
+            Map<String, Object> debugInfo = new HashMap<>();
+            debugInfo.put("movieId", movieId);
+            debugInfo.put("totalShowtimes", allShowtimes.size());
+            debugInfo.put("showtimes", allShowtimes);
+            return ResponseEntity.ok(debugInfo);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    /**
+     * Lấy danh sách ghế đã đặt cho showtime (public - không cần đăng nhập)
+     */
+    @GetMapping("/api/public/showtimes/{showtimeId}/booked-seats")
+    public ResponseEntity<?> getBookedSeats(@PathVariable Long showtimeId) {
+        try {
+            List<String> bookedSeatIds = showtimeService.getBookedSeatIds(showtimeId);
+            return ResponseEntity.ok(
+                createSuccessResponse("Lấy danh sách ghế đã đặt thành công", bookedSeatIds)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
     // Helper methods
     private String getUsernameFromRequest(HttpServletRequest request) {
         try {

@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 
-export default function BookingModal({ isOpen, onClose, movieTitle, options, onShowtimeClick }) {
+export default function BookingModal({ isOpen, onClose, movieTitle, options, onShowtimeClick, onFiltersChange }) {
   const today = useMemo(() => new Date(), []);
   const dates = useMemo(() => {
     const arr = [];
@@ -15,17 +15,56 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
     return arr;
   }, [today]);
 
-  const provinces = [
-    'Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Đồng Nai', 'Hải Phòng',
-    'Quảng Ninh', 'Bà Rịa-Vũng Tàu', 'Bình Định', 'Bình Dương', 'Đắk Lắk',
-    'Trà Vinh', 'Kiên Giang', 'Hậu Giang', 'Hà Tĩnh', 'Phú Yên', 'Khánh Hòa',
-    'Kon Tum', 'Lạng Sơn', 'Nghệ An', 'Phú Thọ', 'Quảng Ngãi', 'Sơn La', 'Tây Ninh', 'Tiền Giang'
-  ];
+  // Get unique provinces from cinemas
+  const provinces = useMemo(() => {
+    const uniqueProvinces = new Set();
+    (options.cinemas || []).forEach(c => {
+      if (c.province) uniqueProvinces.add(c.province);
+    });
+    return Array.from(uniqueProvinces).sort();
+  }, [options.cinemas]);
 
   const [date, setDate] = useState(dates[0]?.key || '');
   const [province, setProvince] = useState(provinces[0] || '');
   const [cinema, setCinema] = useState('');
-  const [format, setFormat] = useState(options.formats?.[0] || 'STANDARD');
+  const [format, setFormat] = useState(options.formats?.[0] || 'Tất cả');
+  
+  // Update format when options.formats changes
+  useEffect(() => {
+    if (options.formats && options.formats.length > 0) {
+      // If current format is not in the new formats list, switch to first available
+      if (!options.formats.includes(format)) {
+        setFormat(options.formats[0]);
+      }
+    }
+  }, [options.formats]);
+  
+  // Notify parent when filters change or modal opens
+  useEffect(() => {
+    console.log('=== DEBUG: BookingModal useEffect ===');
+    console.log('isOpen:', isOpen);
+    console.log('onFiltersChange:', !!onFiltersChange);
+    console.log('options.movieId:', options.movieId);
+    console.log('date:', date);
+    console.log('province:', province);
+    
+    if (isOpen && onFiltersChange && options.movieId && date) {
+      console.log('Calling onFiltersChange with:', { 
+        movieId: options.movieId, 
+        province: province || null, 
+        date 
+      });
+      onFiltersChange(options.movieId, province || null, date);
+    }
+  }, [province, date, options.movieId, onFiltersChange, isOpen]);
+  
+  // Reset province when modal opens
+  useEffect(() => {
+    if (isOpen && provinces.length > 0) {
+      console.log('Setting province to:', provinces[0]);
+      setProvince(provinces[0]);
+    }
+  }, [isOpen, provinces]);
 
   const filteredCinemas = useMemo(() => {
     return (options.cinemas || []).filter(c => c.province === province);
@@ -87,13 +126,34 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
 
         <div className="modal__body">
           <div className="cinema-list">
-            {filteredCinemas.map((c) => {
-              const show = options.showtimes?.[c.id]?.[format] || [];
+            {filteredCinemas.length === 0 ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#c9c4c5' }}>
+                <p>Chưa có rạp nào trong tỉnh/thành phố này</p>
+              </div>
+            ) : filteredCinemas.map((c) => {
+              // If format is "Tất cả", show all showtimes from all formats
+              // Otherwise, show only showtimes for the selected format
+              let show = [];
+              if (format === 'Tất cả') {
+                // Get all showtimes from all formats for this cinema
+                const allShowtimes = options.showtimes?.[c.id] || {};
+                const allTimes = [];
+                Object.keys(allShowtimes).forEach(fmt => {
+                  if (allShowtimes[fmt] && Array.isArray(allShowtimes[fmt])) {
+                    allTimes.push(...allShowtimes[fmt]);
+                  }
+                });
+                // Remove duplicates and sort
+                show = [...new Set(allTimes)].sort();
+              } else {
+                show = options.showtimes?.[c.id]?.[format] || [];
+              }
+              
               return (
                 <div key={c.id} className="cinema-item">
                   <div className="cinema-item__head">
                     <div className="cinema-item__name">{c.name}</div>
-                    <div className="cinema-item__format">{format}</div>
+                    <div className="cinema-item__format">{format === 'Tất cả' ? 'Tất cả định dạng' : format}</div>
                   </div>
                   <div className="cinema-item__times">
                     {show.length === 0 ? (

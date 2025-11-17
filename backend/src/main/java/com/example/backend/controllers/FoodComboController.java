@@ -19,18 +19,17 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/admin/food-combos")
 @RequiredArgsConstructor
 @CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000"}, 
              allowedHeaders = "*", 
              allowCredentials = "true")
-@PreAuthorize("hasRole('ADMIN')")
 public class FoodComboController {
     
     private final FoodComboService foodComboService;
     private final JwtUtils jwtUtils;
     
-    @PostMapping
+    @PostMapping("/api/admin/food-combos")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createFoodCombo(@Valid @RequestBody CreateFoodComboDTO createDTO,
                                             BindingResult bindingResult,
                                             HttpServletRequest request) {
@@ -51,7 +50,8 @@ public class FoodComboController {
         }
     }
     
-    @PutMapping("/{id}")
+    @PutMapping("/api/admin/food-combos/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateFoodCombo(@PathVariable Long id,
                                             @Valid @RequestBody CreateFoodComboDTO updateDTO,
                                             BindingResult bindingResult,
@@ -74,7 +74,26 @@ public class FoodComboController {
         }
     }
     
-    @GetMapping
+    // ============ PUBLIC ENDPOINTS ============
+    
+    /**
+     * Lấy danh sách food combos theo cinema complex ID (public - không cần đăng nhập)
+     */
+    @GetMapping("/api/public/food-combos/cinema-complex/{complexId}")
+    public ResponseEntity<?> getFoodCombosByCinemaComplex(@PathVariable Long complexId) {
+        try {
+            List<FoodComboResponseDTO> combos = foodComboService.getFoodCombosByCinemaComplexId(complexId);
+            return ResponseEntity.ok(createSuccessResponse("Lấy danh sách sản phẩm thành công", combos));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    // ============ ADMIN ENDPOINTS ============
+    
+    @GetMapping("/api/admin/food-combos")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getAllFoodCombos() {
         try {
             List<FoodComboResponseDTO> combos = foodComboService.getAllFoodCombos();
@@ -86,7 +105,8 @@ public class FoodComboController {
     }
     
     
-    @GetMapping("/{id}")
+    @GetMapping("/api/admin/food-combos/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getFoodComboById(@PathVariable Long id) {
         try {
             FoodComboResponseDTO combo = foodComboService.getFoodComboById(id);
@@ -100,7 +120,8 @@ public class FoodComboController {
         }
     }
     
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/api/admin/food-combos/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteFoodCombo(@PathVariable Long id,
                                              HttpServletRequest request) {
         try {

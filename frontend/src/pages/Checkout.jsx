@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import { customerVoucherService } from '../services/customerVoucherService.js';
 
 // Get saved vouchers from localStorage
 const getSavedVouchers = () => {
@@ -32,26 +33,32 @@ const isVoucherActive = (voucher) => {
 const formatCurrency = (value) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 
-const formatDiscountBadge = (voucher) =>
-  voucher.discountType === 'PERCENT'
-    ? `-${voucher.discountValue}%`
-    : `-${formatCurrency(voucher.discountValue)}`;
+const formatDiscountBadge = (voucher) => {
+  // Handle both old format (discountValue) and new format (discount, discountPercent)
+  const discountType = voucher.discountType || (voucher.discountPercent > 0 ? 'PERCENT' : 'AMOUNT');
+  const discountValue = voucher.discountType === 'PERCENT' 
+    ? (voucher.discountValue || voucher.discountPercent || 0)
+    : (voucher.discountValue || voucher.discount || 0);
+  
+  return discountType === 'PERCENT'
+    ? `-${discountValue}%`
+    : `-${formatCurrency(discountValue)}`;
+};
 
 export default function Checkout() {
   const navigate = useNavigate();
   const [cartData, setCartData] = useState(null);
   const [bookingData, setBookingData] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('vnpay');
+  const [paymentMethod, setPaymentMethod] = useState('VNPAY');
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [availableVouchers, setAvailableVouchers] = useState([]);
   const [showVoucherList, setShowVoucherList] = useState(false);
-  
-  // Sample customer data (would come from database/auth in real app)
-  const customerInfo = {
-    name: 'Nguyễn Văn A',
-    phone: '0909000001',
-    email: 'nguyenvana@example.com'
-  };
+  const [customerInfo, setCustomerInfo] = useState({
+    name: '',
+    phone: '',
+    email: ''
+  });
+  const [loadingVouchers, setLoadingVouchers] = useState(false);
 
   useEffect(() => {
     const savedCart = localStorage.getItem('checkoutCart');
@@ -64,15 +71,53 @@ export default function Checkout() {
       setBookingData(JSON.parse(savedBooking));
     }
     
-    // Load available vouchers
-    const vouchers = getSavedVouchers();
-    setAvailableVouchers(vouchers.filter(v => isVoucherActive(v)));
+    // Load customer info from localStorage (saved when login)
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        setCustomerInfo({
+          name: user.name || '',
+          phone: user.phone || '',
+          email: user.email || ''
+        });
+      } catch (e) {
+        console.error('Failed to parse user data:', e);
+      }
+    }
+    
+    // Load vouchers from database
+    loadVouchersFromDatabase();
     
     // Redirect back if no cart and no booking
     if (!savedCart && !savedBooking) {
       navigate('/food-drinks');
     }
   }, [navigate]);
+
+  const loadVouchersFromDatabase = async () => {
+    setLoadingVouchers(true);
+    try {
+      const response = await customerVoucherService.getUserVouchers();
+      if (response.success && response.data) {
+        // Filter only active vouchers
+        const activeVouchers = response.data.filter(v => {
+          const now = new Date();
+          const start = v.startDate ? new Date(v.startDate) : null;
+          const end = v.expiryDate ? new Date(v.expiryDate + 'T23:59:59') : null;
+          return (!start || now >= start) && (!end || now <= end);
+        });
+        setAvailableVouchers(activeVouchers);
+      } else {
+        setAvailableVouchers([]);
+      }
+    } catch (error) {
+      console.error('Error loading vouchers:', error);
+      setAvailableVouchers([]);
+    } finally {
+      setLoadingVouchers(false);
+    }
+  };
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -101,12 +146,17 @@ export default function Checkout() {
       return 0;
     }
 
-    if (voucher.discountType === 'PERCENT') {
-      const discount = (subtotal * voucher.discountValue) / 100;
+    // Handle both old format (discountValue) and new format (discount, discountPercent)
+    const discountType = voucher.discountType || (voucher.discountPercent > 0 ? 'PERCENT' : 'AMOUNT');
+    
+    if (discountType === 'PERCENT') {
+      const discountPercent = voucher.discountValue || voucher.discountPercent || 0;
+      const discount = (subtotal * discountPercent) / 100;
       const maxDiscount = voucher.maxDiscount || voucher.maxDiscountAmount || Infinity;
       return Math.min(discount, maxDiscount);
     } else {
-      return Math.min(voucher.discountValue, subtotal);
+      const discountAmount = voucher.discountValue || voucher.discount || 0;
+      return Math.min(discountAmount, subtotal);
     }
   };
 
@@ -254,7 +304,12 @@ export default function Checkout() {
                   )}
 
                   {/* Voucher List */}
-                  {showVoucherList && availableVouchers.length > 0 && (
+                  {loadingVouchers && (
+                    <div className="text-center py-4 text-[#c9c4c5] text-sm">
+                      Đang tải vouchers...
+                    </div>
+                  )}
+                  {!loadingVouchers && showVoucherList && availableVouchers.length > 0 && (
                     <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 mt-4">
                       {availableVouchers.map((voucher) => {
                         const isSelected = selectedVoucher?.voucherId === voucher.voucherId;
@@ -285,7 +340,7 @@ export default function Checkout() {
                                   <span className="checkout-voucher-item__badge">{formatDiscountBadge(voucher)}</span>
                                   <span className="checkout-voucher-item__code">{voucher.code}</span>
                                 </div>
-                                <div className="checkout-voucher-item__name">{voucher.name}</div>
+                                <div className="checkout-voucher-item__name">{voucher.name || voucher.title}</div>
                                 {!canUse && (
                                   <div className="checkout-voucher-item__warning text-xs text-[#ff5258] mt-1">
                                     Đơn tối thiểu: {formatCurrency(voucher.minOrder || voucher.minOrderAmount || 0)}
@@ -299,7 +354,7 @@ export default function Checkout() {
                     </div>
                   )}
 
-                  {availableVouchers.length === 0 && (
+                  {!loadingVouchers && availableVouchers.length === 0 && (
                     <div className="text-center py-4 text-[#c9c4c5] text-sm">
                       Bạn chưa có voucher nào. <a href="/events" className="text-[#ffd159] hover:underline">Xem voucher</a>
                     </div>
@@ -320,8 +375,8 @@ export default function Checkout() {
                       <input
                         type="radio"
                         name="payment"
-                        value="vnpay"
-                        checked={paymentMethod === 'vnpay'}
+                        value="VNPAY"
+                        checked={paymentMethod === 'VNPAY'}
                         onChange={(e) => setPaymentMethod(e.target.value)}
                       />
                       <div className="checkout-payment-method__content">
@@ -332,24 +387,12 @@ export default function Checkout() {
                       <input
                         type="radio"
                         name="payment"
-                        value="momo"
-                        checked={paymentMethod === 'momo'}
+                        value="MOMO"
+                        checked={paymentMethod === 'MOMO'}
                         onChange={(e) => setPaymentMethod(e.target.value)}
                       />
                       <div className="checkout-payment-method__content">
                         <span>MoMo</span>
-                      </div>
-                    </label>
-                    <label className="checkout-payment-method">
-                      <input
-                        type="radio"
-                        name="payment"
-                        value="cash"
-                        checked={paymentMethod === 'cash'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                      />
-                      <div className="checkout-payment-method__content">
-                        <span>Tiền mặt</span>
                       </div>
                     </label>
                   </div>

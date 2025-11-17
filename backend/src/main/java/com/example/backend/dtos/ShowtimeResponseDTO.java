@@ -22,6 +22,9 @@ public class ShowtimeResponseDTO {
     private RoomType roomType;
     private Long cinemaRoomId;
     private String cinemaRoomName;
+    private Long cinemaComplexId;
+    private String cinemaComplexName;
+    private String province;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
 }

@@ -44,7 +44,39 @@ axiosInstance.interceptors.response.use(
   }
 );
 
+// Axios instance cho public API (không cần JWT)
+const publicAxiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 export const foodComboService = {
+  /**
+   * Lấy food combos theo cinema complex ID (public - không cần đăng nhập)
+   * @param {number} complexId - ID của cinema complex
+   * @returns {Promise<Object>} Response từ server
+   */
+  getFoodCombosByCinemaComplexId: async (complexId) => {
+    try {
+      const response = await publicAxiosInstance.get(`/public/food-combos/cinema-complex/${complexId}`);
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        message: response.data.message || 'Lấy danh sách sản phẩm thành công',
+      };
+    } catch (error) {
+      console.error('Error fetching food combos by cinema complex:', error);
+      return {
+        success: false,
+        data: [],
+        error: error.message || 'Không thể lấy danh sách sản phẩm',
+      };
+    }
+  },
+
   /**
    * Lấy tất cả food combos
    * @returns {Promise<Object>} Response từ server

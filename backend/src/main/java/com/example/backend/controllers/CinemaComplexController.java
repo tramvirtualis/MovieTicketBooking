@@ -44,6 +44,23 @@ public class CinemaComplexController {
         }
     }
     
+    /**
+     * Lấy cụm rạp theo ID (Public - không cần authentication)
+     */
+    @GetMapping("/api/public/cinema-complexes/{complexId}")
+    public ResponseEntity<?> getCinemaComplexByIdPublic(@PathVariable Long complexId) {
+        try {
+            CinemaComplexResponseDTO complex = cinemaComplexService.getCinemaComplexById(complexId);
+            return ResponseEntity.ok(createSuccessResponse("Lấy thông tin cụm rạp thành công", complex));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
     // ============ ADMIN ENDPOINTS (CẦN AUTHENTICATION) ============
     
     @GetMapping("/api/admin/cinema-complexes")

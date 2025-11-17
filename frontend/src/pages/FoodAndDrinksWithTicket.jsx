@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import { foodComboService } from '../services/foodComboService.js';
 
 const cinemas = [
   { id: '1', name: 'Quốc Thanh', province: 'TP.HCM' },
@@ -132,6 +133,8 @@ export default function FoodAndDrinksWithTicket() {
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(null);
+  const [menuItemsFromDB, setMenuItemsFromDB] = useState([]);
+  const [loadingMenu, setLoadingMenu] = useState(false);
 
   // Load pending booking from localStorage
   useEffect(() => {
@@ -142,28 +145,8 @@ export default function FoodAndDrinksWithTicket() {
         setPendingBooking(booking);
         // Auto-select cinema from booking - always set from booking.cinemaId
         if (booking.cinemaId) {
-          // Try to match cinema by ID first, then by name
-          const matchedCinema = cinemas.find(c => 
-            String(c.id) === String(booking.cinemaId) ||
-            String(c.complexId) === String(booking.cinemaId)
-          );
-          
-          if (matchedCinema) {
-            setSelectedCinema(matchedCinema.id);
-          } else {
-            // If no exact match, try to match by name
-            const nameMatchedCinema = cinemas.find(c => 
-              booking.cinemaName?.toLowerCase().includes(c.name.toLowerCase()) ||
-              c.name.toLowerCase().includes(booking.cinemaName?.toLowerCase() || '')
-            );
-            
-            if (nameMatchedCinema) {
-              setSelectedCinema(nameMatchedCinema.id);
-            } else {
-              // Use cinemaId directly as fallback (convert to string)
-              setSelectedCinema(String(booking.cinemaId));
-            }
-          }
+          // Use cinemaId directly (it's already the complexId from database)
+          setSelectedCinema(String(booking.cinemaId));
         }
       } else {
         // If no pending booking, redirect to normal food page
@@ -175,6 +158,49 @@ export default function FoodAndDrinksWithTicket() {
     }
   }, [navigate]);
 
+  // Load menu items from database when selectedCinema changes
+  useEffect(() => {
+    const loadMenuItems = async () => {
+      if (!selectedCinema) {
+        setMenuItemsFromDB([]);
+        return;
+      }
+
+      setLoadingMenu(true);
+      try {
+        const complexId = Number(selectedCinema);
+        console.log('Loading menu items for cinema complex ID:', complexId);
+        
+        const response = await foodComboService.getFoodCombosByCinemaComplexId(complexId);
+        
+        if (response.success && response.data) {
+          // Map FoodComboResponseDTO to frontend format
+          const mappedItems = response.data.map(item => ({
+            id: `fc_${item.foodComboId}`,
+            name: item.name,
+            description: item.description || '',
+            price: item.price ? Number(item.price) : 0,
+            image: item.image || 'https://via.placeholder.com/400x300?text=No+Image',
+            category: 'Đồ ăn' // Default category, có thể thêm field category vào DTO sau
+          }));
+          
+          console.log('Loaded menu items:', mappedItems);
+          setMenuItemsFromDB(mappedItems);
+        } else {
+          console.warn('No menu items found for cinema complex:', complexId);
+          setMenuItemsFromDB([]);
+        }
+      } catch (error) {
+        console.error('Error loading menu items:', error);
+        setMenuItemsFromDB([]);
+      } finally {
+        setLoadingMenu(false);
+      }
+    };
+
+    loadMenuItems();
+  }, [selectedCinema]);
+
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -182,39 +208,8 @@ export default function FoodAndDrinksWithTicket() {
     }).format(price);
   };
 
-  const getMenuItems = () => {
-    // If no selectedCinema or menu not found, return empty array (user can skip)
-    if (!selectedCinema) return [];
-    
-    // Try to find menu by cinema ID
-    let menu = menuData[selectedCinema];
-    
-    // If not found, try to find by any cinema (fallback to first cinema's menu)
-    if (!menu && Object.keys(menuData).length > 0) {
-      menu = menuData[Object.keys(menuData)[0]];
-    }
-    
-    if (!menu) return [];
-    
-    const allItems = [...menu.foods, ...menu.drinks, ...menu.combos];
-    
-    // When ordering with ticket, combo prices get additional 10% discount
-    return allItems.map(item => {
-      if (item.category === 'Combo' && item.originalPrice) {
-        const discountPrice = item.price;
-        const withTicketPrice = Math.round(discountPrice * 0.9);
-        return {
-          ...item,
-          price: withTicketPrice,
-          originalPrice: item.originalPrice,
-          priceWithTicket: true
-        };
-      }
-      return item;
-    });
-  };
-
-  const menuItems = getMenuItems();
+  // Use menu items from database
+  const menuItems = menuItemsFromDB;
 
   const getItemQuantity = (itemId) => {
     const cartItem = cart.find(item => item.id === itemId);
@@ -346,12 +341,17 @@ export default function FoodAndDrinksWithTicket() {
 
             {/* Menu Display */}
             <div>
-              {menuItems.length === 0 && selectedCinema && (
+              {loadingMenu && (
+                <div style={{ marginBottom: '24px', color: 'rgba(255,255,255,0.7)', fontSize: '14px', padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', textAlign: 'center' }}>
+                  Đang tải menu...
+                </div>
+              )}
+              {!loadingMenu && menuItems.length === 0 && selectedCinema && (
                 <div style={{ marginBottom: '24px', color: 'rgba(255,255,255,0.7)', fontSize: '14px', padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
                   Menu của rạp hiện đang được cập nhật. Bạn có thể bỏ qua bước này và tiếp tục thanh toán vé.
                 </div>
               )}
-              {menuItems.length > 0 && (
+              {!loadingMenu && menuItems.length > 0 && (
                 <div className="food-menu-grid">
                   {menuItems.map((item) => {
                       const quantity = getItemQuantity(item.id);

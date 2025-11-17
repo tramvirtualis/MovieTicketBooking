@@ -215,6 +215,26 @@ export const movieService = {
   },
 
   /**
+   * Lấy phim theo ID (Public - không cần authentication)
+   * @param {number} movieId - ID của phim
+   * @returns {Promise<Object>} Response từ server
+   */
+  getPublicMovieById: async (movieId) => {
+    try {
+      const response = await axiosInstance.get(`/public/movies/${movieId}`);
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể lấy thông tin phim',
+      };
+    }
+  },
+
+  /**
    * Tạo phim mới
    * @param {Object} movieData - Dữ liệu phim
    * @returns {Promise<Object>} Response từ server

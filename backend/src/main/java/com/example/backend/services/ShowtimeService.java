@@ -5,6 +5,7 @@ import com.example.backend.dtos.ShowtimeResponseDTO;
 import com.example.backend.entities.CinemaRoom;
 import com.example.backend.entities.Movie;
 import com.example.backend.entities.MovieVersion;
+import com.example.backend.entities.Seat;
 import com.example.backend.entities.Showtime;
 import com.example.backend.repositories.CinemaRoomRepository;
 import com.example.backend.repositories.MovieRepository;
@@ -14,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -181,12 +183,140 @@ public class ShowtimeService {
     }
     
     /**
+     * Lấy showtimes public theo movieId, province và date
+     */
+    @Transactional(readOnly = true)
+    public List<ShowtimeResponseDTO> getPublicShowtimes(Long movieId, String province, java.time.LocalDate date) {
+        System.out.println("=== DEBUG: getPublicShowtimes START ===");
+        System.out.println("movieId: " + movieId);
+        System.out.println("province: " + province);
+        System.out.println("date: " + date);
+        
+        // First, test if there are ANY showtimes for this movie
+        List<Showtime> allMovieShowtimes = showtimeRepository.findAllByMovieId(movieId);
+        System.out.println("Total showtimes for movie " + movieId + ": " + allMovieShowtimes.size());
+        if (!allMovieShowtimes.isEmpty()) {
+            Showtime first = allMovieShowtimes.get(0);
+            System.out.println("First showtime ID: " + first.getShowtimeId());
+            System.out.println("First showtime startTime: " + first.getStartTime());
+            if (first.getMovieVersion() != null) {
+                System.out.println("First showtime movieVersion ID: " + first.getMovieVersion().getMovieVersionId());
+                System.out.println("First showtime roomType: " + first.getMovieVersion().getRoomType());
+            }
+            if (first.getCinemaRoom() != null && first.getCinemaRoom().getCinemaComplex() != null && 
+                first.getCinemaRoom().getCinemaComplex().getAddress() != null) {
+                System.out.println("First showtime province: " + first.getCinemaRoom().getCinemaComplex().getAddress().getProvince());
+            }
+        }
+        
+        java.time.LocalDateTime startOfDay = date.atStartOfDay();
+        java.time.LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
+        System.out.println("startOfDay: " + startOfDay);
+        System.out.println("endOfDay: " + endOfDay);
+        System.out.println("Current time: " + java.time.LocalDateTime.now());
+        
+        // Get showtimes for the date (without province filter)
+        List<Showtime> allShowtimes = showtimeRepository.findPublicShowtimesWithoutProvince(movieId, startOfDay, endOfDay);
+        System.out.println("Showtimes for date " + date + ": " + allShowtimes.size());
+        
+        // Filter by province in Java code for more flexible matching
+        List<Showtime> showtimes;
+        if (province == null || province.trim().isEmpty()) {
+            showtimes = allShowtimes;
+            System.out.println("No province filter, using all " + showtimes.size() + " showtimes");
+        } else {
+            String provinceLower = province.trim().toLowerCase();
+            System.out.println("Filtering by province: " + provinceLower);
+            showtimes = allShowtimes.stream()
+                .filter(st -> {
+                    if (st.getCinemaRoom() != null && 
+                        st.getCinemaRoom().getCinemaComplex() != null &&
+                        st.getCinemaRoom().getCinemaComplex().getAddress() != null) {
+                        String dbProvince = st.getCinemaRoom().getCinemaComplex().getAddress().getProvince();
+                        if (dbProvince != null) {
+                            String dbProvinceLower = dbProvince.trim().toLowerCase();
+                            boolean matches = dbProvinceLower.equals(provinceLower) || 
+                                             dbProvinceLower.contains(provinceLower) ||
+                                             provinceLower.contains(dbProvinceLower);
+                            if (matches) {
+                                System.out.println("Matched province: " + dbProvince + " with " + province);
+                            }
+                            return matches;
+                        }
+                    }
+                    return false;
+                })
+                .collect(Collectors.toList());
+            System.out.println("After province filter: " + showtimes.size() + " showtimes");
+        }
+        
+        List<ShowtimeResponseDTO> result = showtimes.stream()
+            .map(this::mapToDTO)
+            .collect(Collectors.toList());
+        
+        System.out.println("Final result count: " + result.size());
+        System.out.println("=== DEBUG: getPublicShowtimes END ===");
+        
+        return result;
+    }
+    
+    /**
+     * DEBUG method: Lấy tất cả showtimes theo movieId (không filter gì cả)
+     */
+    @Transactional(readOnly = true)
+    public List<ShowtimeResponseDTO> debugGetAllShowtimesByMovie(Long movieId) {
+        List<Showtime> allShowtimes = showtimeRepository.findAllByMovieId(movieId);
+        System.out.println("DEBUG: Found " + allShowtimes.size() + " showtimes for movie " + movieId);
+        return allShowtimes.stream()
+            .map(this::mapToDTO)
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Lấy danh sách seatId đã đặt cho showtime
+     */
+    @Transactional(readOnly = true)
+    public List<String> getBookedSeatIds(Long showtimeId) {
+        Showtime showtime = showtimeRepository.findByIdWithRelations(showtimeId)
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch chiếu với ID: " + showtimeId));
+        
+        if (showtime.getTickets() == null || showtime.getTickets().isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        return showtime.getTickets().stream()
+            .filter(ticket -> ticket.getSeat() != null)
+            .map(ticket -> {
+                Seat seat = ticket.getSeat();
+                return seat.getSeatRow() + seat.getSeatColumn();
+            })
+            .collect(Collectors.toList());
+    }
+    
+    /**
      * Map Showtime entity sang DTO
      */
     private ShowtimeResponseDTO mapToDTO(Showtime showtime) {
         MovieVersion movieVersion = showtime.getMovieVersion();
         Movie movie = movieVersion != null ? movieVersion.getMovie() : null;
         CinemaRoom cinemaRoom = showtime.getCinemaRoom();
+        com.example.backend.entities.CinemaComplex cinemaComplex = cinemaRoom != null ? cinemaRoom.getCinemaComplex() : null;
+        com.example.backend.entities.Address address = cinemaComplex != null ? cinemaComplex.getAddress() : null;
+        
+        // Validate that required data is loaded
+        if (movieVersion == null) {
+            throw new RuntimeException("MovieVersion is null for showtime ID: " + showtime.getShowtimeId());
+        }
+        if (movieVersion.getRoomType() == null) {
+            throw new RuntimeException("RoomType is null for showtime ID: " + showtime.getShowtimeId() + ", movieVersion ID: " + movieVersion.getMovieVersionId());
+        }
+        
+        // Đảm bảo roomType được lấy từ MovieVersion
+        com.example.backend.entities.enums.RoomType roomType = movieVersion != null ? movieVersion.getRoomType() : null;
+        if (roomType == null) {
+            throw new RuntimeException("RoomType is null for showtime ID: " + showtime.getShowtimeId() + 
+                ", movieVersion ID: " + (movieVersion != null ? movieVersion.getMovieVersionId() : "null"));
+        }
         
         return ShowtimeResponseDTO.builder()
             .showtimeId(showtime.getShowtimeId())
@@ -194,9 +324,12 @@ public class ShowtimeService {
             .movieTitle(movie != null ? movie.getTitle() : null)
             .movieVersionId(movieVersion != null ? movieVersion.getMovieVersionId() : null)
             .language(movieVersion != null ? movieVersion.getLanguage() : null)
-            .roomType(movieVersion != null ? movieVersion.getRoomType() : null)
+            .roomType(roomType)
             .cinemaRoomId(cinemaRoom != null ? cinemaRoom.getRoomId() : null)
             .cinemaRoomName(cinemaRoom != null ? cinemaRoom.getRoomName() : null)
+            .cinemaComplexId(cinemaComplex != null ? cinemaComplex.getComplexId() : null)
+            .cinemaComplexName(cinemaComplex != null ? cinemaComplex.getName() : null)
+            .province(address != null ? address.getProvince() : null)
             .startTime(showtime.getStartTime())
             .endTime(showtime.getEndTime())
             .build();

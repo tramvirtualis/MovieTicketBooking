@@ -311,6 +311,27 @@ public class CinemaRoomController {
         }
     }
     
+    // ============ PUBLIC ENDPOINTS ============
+    
+    /**
+     * Lấy thông tin phòng chiếu với ghế (public - không cần đăng nhập)
+     */
+    @GetMapping("/api/public/cinema-rooms/{roomId}")
+    public ResponseEntity<?> getPublicRoomById(@PathVariable Long roomId) {
+        try {
+            CinemaRoomResponseDTO room = cinemaRoomService.getRoomById(roomId);
+            return ResponseEntity.ok(
+                createSuccessResponse("Lấy thông tin phòng chiếu thành công", room)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
     // Helper methods
     private String getUsernameFromRequest(HttpServletRequest request) {
         try {

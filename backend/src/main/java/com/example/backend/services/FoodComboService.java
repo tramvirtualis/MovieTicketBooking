@@ -97,6 +97,12 @@ public class FoodComboService {
             .collect(Collectors.toList());
     }
     
+    public List<FoodComboResponseDTO> getFoodCombosByCinemaComplexId(Long complexId) {
+        return foodComboRepository.findByCinemaComplexId(complexId).stream()
+            .map(this::mapToDTO)
+            .collect(Collectors.toList());
+    }
+    
     public FoodComboResponseDTO getFoodComboById(Long id) {
         FoodCombo foodCombo = foodComboRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
