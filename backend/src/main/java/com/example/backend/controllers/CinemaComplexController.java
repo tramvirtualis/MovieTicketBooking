@@ -3,6 +3,8 @@ package com.example.backend.controllers;
 import com.example.backend.dtos.CinemaComplexResponseDTO;
 import com.example.backend.dtos.CreateCinemaComplexDTO;
 import com.example.backend.services.CinemaComplexService;
+import com.example.backend.utils.JwtUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 public class CinemaComplexController {
     
     private final CinemaComplexService cinemaComplexService;
+    private final JwtUtils jwtUtils;
     
     // ============ PUBLIC ENDPOINTS ============
     
@@ -73,13 +76,16 @@ public class CinemaComplexController {
     @PostMapping("/api/admin/cinema-complexes")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createCinemaComplex(@Valid @RequestBody CreateCinemaComplexDTO createDTO,
-                                                  BindingResult bindingResult) {
+                                                  BindingResult bindingResult,
+                                                  HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
-            CinemaComplexResponseDTO response = cinemaComplexService.createCinemaComplex(createDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            CinemaComplexResponseDTO response = cinemaComplexService.createCinemaComplex(createDTO, username);
             return ResponseEntity.status(HttpStatus.CREATED).body(
                 createSuccessResponse("Tạo cụm rạp thành công", response)
             );
@@ -93,13 +99,16 @@ public class CinemaComplexController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateCinemaComplex(@PathVariable Long complexId,
                                                 @Valid @RequestBody CreateCinemaComplexDTO updateDTO,
-                                                BindingResult bindingResult) {
+                                                BindingResult bindingResult,
+                                                HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
-            CinemaComplexResponseDTO response = cinemaComplexService.updateCinemaComplex(complexId, updateDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            CinemaComplexResponseDTO response = cinemaComplexService.updateCinemaComplex(complexId, updateDTO, username);
             return ResponseEntity.ok(createSuccessResponse("Cập nhật cụm rạp thành công", response));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -112,9 +121,12 @@ public class CinemaComplexController {
     
     @DeleteMapping("/api/admin/cinema-complexes/{complexId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> deleteCinemaComplex(@PathVariable Long complexId) {
+    public ResponseEntity<?> deleteCinemaComplex(@PathVariable Long complexId,
+                                                 HttpServletRequest request) {
         try {
-            cinemaComplexService.deleteCinemaComplex(complexId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            cinemaComplexService.deleteCinemaComplex(complexId, username);
             return ResponseEntity.ok(createSuccessResponse("Xóa cụm rạp thành công", null));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -123,6 +135,23 @@ public class CinemaComplexController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse(e.getMessage()));
         }
+    }
+    
+    // ============ HELPER METHODS ============
+    
+    private String getUsernameFromRequest(HttpServletRequest request) {
+        try {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                if (jwtUtils.validateJwtToken(token)) {
+                    return jwtUtils.getUsernameFromJwtToken(token);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting username from request: " + e.getMessage());
+        }
+        return null;
     }
     
     private Map<String, Object> createSuccessResponse(String message, Object data) {

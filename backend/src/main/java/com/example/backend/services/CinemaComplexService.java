@@ -15,6 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.example.backend.entities.enums.Action;
+import com.example.backend.entities.enums.ObjectType;
+import com.example.backend.utils.SecurityUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +26,7 @@ public class CinemaComplexService {
     private final CinemaComplexRepository cinemaComplexRepository;
     private final AddressRepository addressRepository;
     private final MovieRepository movieRepository;
+    private final ActivityLogService activityLogService;
     
     public List<CinemaComplexResponseDTO> getAllCinemaComplexes() {
         return cinemaComplexRepository.findAll().stream()
@@ -47,7 +51,7 @@ public class CinemaComplexService {
     }
     
     @Transactional
-    public CinemaComplexResponseDTO createCinemaComplex(CreateCinemaComplexDTO createDTO) {
+    public CinemaComplexResponseDTO createCinemaComplex(CreateCinemaComplexDTO createDTO, String username) {
         // Tạo Address
         Address address = Address.builder()
             .description(createDTO.getAddressDescription())
@@ -62,11 +66,29 @@ public class CinemaComplexService {
             .build();
         
         CinemaComplex savedComplex = cinemaComplexRepository.save(complex);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.CREATE,
+                    ObjectType.CINEMA,
+                    savedComplex.getComplexId(),
+                    savedComplex.getName(),
+                    "Thêm cụm rạp mới: " + savedComplex.getName()
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log cinema complex activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
         return mapToDTO(savedComplex);
     }
     
     @Transactional
-    public CinemaComplexResponseDTO updateCinemaComplex(Long complexId, CreateCinemaComplexDTO updateDTO) {
+    public CinemaComplexResponseDTO updateCinemaComplex(Long complexId, CreateCinemaComplexDTO updateDTO, String username) {
         CinemaComplex complex = cinemaComplexRepository.findById(complexId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + complexId));
         
@@ -91,13 +113,33 @@ public class CinemaComplexService {
         }
         
         CinemaComplex updatedComplex = cinemaComplexRepository.save(complex);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.UPDATE,
+                    ObjectType.CINEMA,
+                    updatedComplex.getComplexId(),
+                    updatedComplex.getName(),
+                    "Cập nhật cụm rạp: " + updatedComplex.getName()
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log cinema complex activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
         return mapToDTO(updatedComplex);
     }
     
     @Transactional
-    public void deleteCinemaComplex(Long complexId) {
+    public void deleteCinemaComplex(Long complexId, String username) {
         CinemaComplex complex = cinemaComplexRepository.findById(complexId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + complexId));
+        
+        String complexName = complex.getName();
         
         // Xóa Address (cascade sẽ xử lý các quan hệ khác)
         if (complex.getAddress() != null) {
@@ -105,6 +147,23 @@ public class CinemaComplexService {
         }
         
         cinemaComplexRepository.delete(complex);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.DELETE,
+                    ObjectType.CINEMA,
+                    complexId,
+                    complexName,
+                    "Xóa cụm rạp: " + complexName
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log cinema complex activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
     }
 
     // ============ MOVIE MANAGEMENT METHODS ============

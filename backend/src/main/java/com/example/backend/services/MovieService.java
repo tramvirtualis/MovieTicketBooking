@@ -20,6 +20,9 @@ import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.MovieVersionRepository;
 
 import lombok.RequiredArgsConstructor;
+import com.example.backend.entities.enums.Action;
+import com.example.backend.entities.enums.ObjectType;
+import com.example.backend.utils.SecurityUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -27,11 +30,11 @@ public class MovieService {
     
     private final MovieRepository movieRepository;
     private final MovieVersionRepository movieVersionRepository;
+    private final ActivityLogService activityLogService;
     
-    // ============ ADMIN METHODS (GIỮ NGUYÊN) ============
     
     @Transactional
-    public MovieResponseDTO createMovie(CreateMovieDTO createMovieDTO) {
+    public MovieResponseDTO createMovie(CreateMovieDTO createMovieDTO, String username) {
         Movie movie = Movie.builder()
                 .title(createMovieDTO.getTitle())
                 .genre(createMovieDTO.getGenre())
@@ -47,6 +50,24 @@ public class MovieService {
                 .build();
         
         Movie savedMovie = movieRepository.save(movie);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.CREATE,
+                    ObjectType.MOVIE,
+                    savedMovie.getMovieId(),
+                    savedMovie.getTitle(),
+                    "Thêm phim mới: " + savedMovie.getTitle()
+                );
+            } catch (Exception e) {
+                // Log error but don't fail the operation
+                System.err.println("ERROR: Failed to log activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
         
         if (createMovieDTO.getFormats() != null && createMovieDTO.getLanguages() != null) {
             List<MovieVersion> versions = new ArrayList<>();
@@ -67,7 +88,7 @@ public class MovieService {
     }
     
     @Transactional
-    public MovieResponseDTO updateMovie(Long movieId, UpdateMovieDTO updateMovieDTO) {
+    public MovieResponseDTO updateMovie(Long movieId, UpdateMovieDTO updateMovieDTO, String username) {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy phim với ID: " + movieId));
         
@@ -106,6 +127,23 @@ public class MovieService {
         }
         
         Movie updatedMovie = movieRepository.save(movie);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.UPDATE,
+                    ObjectType.MOVIE,
+                    updatedMovie.getMovieId(),
+                    updatedMovie.getTitle(),
+                    "Cập nhật thông tin phim: " + updatedMovie.getTitle()
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
         
         if (updateMovieDTO.getFormats() != null && updateMovieDTO.getLanguages() != null) {
             // Lấy các MovieVersion hiện có
@@ -153,9 +191,11 @@ public class MovieService {
     }
     
     @Transactional
-    public void deleteMovie(Long movieId) {
+    public void deleteMovie(Long movieId, String username) {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy phim với ID: " + movieId));
+        
+        String movieName = movie.getTitle();
         
         List<MovieVersion> versions = movieVersionRepository.findByMovie(movie);
         if (!versions.isEmpty()) {
@@ -163,6 +203,23 @@ public class MovieService {
         }
         
         movieRepository.delete(movie);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.DELETE,
+                    ObjectType.MOVIE,
+                    movieId,
+                    movieName,
+                    "Xóa phim: " + movieName
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
     }
     
     public MovieResponseDTO getMovieById(Long movieId) {

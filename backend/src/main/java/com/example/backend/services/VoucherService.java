@@ -15,6 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import com.example.backend.entities.enums.Action;
+import com.example.backend.entities.enums.ObjectType;
+import com.example.backend.utils.SecurityUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -24,9 +27,10 @@ public class VoucherService {
     private final VoucherRepository voucherRepository;
     private final CustomerRepository customerRepository;
     private final NotificationService notificationService;
+    private final ActivityLogService activityLogService;
     
     @Transactional
-    public VoucherResponseDTO createVoucher(CreateVoucherDTO createDTO) {
+    public VoucherResponseDTO createVoucher(CreateVoucherDTO createDTO, String username) {
         // Kiểm tra mã voucher đã tồn tại chưa
         if (voucherRepository.existsByCode(createDTO.getCode())) {
             throw new RuntimeException("Mã voucher đã tồn tại: " + createDTO.getCode());
@@ -59,11 +63,29 @@ public class VoucherService {
                 .build();
         
         Voucher savedVoucher = voucherRepository.save(voucher);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.CREATE,
+                    ObjectType.VOUCHER,
+                    savedVoucher.getVoucherId(),
+                    savedVoucher.getName(),
+                    "Thêm voucher mới: " + savedVoucher.getName()
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log voucher activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
         return convertToDTO(savedVoucher);
     }
     
     @Transactional
-    public VoucherResponseDTO updateVoucher(Long voucherId, UpdateVoucherDTO updateDTO) {
+    public VoucherResponseDTO updateVoucher(Long voucherId, UpdateVoucherDTO updateDTO, String username) {
         Voucher voucher = voucherRepository.findById(voucherId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy voucher với ID: " + voucherId));
         
@@ -119,14 +141,51 @@ public class VoucherService {
         }
         
         Voucher updatedVoucher = voucherRepository.save(voucher);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.UPDATE,
+                    ObjectType.VOUCHER,
+                    updatedVoucher.getVoucherId(),
+                    updatedVoucher.getName(),
+                    "Cập nhật voucher: " + updatedVoucher.getName()
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log voucher activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
         return convertToDTO(updatedVoucher);
     }
     
     @Transactional
-    public void deleteVoucher(Long voucherId) {
+    public void deleteVoucher(Long voucherId, String username) {
         Voucher voucher = voucherRepository.findById(voucherId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy voucher với ID: " + voucherId));
+        
+        String voucherName = voucher.getName();
         voucherRepository.delete(voucher);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.DELETE,
+                    ObjectType.VOUCHER,
+                    voucherId,
+                    voucherName,
+                    "Xóa voucher: " + voucherName
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log voucher activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
     }
     
     public VoucherResponseDTO getVoucherById(Long voucherId) {

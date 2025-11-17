@@ -3,6 +3,8 @@ package com.example.backend.controllers;
 import com.example.backend.dtos.CreateShowtimeDTO;
 import com.example.backend.dtos.ShowtimeResponseDTO;
 import com.example.backend.services.ShowtimeService;
+import com.example.backend.utils.JwtUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 public class ShowtimeController {
     
     private final ShowtimeService showtimeService;
+    private final JwtUtils jwtUtils;
     
     // ============ MANAGER ENDPOINTS ============
     
@@ -53,13 +56,16 @@ public class ShowtimeController {
     @PostMapping("/api/manager/showtimes")
     @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<?> createShowtime(@Valid @RequestBody CreateShowtimeDTO createDTO,
-                                            BindingResult bindingResult) {
+                                            BindingResult bindingResult,
+                                            HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
-            ShowtimeResponseDTO showtimeResponse = showtimeService.createShowtime(createDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            ShowtimeResponseDTO showtimeResponse = showtimeService.createShowtime(createDTO, username);
             return ResponseEntity.status(HttpStatus.CREATED).body(
                 createSuccessResponse("Tạo lịch chiếu thành công", showtimeResponse)
             );
@@ -79,13 +85,16 @@ public class ShowtimeController {
     @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<?> updateShowtime(@PathVariable Long showtimeId,
                                             @Valid @RequestBody CreateShowtimeDTO updateDTO,
-                                            BindingResult bindingResult) {
+                                            BindingResult bindingResult,
+                                            HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
-            ShowtimeResponseDTO showtimeResponse = showtimeService.updateShowtime(showtimeId, updateDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            ShowtimeResponseDTO showtimeResponse = showtimeService.updateShowtime(showtimeId, updateDTO, username);
             return ResponseEntity.ok(
                 createSuccessResponse("Cập nhật lịch chiếu thành công", showtimeResponse)
             );
@@ -103,9 +112,12 @@ public class ShowtimeController {
      */
     @DeleteMapping("/api/manager/showtimes/{showtimeId}")
     @PreAuthorize("hasRole('MANAGER')")
-    public ResponseEntity<?> deleteShowtime(@PathVariable Long showtimeId) {
+    public ResponseEntity<?> deleteShowtime(@PathVariable Long showtimeId,
+                                            HttpServletRequest request) {
         try {
-            showtimeService.deleteShowtime(showtimeId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            showtimeService.deleteShowtime(showtimeId, username);
             return ResponseEntity.ok(
                 createSuccessResponse("Xóa lịch chiếu thành công", null)
             );
@@ -146,13 +158,16 @@ public class ShowtimeController {
     @PostMapping("/api/admin/showtimes")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createShowtimeAdmin(@Valid @RequestBody CreateShowtimeDTO createDTO,
-                                                 BindingResult bindingResult) {
+                                                 BindingResult bindingResult,
+                                                 HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
-            ShowtimeResponseDTO showtimeResponse = showtimeService.createShowtime(createDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            ShowtimeResponseDTO showtimeResponse = showtimeService.createShowtime(createDTO, username);
             return ResponseEntity.status(HttpStatus.CREATED).body(
                 createSuccessResponse("Tạo lịch chiếu thành công", showtimeResponse)
             );
@@ -172,13 +187,16 @@ public class ShowtimeController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateShowtimeAdmin(@PathVariable Long showtimeId,
                                                  @Valid @RequestBody CreateShowtimeDTO updateDTO,
-                                                 BindingResult bindingResult) {
+                                                 BindingResult bindingResult,
+                                                 HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
-            ShowtimeResponseDTO showtimeResponse = showtimeService.updateShowtime(showtimeId, updateDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            ShowtimeResponseDTO showtimeResponse = showtimeService.updateShowtime(showtimeId, updateDTO, username);
             return ResponseEntity.ok(
                 createSuccessResponse("Cập nhật lịch chiếu thành công", showtimeResponse)
             );
@@ -196,9 +214,12 @@ public class ShowtimeController {
      */
     @DeleteMapping("/api/admin/showtimes/{showtimeId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> deleteShowtimeAdmin(@PathVariable Long showtimeId) {
+    public ResponseEntity<?> deleteShowtimeAdmin(@PathVariable Long showtimeId,
+                                                 HttpServletRequest request) {
         try {
-            showtimeService.deleteShowtime(showtimeId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            showtimeService.deleteShowtime(showtimeId, username);
             return ResponseEntity.ok(
                 createSuccessResponse("Xóa lịch chiếu thành công", null)
             );
@@ -212,6 +233,21 @@ public class ShowtimeController {
     }
     
     // Helper methods
+    private String getUsernameFromRequest(HttpServletRequest request) {
+        try {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                if (jwtUtils.validateJwtToken(token)) {
+                    return jwtUtils.getUsernameFromJwtToken(token);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting username from request: " + e.getMessage());
+        }
+        return null;
+    }
+    
     private Map<String, Object> createSuccessResponse(String message, Object data) {
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);

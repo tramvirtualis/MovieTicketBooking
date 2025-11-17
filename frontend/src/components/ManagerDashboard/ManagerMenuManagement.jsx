@@ -121,14 +121,26 @@ export default function ManagerMenuManagement({ complexId }) {
     try {
       const result = await managerMenuService.removeFoodComboFromMenu(complexId, foodComboId);
       
+      // Đóng modal ngay sau khi có kết quả (trước khi hiển thị notification)
+      setDeleteConfirm(null);
+      
       if (result.success) {
-        showNotification('Xóa sản phẩm khỏi menu thành công', 'success');
+        // Delay một chút để modal đóng xong trước khi hiển thị notification
+        setTimeout(() => {
+          showNotification('Xóa sản phẩm khỏi menu thành công', 'success');
+        }, 300);
         loadData();
       } else {
-        showNotification(result.error || 'Không thể xóa sản phẩm khỏi menu', 'error');
+        setTimeout(() => {
+          showNotification(result.error || 'Không thể xóa sản phẩm khỏi menu', 'error');
+        }, 300);
       }
     } catch (error) {
-      showNotification('Có lỗi xảy ra khi xóa sản phẩm', 'error');
+      // Đóng modal ngay cả khi có lỗi
+      setDeleteConfirm(null);
+      setTimeout(() => {
+        showNotification('Có lỗi xảy ra khi xóa sản phẩm', 'error');
+      }, 300);
     } finally {
       setLoading(false);
     }
@@ -196,7 +208,7 @@ export default function ManagerMenuManagement({ complexId }) {
           position: 'fixed',
           top: '20px',
           right: '20px',
-          zIndex: 10000,
+          zIndex: 10001,
           padding: '16px 20px',
           borderRadius: '12px',
           background: notification.type === 'success' 

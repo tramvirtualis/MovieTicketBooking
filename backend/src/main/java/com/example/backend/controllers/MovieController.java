@@ -4,6 +4,8 @@ import com.example.backend.dtos.CreateMovieDTO;
 import com.example.backend.dtos.MovieResponseDTO;
 import com.example.backend.dtos.UpdateMovieDTO;
 import com.example.backend.services.MovieService;
+import com.example.backend.utils.JwtUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,13 +27,15 @@ import java.util.stream.Collectors;
 public class MovieController {
     
     private final MovieService movieService;
+    private final JwtUtils jwtUtils;
     
     // ============ ADMIN ENDPOINTS (CẦN AUTHENTICATION) ============
     
     @PostMapping("/api/admin/movies")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createMovie(@Valid @RequestBody CreateMovieDTO createMovieDTO,
-                                         BindingResult bindingResult) {
+                                         BindingResult bindingResult,
+                                         HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(
                     createErrorResponse(bindingResult)
@@ -39,7 +43,9 @@ public class MovieController {
         }
         
         try {
-            MovieResponseDTO movieResponse = movieService.createMovie(createMovieDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            MovieResponseDTO movieResponse = movieService.createMovie(createMovieDTO, username);
             return ResponseEntity.status(HttpStatus.CREATED).body(
                     createSuccessResponse("Tạo phim thành công", movieResponse)
             );
@@ -53,7 +59,8 @@ public class MovieController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateMovie(@PathVariable Long movieId,
                                          @Valid @RequestBody UpdateMovieDTO updateMovieDTO,
-                                         BindingResult bindingResult) {
+                                         BindingResult bindingResult,
+                                         HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(
                     createErrorResponse(bindingResult)
@@ -61,7 +68,9 @@ public class MovieController {
         }
         
         try {
-            MovieResponseDTO movieResponse = movieService.updateMovie(movieId, updateMovieDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            MovieResponseDTO movieResponse = movieService.updateMovie(movieId, updateMovieDTO, username);
             return ResponseEntity.ok(
                     createSuccessResponse("Cập nhật phim thành công", movieResponse)
             );
@@ -76,9 +85,12 @@ public class MovieController {
     
     @DeleteMapping("/api/admin/movies/{movieId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> deleteMovie(@PathVariable Long movieId) {
+    public ResponseEntity<?> deleteMovie(@PathVariable Long movieId,
+                                         HttpServletRequest request) {
         try {
-            movieService.deleteMovie(movieId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            movieService.deleteMovie(movieId, username);
             return ResponseEntity.ok(
                     createSuccessResponse("Xóa phim thành công", null)
             );
@@ -167,6 +179,21 @@ public class MovieController {
     }
     
     // ============ HELPER METHODS ============
+    
+    private String getUsernameFromRequest(HttpServletRequest request) {
+        try {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                if (jwtUtils.validateJwtToken(token)) {
+                    return jwtUtils.getUsernameFromJwtToken(token);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting username from request: " + e.getMessage());
+        }
+        return null;
+    }
     
     private Map<String, Object> createSuccessResponse(String message, Object data) {
         Map<String, Object> response = new HashMap<>();

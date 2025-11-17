@@ -3,6 +3,8 @@ package com.example.backend.controllers;
 import com.example.backend.dtos.CreateFoodComboDTO;
 import com.example.backend.dtos.FoodComboResponseDTO;
 import com.example.backend.services.FoodComboService;
+import com.example.backend.utils.JwtUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,16 +28,20 @@ import java.util.stream.Collectors;
 public class FoodComboController {
     
     private final FoodComboService foodComboService;
+    private final JwtUtils jwtUtils;
     
     @PostMapping
     public ResponseEntity<?> createFoodCombo(@Valid @RequestBody CreateFoodComboDTO createDTO,
-                                            BindingResult bindingResult) {
+                                            BindingResult bindingResult,
+                                            HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
-            FoodComboResponseDTO response = foodComboService.createFoodCombo(createDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            FoodComboResponseDTO response = foodComboService.createFoodCombo(createDTO, username);
             return ResponseEntity.status(HttpStatus.CREATED).body(
                 createSuccessResponse("Tạo sản phẩm thành công", response)
             );
@@ -48,13 +54,16 @@ public class FoodComboController {
     @PutMapping("/{id}")
     public ResponseEntity<?> updateFoodCombo(@PathVariable Long id,
                                             @Valid @RequestBody CreateFoodComboDTO updateDTO,
-                                            BindingResult bindingResult) {
+                                            BindingResult bindingResult,
+                                            HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
-            FoodComboResponseDTO response = foodComboService.updateFoodCombo(id, updateDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            FoodComboResponseDTO response = foodComboService.updateFoodCombo(id, updateDTO, username);
             return ResponseEntity.ok(createSuccessResponse("Cập nhật sản phẩm thành công", response));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -92,9 +101,12 @@ public class FoodComboController {
     }
     
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteFoodCombo(@PathVariable Long id) {
+    public ResponseEntity<?> deleteFoodCombo(@PathVariable Long id,
+                                             HttpServletRequest request) {
         try {
-            foodComboService.deleteFoodCombo(id);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            foodComboService.deleteFoodCombo(id, username);
             return ResponseEntity.ok(createSuccessResponse("Xóa sản phẩm thành công", null));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -103,6 +115,21 @@ public class FoodComboController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse(e.getMessage()));
         }
+    }
+    
+    private String getUsernameFromRequest(HttpServletRequest request) {
+        try {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                if (jwtUtils.validateJwtToken(token)) {
+                    return jwtUtils.getUsernameFromJwtToken(token);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting username from request: " + e.getMessage());
+        }
+        return null;
     }
     
     private Map<String, Object> createSuccessResponse(String message, Object data) {

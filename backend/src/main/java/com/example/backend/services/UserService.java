@@ -3,6 +3,8 @@ package com.example.backend.services;
 import com.example.backend.dtos.CreateStaffRequestDTO;
 import com.example.backend.dtos.UserResponseDTO;
 import com.example.backend.entities.*;
+import com.example.backend.entities.enums.Action;
+import com.example.backend.entities.enums.ObjectType;
 import com.example.backend.repositories.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ public class UserService {
     private final AddressRepository addressRepository;
     private final CinemaComplexRepository cinemaComplexRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ActivityLogService activityLogService;
     
     /**
      * Lấy danh sách tất cả users với filter
@@ -166,7 +169,7 @@ public class UserService {
      * Toggle status của user (chặn/bỏ chặn)
      */
     @Transactional
-    public UserResponseDTO toggleUserStatus(Long userId) throws Exception {
+    public UserResponseDTO toggleUserStatus(Long userId, String username) throws Exception {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new Exception("Không tìm thấy user với ID: " + userId));
         
@@ -180,6 +183,38 @@ public class UserService {
         User updatedUser = userRepository.save(user);
         
         log.info("Toggled status for user ID: {} to {}", userId, updatedUser.getStatus());
+        
+        // Log activity - username được truyền từ controller
+        log.info("Attempting to log activity - username: {}", username);
+        if (username != null && !username.isEmpty()) {
+            try {
+                String actionDescription = updatedUser.getStatus() 
+                    ? "Bỏ chặn người dùng" 
+                    : "Chặn người dùng";
+                String userDisplayName = updatedUser.getUsername();
+                
+                log.info("Logging user activity - Admin: {}, Action: {}, User: {}, Status: {}", 
+                        username, actionDescription, userDisplayName, updatedUser.getStatus());
+                
+                activityLogService.logActivity(
+                    username,
+                    Action.UPDATE,
+                    ObjectType.USER,
+                    updatedUser.getUserId(),
+                    userDisplayName,
+                    actionDescription + ": " + userDisplayName
+                );
+                
+                log.info("User activity logged successfully");
+            } catch (Exception e) {
+                log.error("ERROR: Failed to log user activity: {}", e.getMessage(), e);
+                System.err.println("ERROR: Failed to log user activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } else {
+            log.warn("Cannot log activity: Username is null or empty");
+        }
+        
         return mapToDTO(updatedUser);
     }
     

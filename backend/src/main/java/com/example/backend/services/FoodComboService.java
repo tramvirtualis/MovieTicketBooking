@@ -10,15 +10,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import com.example.backend.entities.enums.Action;
+import com.example.backend.entities.enums.ObjectType;
+import com.example.backend.utils.SecurityUtils;
 
 @Service
 @RequiredArgsConstructor
 public class FoodComboService {
     
     private final FoodComboRepository foodComboRepository;
+    private final ActivityLogService activityLogService;
     
     @Transactional
-    public FoodComboResponseDTO createFoodCombo(CreateFoodComboDTO createDTO) {
+    public FoodComboResponseDTO createFoodCombo(CreateFoodComboDTO createDTO, String username) {
         FoodCombo foodCombo = FoodCombo.builder()
             .name(createDTO.getName())
             .price(createDTO.getPrice())
@@ -27,11 +31,29 @@ public class FoodComboService {
             .build();
         
         FoodCombo saved = foodComboRepository.save(foodCombo);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.CREATE,
+                    ObjectType.FOOD,
+                    saved.getFoodComboId(),
+                    saved.getName(),
+                    "Thêm đồ ăn mới: " + saved.getName()
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log food combo activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
         return mapToDTO(saved);
     }
     
     @Transactional
-    public FoodComboResponseDTO updateFoodCombo(Long id, CreateFoodComboDTO updateDTO) {
+    public FoodComboResponseDTO updateFoodCombo(Long id, CreateFoodComboDTO updateDTO, String username) {
         FoodCombo foodCombo = foodComboRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
         
@@ -41,6 +63,24 @@ public class FoodComboService {
         foodCombo.setImage(updateDTO.getImage());
         
         FoodCombo saved = foodComboRepository.save(foodCombo);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.UPDATE,
+                    ObjectType.FOOD,
+                    saved.getFoodComboId(),
+                    saved.getName(),
+                    "Cập nhật đồ ăn: " + saved.getName()
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log food combo activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
         return mapToDTO(saved);
     }
     
@@ -64,11 +104,29 @@ public class FoodComboService {
     }
     
     @Transactional
-    public void deleteFoodCombo(Long id) {
-        if (!foodComboRepository.existsById(id)) {
-            throw new RuntimeException("Không tìm thấy sản phẩm");
-        }
+    public void deleteFoodCombo(Long id, String username) {
+        FoodCombo foodCombo = foodComboRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
+        
+        String foodComboName = foodCombo.getName();
         foodComboRepository.deleteById(id);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.DELETE,
+                    ObjectType.FOOD,
+                    id,
+                    foodComboName,
+                    "Xóa đồ ăn: " + foodComboName
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log food combo activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
     }
     
     private FoodComboResponseDTO mapToDTO(FoodCombo foodCombo) {

@@ -11,26 +11,48 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import com.example.backend.entities.enums.Action;
+import com.example.backend.entities.enums.ObjectType;
+import com.example.backend.utils.SecurityUtils;
 
 @Service
 @RequiredArgsConstructor
 public class BannerService {
     
     private final BannerRepository bannerRepository;
+    private final ActivityLogService activityLogService;
     
     @Transactional
-    public BannerResponseDTO createBanner(CreateBannerDTO createDTO) {
+    public BannerResponseDTO createBanner(CreateBannerDTO createDTO, String username) {
         Banner banner = Banner.builder()
                 .name(createDTO.getName() != null ? createDTO.getName().trim() : null)
                 .image(createDTO.getImage() != null ? createDTO.getImage().trim() : null)
                 .build();
         
         Banner savedBanner = bannerRepository.save(banner);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.CREATE,
+                    ObjectType.BANNER,
+                    savedBanner.getId(),
+                    savedBanner.getName(),
+                    "Thêm banner mới: " + savedBanner.getName()
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log banner activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
         return convertToDTO(savedBanner);
     }
     
     @Transactional
-    public BannerResponseDTO updateBanner(Long bannerId, UpdateBannerDTO updateDTO) {
+    public BannerResponseDTO updateBanner(Long bannerId, UpdateBannerDTO updateDTO, String username) {
         Banner banner = bannerRepository.findById(bannerId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy banner với ID: " + bannerId));
         
@@ -43,15 +65,51 @@ public class BannerService {
         }
         
         Banner updatedBanner = bannerRepository.save(banner);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.UPDATE,
+                    ObjectType.BANNER,
+                    updatedBanner.getId(),
+                    updatedBanner.getName(),
+                    "Cập nhật banner: " + updatedBanner.getName()
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log banner activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
         return convertToDTO(updatedBanner);
     }
     
     @Transactional
-    public void deleteBanner(Long bannerId) {
-        if (!bannerRepository.existsById(bannerId)) {
-            throw new RuntimeException("Không tìm thấy banner với ID: " + bannerId);
-        }
+    public void deleteBanner(Long bannerId, String username) {
+        Banner banner = bannerRepository.findById(bannerId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy banner với ID: " + bannerId));
+        
+        String bannerName = banner.getName();
         bannerRepository.deleteById(bannerId);
+        
+        // Log activity - username được truyền từ controller
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.DELETE,
+                    ObjectType.BANNER,
+                    bannerId,
+                    bannerName,
+                    "Xóa banner: " + bannerName
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log banner activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
     }
     
     public BannerResponseDTO getBannerById(Long bannerId) {

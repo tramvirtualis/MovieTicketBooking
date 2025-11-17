@@ -81,6 +81,52 @@ class WebSocketService {
     console.log(`Subscribed to ${destination}`);
   }
 
+  subscribeToActivities(role, username, onActivity) {
+    if (!this.client || !this.isConnected) {
+      console.error('WebSocket not connected, cannot subscribe to activities');
+      return null;
+    }
+
+    // Chỉ hỗ trợ ADMIN
+    if (role !== 'ADMIN') {
+      console.error('Invalid role for activities subscription. Only ADMIN is supported.');
+      return null;
+    }
+
+    const destination = '/topic/activities/admin';
+
+    const subscription = this.client.subscribe(destination, (message) => {
+      try {
+        const activity = JSON.parse(message.body);
+        console.log('Received activity:', activity);
+        
+        if (onActivity) {
+          // Map actorUsername thành actor để giữ format
+          const mappedActivity = {
+            ...activity,
+            actor: activity.actorUsername || activity.actor
+          };
+          onActivity(mappedActivity);
+        }
+      } catch (error) {
+        console.error('Error parsing activity:', error);
+      }
+    });
+
+    this.subscriptions.set(destination, subscription);
+    console.log(`Subscribed to ${destination}`);
+    return subscription;
+  }
+
+  unsubscribeFromActivities(destination) {
+    const subscription = this.subscriptions.get(destination);
+    if (subscription) {
+      subscription.unsubscribe();
+      this.subscriptions.delete(destination);
+      console.log(`Unsubscribed from ${destination}`);
+    }
+  }
+
   handleReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;

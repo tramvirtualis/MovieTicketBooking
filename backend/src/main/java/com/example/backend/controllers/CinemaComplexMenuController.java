@@ -5,6 +5,8 @@ import com.example.backend.entities.CinemaComplex;
 import com.example.backend.entities.FoodCombo;
 import com.example.backend.repositories.CinemaComplexRepository;
 import com.example.backend.services.CinemaComplexMenuService;
+import com.example.backend.utils.JwtUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +27,7 @@ public class CinemaComplexMenuController {
     
     private final CinemaComplexMenuService menuService;
     private final CinemaComplexRepository cinemaComplexRepository;
+    private final JwtUtils jwtUtils;
     
     // ============ PUBLIC ENDPOINTS ============
     
@@ -72,9 +75,12 @@ public class CinemaComplexMenuController {
     
     @GetMapping("/api/manager/menu/complex/{complexId}")
     @PreAuthorize("hasRole('MANAGER')")
-    public ResponseEntity<?> getMenuByComplexId(@PathVariable Long complexId) {
+    public ResponseEntity<?> getMenuByComplexId(@PathVariable Long complexId,
+                                                HttpServletRequest request) {
         try {
-            List<FoodComboResponseDTO> menu = menuService.getMenuByComplexId(complexId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            List<FoodComboResponseDTO> menu = menuService.getMenuByComplexId(complexId, username);
             return ResponseEntity.ok(createSuccessResponse("Lấy menu thành công", menu));
         } catch (RuntimeException e) {
             if (e.getMessage().contains("không có quyền")) {
@@ -91,9 +97,12 @@ public class CinemaComplexMenuController {
     
     @GetMapping("/api/manager/menu/available/{complexId}")
     @PreAuthorize("hasRole('MANAGER')")
-    public ResponseEntity<?> getAvailableFoodCombos(@PathVariable Long complexId) {
+    public ResponseEntity<?> getAvailableFoodCombos(@PathVariable Long complexId,
+                                                    HttpServletRequest request) {
         try {
-            List<FoodComboResponseDTO> combos = menuService.getAvailableFoodCombos(complexId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            List<FoodComboResponseDTO> combos = menuService.getAvailableFoodCombos(complexId, username);
             return ResponseEntity.ok(createSuccessResponse("Lấy danh sách sản phẩm thành công", combos));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -107,9 +116,12 @@ public class CinemaComplexMenuController {
     @PostMapping("/api/manager/menu/complex/{complexId}/add/{foodComboId}")
     @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<?> addFoodComboToMenu(@PathVariable Long complexId,
-                                                @PathVariable Long foodComboId) {
+                                                @PathVariable Long foodComboId,
+                                                HttpServletRequest request) {
         try {
-            FoodComboResponseDTO added = menuService.addFoodComboToMenu(complexId, foodComboId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            FoodComboResponseDTO added = menuService.addFoodComboToMenu(complexId, foodComboId, username);
             return ResponseEntity.ok(createSuccessResponse("Thêm sản phẩm vào menu thành công", added));
         } catch (RuntimeException e) {
             if (e.getMessage().contains("không có quyền")) {
@@ -127,9 +139,12 @@ public class CinemaComplexMenuController {
     @DeleteMapping("/api/manager/menu/complex/{complexId}/remove/{foodComboId}")
     @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<?> removeFoodComboFromMenu(@PathVariable Long complexId,
-                                                      @PathVariable Long foodComboId) {
+                                                      @PathVariable Long foodComboId,
+                                                      HttpServletRequest request) {
         try {
-            menuService.removeFoodComboFromMenu(complexId, foodComboId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            menuService.removeFoodComboFromMenu(complexId, foodComboId, username);
             return ResponseEntity.ok(createSuccessResponse("Xóa sản phẩm khỏi menu thành công", null));
         } catch (RuntimeException e) {
             if (e.getMessage().contains("không có quyền")) {
@@ -142,6 +157,21 @@ public class CinemaComplexMenuController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
         }
+    }
+    
+    private String getUsernameFromRequest(HttpServletRequest request) {
+        try {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                if (jwtUtils.validateJwtToken(token)) {
+                    return jwtUtils.getUsernameFromJwtToken(token);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting username from request: " + e.getMessage());
+        }
+        return null;
     }
     
     private Map<String, Object> createSuccessResponse(String message, Object data) {

@@ -25,6 +25,7 @@ import BookingManagement from '../components/AdminDashboard/BookingManagement';
 import Reports from '../components/AdminDashboard/Reports';
 import PriceManagement from '../components/AdminDashboard/PriceManagement';
 import BannerManagement from '../components/AdminDashboard/BannerManagement';
+import ActivityManagement from '../components/AdminDashboard/ActivityManagement';
 import cloudinaryService from '../services/cloudinaryService';
 
 // Add CSS animation for spinner and notification
@@ -46,6 +47,16 @@ if (typeof document !== 'undefined') {
         to {
           transform: translateX(0);
           opacity: 1;
+        }
+      }
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.7;
+          transform: scale(1.1);
         }
       }
     `;
@@ -609,6 +620,7 @@ export default function AdminDashboard() {
   const { enums } = useEnums(); // Fetch enums from API
   const [activeSection, setActiveSection] = useState('reports');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [hasNewActivity, setHasNewActivity] = useState(false);
   const [movies, setMovies] = useState(initialMovies);
   const [cinemas, setCinemas] = useState([]);
   const [loadingCinemas, setLoadingCinemas] = useState(true);
@@ -866,6 +878,41 @@ export default function AdminDashboard() {
             </svg>
             <span>Báo cáo</span>
           </button>
+          <button
+            className={`admin-nav-item ${activeSection === 'activities' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => {
+              setActiveSection('activities');
+              setHasNewActivity(false);
+            }}
+            style={{ position: 'relative' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <line x1="10" y1="9" x2="8" y2="9"/>
+              <line x1="10" y1="5" x2="8" y2="5"/>
+            </svg>
+            <span>Quản lý hoạt động</span>
+            {hasNewActivity && activeSection !== 'activities' && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '8px',
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  background: '#4CAF50',
+                  border: '2px solid #1a1415',
+                  boxShadow: '0 0 0 2px rgba(76, 175, 80, 0.3)',
+                  animation: 'pulse 2s infinite'
+                }}
+                title="Có hoạt động mới"
+              />
+            )}
+          </button>
         </nav>
         <div className="admin-sidebar__footer">
           <a href="#home" className="admin-nav-item">
@@ -892,6 +939,7 @@ export default function AdminDashboard() {
               {activeSection === 'foodbeverages' && 'Quản lý đồ ăn & nước uống'}
               {activeSection === 'banners' && 'Quản lý banner'}
               {activeSection === 'reports' && 'Báo cáo'}
+              {activeSection === 'activities' && 'Quản lý hoạt động'}
             </h1>
           </div>
           <div className="admin-header__right">
@@ -990,6 +1038,10 @@ export default function AdminDashboard() {
               vouchers={vouchers}
               users={users}
             />
+          )}
+
+          {activeSection === 'activities' && (
+            <ActivityManagement onNewActivity={() => setHasNewActivity(true)} />
           )}
         </main>
       </div>

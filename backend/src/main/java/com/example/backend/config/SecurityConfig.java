@@ -60,6 +60,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/reviews/movie/**").permitAll() // Public access to movie reviews
                 .requestMatchers("/api/enums/**").permitAll() // Public access to enum values
                 
+                // WebSocket endpoints - không cần authentication
+                .requestMatchers("/ws/**").permitAll()
+                
                 // Customer endpoints - cần authentication, @PreAuthorize sẽ kiểm tra role
                 .requestMatchers("/api/customer/**").authenticated()
                 

@@ -5,6 +5,8 @@ import com.example.backend.dtos.UpdateVoucherDTO;
 import com.example.backend.dtos.VoucherResponseDTO;
 import com.example.backend.entities.enums.VoucherScope;
 import com.example.backend.services.VoucherService;
+import com.example.backend.utils.JwtUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,13 +28,15 @@ import java.util.stream.Collectors;
 public class VoucherController {
     
     private final VoucherService voucherService;
+    private final JwtUtils jwtUtils;
     
     // ============ ADMIN ENDPOINTS ============
     
     @PostMapping("/api/admin/vouchers")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createVoucher(@Valid @RequestBody CreateVoucherDTO createDTO,
-                                          BindingResult bindingResult) {
+                                          BindingResult bindingResult,
+                                          HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(
                     createErrorResponse(bindingResult)
@@ -40,7 +44,9 @@ public class VoucherController {
         }
         
         try {
-            VoucherResponseDTO voucherResponse = voucherService.createVoucher(createDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            VoucherResponseDTO voucherResponse = voucherService.createVoucher(createDTO, username);
             return ResponseEntity.status(HttpStatus.CREATED).body(
                     createSuccessResponse("Tạo voucher thành công", voucherResponse)
             );
@@ -54,7 +60,8 @@ public class VoucherController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateVoucher(@PathVariable Long voucherId,
                                           @Valid @RequestBody UpdateVoucherDTO updateDTO,
-                                          BindingResult bindingResult) {
+                                          BindingResult bindingResult,
+                                          HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(
                     createErrorResponse(bindingResult)
@@ -62,7 +69,9 @@ public class VoucherController {
         }
         
         try {
-            VoucherResponseDTO voucherResponse = voucherService.updateVoucher(voucherId, updateDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            VoucherResponseDTO voucherResponse = voucherService.updateVoucher(voucherId, updateDTO, username);
             return ResponseEntity.ok(
                     createSuccessResponse("Cập nhật voucher thành công", voucherResponse)
             );
@@ -77,9 +86,12 @@ public class VoucherController {
     
     @DeleteMapping("/api/admin/vouchers/{voucherId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> deleteVoucher(@PathVariable Long voucherId) {
+    public ResponseEntity<?> deleteVoucher(@PathVariable Long voucherId,
+                                          HttpServletRequest request) {
         try {
-            voucherService.deleteVoucher(voucherId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            voucherService.deleteVoucher(voucherId, username);
             return ResponseEntity.ok(
                     createSuccessResponse("Xóa voucher thành công", null)
             );
@@ -171,6 +183,21 @@ public class VoucherController {
     }
     
     // ============ HELPER METHODS ============
+    
+    private String getUsernameFromRequest(HttpServletRequest request) {
+        try {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                if (jwtUtils.validateJwtToken(token)) {
+                    return jwtUtils.getUsernameFromJwtToken(token);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting username from request: " + e.getMessage());
+        }
+        return null;
+    }
     
     private Map<String, Object> createSuccessResponse(String message, Object data) {
         Map<String, Object> response = new HashMap<>();

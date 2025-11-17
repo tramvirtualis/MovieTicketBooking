@@ -56,7 +56,7 @@ public class ShowtimeService {
      * Tạo lịch chiếu mới
      */
     @Transactional
-    public ShowtimeResponseDTO createShowtime(CreateShowtimeDTO createDTO) {
+    public ShowtimeResponseDTO createShowtime(CreateShowtimeDTO createDTO, String username) {
         // Kiểm tra cinemaRoomId khi tạo mới
         if (createDTO.getCinemaRoomId() == null) {
             throw new RuntimeException("Cinema room ID không được để trống khi tạo lịch chiếu mới");
@@ -110,7 +110,7 @@ public class ShowtimeService {
      * Cập nhật lịch chiếu
      */
     @Transactional
-    public ShowtimeResponseDTO updateShowtime(Long showtimeId, CreateShowtimeDTO updateDTO) {
+    public ShowtimeResponseDTO updateShowtime(Long showtimeId, CreateShowtimeDTO updateDTO, String username) {
         Showtime showtime = showtimeRepository.findByIdWithRelations(showtimeId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch chiếu với ID: " + showtimeId));
         
@@ -160,7 +160,7 @@ public class ShowtimeService {
      * Xóa lịch chiếu
      */
     @Transactional
-    public void deleteShowtime(Long showtimeId) {
+    public void deleteShowtime(Long showtimeId, String username) {
         Showtime showtime = showtimeRepository.findByIdWithRelations(showtimeId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch chiếu với ID: " + showtimeId));
         

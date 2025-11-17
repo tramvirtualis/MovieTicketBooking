@@ -4,6 +4,8 @@ import com.example.backend.dtos.BannerResponseDTO;
 import com.example.backend.dtos.CreateBannerDTO;
 import com.example.backend.dtos.UpdateBannerDTO;
 import com.example.backend.services.BannerService;
+import com.example.backend.utils.JwtUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,13 +27,15 @@ import java.util.stream.Collectors;
 public class BannerController {
     
     private final BannerService bannerService;
+    private final JwtUtils jwtUtils;
     
     // ============ ADMIN ENDPOINTS ============
     
     @PostMapping("/api/admin/banners")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createBanner(@Valid @RequestBody CreateBannerDTO createDTO,
-                                         BindingResult bindingResult) {
+                                         BindingResult bindingResult,
+                                         HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(
                     createErrorResponse(bindingResult)
@@ -39,7 +43,9 @@ public class BannerController {
         }
         
         try {
-            BannerResponseDTO bannerResponse = bannerService.createBanner(createDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            BannerResponseDTO bannerResponse = bannerService.createBanner(createDTO, username);
             return ResponseEntity.status(HttpStatus.CREATED).body(
                     createSuccessResponse("Tạo banner thành công", bannerResponse)
             );
@@ -53,7 +59,8 @@ public class BannerController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateBanner(@PathVariable Long bannerId,
                                          @Valid @RequestBody UpdateBannerDTO updateDTO,
-                                         BindingResult bindingResult) {
+                                         BindingResult bindingResult,
+                                         HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(
                     createErrorResponse(bindingResult)
@@ -61,7 +68,9 @@ public class BannerController {
         }
         
         try {
-            BannerResponseDTO bannerResponse = bannerService.updateBanner(bannerId, updateDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            BannerResponseDTO bannerResponse = bannerService.updateBanner(bannerId, updateDTO, username);
             return ResponseEntity.ok(
                     createSuccessResponse("Cập nhật banner thành công", bannerResponse)
             );
@@ -76,9 +85,12 @@ public class BannerController {
     
     @DeleteMapping("/api/admin/banners/{bannerId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> deleteBanner(@PathVariable Long bannerId) {
+    public ResponseEntity<?> deleteBanner(@PathVariable Long bannerId,
+                                         HttpServletRequest request) {
         try {
-            bannerService.deleteBanner(bannerId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            bannerService.deleteBanner(bannerId, username);
             return ResponseEntity.ok(
                     createSuccessResponse("Xóa banner thành công", null)
             );
@@ -131,6 +143,21 @@ public class BannerController {
     }
     
     // ============ HELPER METHODS ============
+    
+    private String getUsernameFromRequest(HttpServletRequest request) {
+        try {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                if (jwtUtils.validateJwtToken(token)) {
+                    return jwtUtils.getUsernameFromJwtToken(token);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting username from request: " + e.getMessage());
+        }
+        return null;
+    }
     
     private Map<String, Object> createSuccessResponse(String message, Object data) {
         Map<String, Object> response = new HashMap<>();

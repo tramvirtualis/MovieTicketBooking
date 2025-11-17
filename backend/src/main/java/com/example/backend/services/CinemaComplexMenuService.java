@@ -7,9 +7,7 @@ import com.example.backend.entities.Manager;
 import com.example.backend.repositories.CinemaComplexRepository;
 import com.example.backend.repositories.FoodComboRepository;
 import com.example.backend.repositories.ManagerRepository;
-import com.example.backend.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +22,8 @@ public class CinemaComplexMenuService {
     private final FoodComboRepository foodComboRepository;
     private final ManagerRepository managerRepository;
     
-    public List<FoodComboResponseDTO> getMenuByComplexId(Long complexId) {
+    public List<FoodComboResponseDTO> getMenuByComplexId(Long complexId, String username) {
         // Lấy manager hiện tại
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Manager manager = managerRepository.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy manager"));
         
@@ -44,9 +41,8 @@ public class CinemaComplexMenuService {
             .collect(Collectors.toList());
     }
     
-    public List<FoodComboResponseDTO> getAvailableFoodCombos(Long complexId) {
+    public List<FoodComboResponseDTO> getAvailableFoodCombos(Long complexId, String username) {
         // Lấy manager hiện tại
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Manager manager = managerRepository.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy manager"));
         
@@ -70,9 +66,8 @@ public class CinemaComplexMenuService {
     }
     
     @Transactional
-    public FoodComboResponseDTO addFoodComboToMenu(Long complexId, Long foodComboId) {
+    public FoodComboResponseDTO addFoodComboToMenu(Long complexId, Long foodComboId, String username) {
         // Lấy manager hiện tại
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Manager manager = managerRepository.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy manager"));
         
@@ -99,9 +94,8 @@ public class CinemaComplexMenuService {
     }
     
     @Transactional
-    public void removeFoodComboFromMenu(Long complexId, Long foodComboId) {
+    public void removeFoodComboFromMenu(Long complexId, Long foodComboId, String username) {
         // Lấy manager hiện tại
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Manager manager = managerRepository.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy manager"));
         

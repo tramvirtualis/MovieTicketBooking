@@ -5,12 +5,13 @@ import com.example.backend.dtos.CreateCinemaRoomDTO;
 import com.example.backend.dtos.SeatResponseDTO;
 import com.example.backend.entities.enums.SeatType;
 import com.example.backend.services.CinemaRoomService;
+import com.example.backend.utils.JwtUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,19 +28,23 @@ import java.util.stream.Collectors;
 public class CinemaRoomController {
     
     private final CinemaRoomService cinemaRoomService;
+    private final JwtUtils jwtUtils;
     
     // ============ ADMIN ENDPOINTS ============
     
     @PostMapping("/api/admin/cinema-rooms")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createCinemaRoom(@Valid @RequestBody CreateCinemaRoomDTO createDTO,
-                                              BindingResult bindingResult) {
+                                              BindingResult bindingResult,
+                                              HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
-            CinemaRoomResponseDTO roomResponse = cinemaRoomService.createCinemaRoom(createDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            CinemaRoomResponseDTO roomResponse = cinemaRoomService.createCinemaRoom(createDTO, username);
             return ResponseEntity.status(HttpStatus.CREATED).body(
                 createSuccessResponse("Tạo phòng chiếu thành công", roomResponse)
             );
@@ -98,13 +103,16 @@ public class CinemaRoomController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateCinemaRoom(@PathVariable Long roomId,
                                               @Valid @RequestBody CreateCinemaRoomDTO updateDTO,
-                                              BindingResult bindingResult) {
+                                              BindingResult bindingResult,
+                                              HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
-            CinemaRoomResponseDTO roomResponse = cinemaRoomService.updateCinemaRoom(roomId, updateDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            CinemaRoomResponseDTO roomResponse = cinemaRoomService.updateCinemaRoom(roomId, updateDTO, username);
             return ResponseEntity.ok(
                 createSuccessResponse("Cập nhật phòng chiếu thành công", roomResponse)
             );
@@ -119,9 +127,12 @@ public class CinemaRoomController {
     
     @DeleteMapping("/api/admin/cinema-rooms/{roomId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> deleteCinemaRoom(@PathVariable Long roomId) {
+    public ResponseEntity<?> deleteCinemaRoom(@PathVariable Long roomId,
+                                              HttpServletRequest request) {
         try {
-            cinemaRoomService.deleteCinemaRoom(roomId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            cinemaRoomService.deleteCinemaRoom(roomId, username);
             return ResponseEntity.ok(
                 createSuccessResponse("Xóa phòng chiếu thành công", null)
             );
@@ -139,15 +150,18 @@ public class CinemaRoomController {
     @PostMapping("/api/manager/cinema-rooms")
     @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<?> createCinemaRoomManager(@Valid @RequestBody CreateCinemaRoomDTO createDTO,
-                                                     BindingResult bindingResult) {
+                                                     BindingResult bindingResult,
+                                                     HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
             // Manager chỉ có thể tạo phòng cho cụm rạp của mình
             // Kiểm tra quyền sẽ được thực hiện trong service hoặc filter
-            CinemaRoomResponseDTO roomResponse = cinemaRoomService.createCinemaRoom(createDTO);
+            CinemaRoomResponseDTO roomResponse = cinemaRoomService.createCinemaRoom(createDTO, username);
             return ResponseEntity.status(HttpStatus.CREATED).body(
                 createSuccessResponse("Tạo phòng chiếu thành công", roomResponse)
             );
@@ -189,13 +203,16 @@ public class CinemaRoomController {
     @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<?> updateCinemaRoomManager(@PathVariable Long roomId,
                                                      @Valid @RequestBody CreateCinemaRoomDTO updateDTO,
-                                                     BindingResult bindingResult) {
+                                                     BindingResult bindingResult,
+                                                     HttpServletRequest request) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse(bindingResult));
         }
         
         try {
-            CinemaRoomResponseDTO roomResponse = cinemaRoomService.updateCinemaRoom(roomId, updateDTO);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            CinemaRoomResponseDTO roomResponse = cinemaRoomService.updateCinemaRoom(roomId, updateDTO, username);
             return ResponseEntity.ok(
                 createSuccessResponse("Cập nhật phòng chiếu thành công", roomResponse)
             );
@@ -210,9 +227,12 @@ public class CinemaRoomController {
     
     @DeleteMapping("/api/manager/cinema-rooms/{roomId}")
     @PreAuthorize("hasRole('MANAGER')")
-    public ResponseEntity<?> deleteCinemaRoomManager(@PathVariable Long roomId) {
+    public ResponseEntity<?> deleteCinemaRoomManager(@PathVariable Long roomId,
+                                                     HttpServletRequest request) {
         try {
-            cinemaRoomService.deleteCinemaRoom(roomId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            cinemaRoomService.deleteCinemaRoom(roomId, username);
             return ResponseEntity.ok(
                 createSuccessResponse("Xóa phòng chiếu thành công", null)
             );
@@ -292,6 +312,21 @@ public class CinemaRoomController {
     }
     
     // Helper methods
+    private String getUsernameFromRequest(HttpServletRequest request) {
+        try {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                if (jwtUtils.validateJwtToken(token)) {
+                    return jwtUtils.getUsernameFromJwtToken(token);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting username from request: " + e.getMessage());
+        }
+        return null;
+    }
+    
     private Map<String, Object> createSuccessResponse(String message, Object data) {
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);

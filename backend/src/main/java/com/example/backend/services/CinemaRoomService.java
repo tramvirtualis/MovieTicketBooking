@@ -29,7 +29,7 @@ public class CinemaRoomService {
     private final TicketRepository ticketRepository;
     
     @Transactional
-    public CinemaRoomResponseDTO createCinemaRoom(CreateCinemaRoomDTO createDTO) {
+    public CinemaRoomResponseDTO createCinemaRoom(CreateCinemaRoomDTO createDTO, String username) {
         // Tìm CinemaComplex
         CinemaComplex cinemaComplex = cinemaComplexRepository.findById(createDTO.getCinemaComplexId())
             .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + createDTO.getCinemaComplexId()));
@@ -88,7 +88,7 @@ public class CinemaRoomService {
     }
     
     @Transactional
-    public CinemaRoomResponseDTO updateCinemaRoom(Long roomId, CreateCinemaRoomDTO updateDTO) {
+    public CinemaRoomResponseDTO updateCinemaRoom(Long roomId, CreateCinemaRoomDTO updateDTO, String username) {
         CinemaRoom room = cinemaRoomRepository.findById(roomId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy phòng chiếu với ID: " + roomId));
         
@@ -138,6 +138,7 @@ public class CinemaRoomService {
         }
         
         CinemaRoom savedRoom = cinemaRoomRepository.save(room);
+        
         return mapToDTO(savedRoom);
     }
     
@@ -151,9 +152,10 @@ public class CinemaRoomService {
     }
     
     @Transactional
-    public void deleteCinemaRoom(Long roomId) {
+    public void deleteCinemaRoom(Long roomId, String username) {
         CinemaRoom room = cinemaRoomRepository.findById(roomId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy phòng chiếu với ID: " + roomId));
+        
         cinemaRoomRepository.delete(room);
     }
     

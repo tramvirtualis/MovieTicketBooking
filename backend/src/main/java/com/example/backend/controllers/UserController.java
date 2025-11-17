@@ -3,6 +3,8 @@ package com.example.backend.controllers;
 import com.example.backend.dtos.CreateStaffRequestDTO;
 import com.example.backend.dtos.UserResponseDTO;
 import com.example.backend.services.UserService;
+import com.example.backend.utils.JwtUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
 public class UserController {
     
     private final UserService userService;
+    private final JwtUtils jwtUtils;
     
     /**
      * Lấy danh sách tất cả users với filter
@@ -95,11 +98,14 @@ public class UserController {
      * PUT /api/admin/users/{userId}/status
      */
     @PutMapping("/{userId}/status")
-    public ResponseEntity<?> toggleUserStatus(@PathVariable Long userId) {
+    public ResponseEntity<?> toggleUserStatus(@PathVariable Long userId,
+                                             HttpServletRequest request) {
         try {
-            log.info("Toggling status for user ID: {}", userId);
+            // Lấy username từ JWT token
+            String username = getUsernameFromRequest(request);
+            log.info("Toggling status for user ID: {} by admin: {}", userId, username);
             
-            UserResponseDTO updatedUser = userService.toggleUserStatus(userId);
+            UserResponseDTO updatedUser = userService.toggleUserStatus(userId, username);
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -113,6 +119,24 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(createErrorResponse(e.getMessage()));
         }
+    }
+    
+    /**
+     * Lấy username từ JWT token trong request
+     */
+    private String getUsernameFromRequest(HttpServletRequest request) {
+        try {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                if (jwtUtils.validateJwtToken(token)) {
+                    return jwtUtils.getUsernameFromJwtToken(token);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error getting username from request: {}", e.getMessage());
+        }
+        return null;
     }
     
     private Map<String, Object> createErrorResponse(String message) {
