@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   BarChart,
   Bar,
@@ -604,6 +605,7 @@ const initialUsers = [
 
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const { enums } = useEnums(); // Fetch enums from API
   const [activeSection, setActiveSection] = useState('reports');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -616,6 +618,37 @@ export default function AdminDashboard() {
   const [prices, setPrices] = useState(initialPrices);
   const [foodBeverages, setFoodBeverages] = useState(initialFoodBeverages);
   const [banners, setBanners] = useState([]);
+
+  // Kiểm tra role - chỉ ADMIN mới được phép truy cập
+  useEffect(() => {
+    const checkRole = () => {
+      try {
+        const userStr = localStorage.getItem('user');
+        if (!userStr) {
+          navigate('/signin');
+          return;
+        }
+        const user = JSON.parse(userStr);
+        const role = (user.role || '').toString().toUpperCase().trim();
+        
+        if (role !== 'ADMIN') {
+          // Nếu không phải ADMIN, redirect về dashboard tương ứng hoặc home
+          if (role === 'MANAGER') {
+            navigate('/manager');
+          } else if (role === 'CUSTOMER') {
+            navigate('/');
+          } else {
+            navigate('/signin');
+          }
+        }
+      } catch (e) {
+        console.error('Error checking role:', e);
+        navigate('/signin');
+      }
+    };
+    
+    checkRole();
+  }, [navigate]);
 
   // Load cinemas from API
   useEffect(() => {

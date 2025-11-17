@@ -27,6 +27,7 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final MovieRepository movieRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
     
     @Transactional
     public ReviewResponseDTO createReview(CreateReviewDTO createReviewDTO) {
@@ -73,6 +74,9 @@ public class ReviewService {
         }
         
         Review savedReview = reviewRepository.save(review);
+        
+        // Gửi thông báo WebSocket khi đánh giá thành công
+        notificationService.notifyReviewSuccess(user.getUserId(), movie.getTitle());
         
         return mapToDTO(savedReview);
     }

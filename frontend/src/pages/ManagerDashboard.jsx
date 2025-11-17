@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ManagerCinemaManagement from '../components/ManagerDashboard/ManagerCinemaManagement';
 import ManagerMovieManagement from '../components/ManagerDashboard/ManagerMovieManagement';
 import ManagerPriceView from '../components/ManagerDashboard/ManagerPriceView';
@@ -11,6 +12,8 @@ import { SAMPLE_CINEMAS, initialMovies, initialBookingOrders, initialPrices } fr
 // It provides full-featured cinema management (rooms, interactive seat layout).
 
 export default function ManagerDashboard() {
+  const navigate = useNavigate();
+  
   // Lấy cinemaComplexId từ user data trong localStorage
   const getUserData = () => {
     try {
@@ -39,6 +42,37 @@ export default function ManagerDashboard() {
   const [movies] = useState(initialMovies);
   const [orders] = useState(initialBookingOrders);
   const [prices] = useState(initialPrices);
+
+  // Kiểm tra role - chỉ MANAGER mới được phép truy cập
+  useEffect(() => {
+    const checkRole = () => {
+      try {
+        const userStr = localStorage.getItem('user');
+        if (!userStr) {
+          navigate('/signin');
+          return;
+        }
+        const user = JSON.parse(userStr);
+        const role = (user.role || '').toString().toUpperCase().trim();
+        
+        if (role !== 'MANAGER') {
+          // Nếu không phải MANAGER, redirect về dashboard tương ứng hoặc home
+          if (role === 'ADMIN') {
+            navigate('/admin');
+          } else if (role === 'CUSTOMER') {
+            navigate('/');
+          } else {
+            navigate('/signin');
+          }
+        }
+      } catch (e) {
+        console.error('Error checking role:', e);
+        navigate('/signin');
+      }
+    };
+    
+    checkRole();
+  }, [navigate]);
 
   // Load cinemas từ API khi component mount
   useEffect(() => {

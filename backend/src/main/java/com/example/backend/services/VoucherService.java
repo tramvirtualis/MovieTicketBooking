@@ -23,6 +23,7 @@ public class VoucherService {
     
     private final VoucherRepository voucherRepository;
     private final CustomerRepository customerRepository;
+    private final NotificationService notificationService;
     
     @Transactional
     public VoucherResponseDTO createVoucher(CreateVoucherDTO createDTO) {
@@ -162,6 +163,9 @@ public class VoucherService {
         // Thêm voucher vào danh sách vouchers của customer
         customer.getVouchers().add(voucher);
         customerRepository.save(customer);
+        
+        // Gửi thông báo WebSocket khi voucher được assign
+        notificationService.notifyVoucherAdded(customerId, voucher.getCode(), voucher.getName());
         
         log.info("Assigned voucher ID: {} to customer ID: {}", voucherId, customerId);
         return convertToDTO(voucher);

@@ -1,3 +1,8 @@
+// Polyfill for global (required by sockjs-client and other Node.js modules)
+if (typeof global === 'undefined') {
+  window.global = window;
+}
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'

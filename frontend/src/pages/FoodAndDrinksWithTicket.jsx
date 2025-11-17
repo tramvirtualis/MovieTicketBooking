@@ -140,16 +140,29 @@ export default function FoodAndDrinksWithTicket() {
       if (bookingData) {
         const booking = JSON.parse(bookingData);
         setPendingBooking(booking);
-        // Auto-select cinema from booking
+        // Auto-select cinema from booking - always set from booking.cinemaId
         if (booking.cinemaId) {
-          // Try to match cinema by ID or name
+          // Try to match cinema by ID first, then by name
           const matchedCinema = cinemas.find(c => 
             String(c.id) === String(booking.cinemaId) ||
-            booking.cinemaName?.toLowerCase().includes(c.name.toLowerCase()) ||
-            c.name.toLowerCase().includes(booking.cinemaName?.toLowerCase() || '')
+            String(c.complexId) === String(booking.cinemaId)
           );
+          
           if (matchedCinema) {
-            setSelectedCinema(prev => prev || matchedCinema.id);
+            setSelectedCinema(matchedCinema.id);
+          } else {
+            // If no exact match, try to match by name
+            const nameMatchedCinema = cinemas.find(c => 
+              booking.cinemaName?.toLowerCase().includes(c.name.toLowerCase()) ||
+              c.name.toLowerCase().includes(booking.cinemaName?.toLowerCase() || '')
+            );
+            
+            if (nameMatchedCinema) {
+              setSelectedCinema(nameMatchedCinema.id);
+            } else {
+              // Use cinemaId directly as fallback (convert to string)
+              setSelectedCinema(String(booking.cinemaId));
+            }
           }
         }
       } else {
@@ -160,7 +173,7 @@ export default function FoodAndDrinksWithTicket() {
       console.error('Failed to load pending booking', e);
       navigate('/food-drinks');
     }
-  }, []);
+  }, [navigate]);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -170,9 +183,19 @@ export default function FoodAndDrinksWithTicket() {
   };
 
   const getMenuItems = () => {
-    if (!selectedCinema || !menuData[selectedCinema]) return [];
+    // If no selectedCinema or menu not found, return empty array (user can skip)
+    if (!selectedCinema) return [];
     
-    const menu = menuData[selectedCinema];
+    // Try to find menu by cinema ID
+    let menu = menuData[selectedCinema];
+    
+    // If not found, try to find by any cinema (fallback to first cinema's menu)
+    if (!menu && Object.keys(menuData).length > 0) {
+      menu = menuData[Object.keys(menuData)[0]];
+    }
+    
+    if (!menu) return [];
+    
     const allItems = [...menu.foods, ...menu.drinks, ...menu.combos];
     
     // When ordering with ticket, combo prices get additional 10% discount
@@ -321,33 +344,16 @@ export default function FoodAndDrinksWithTicket() {
               </div>
             )}
 
-            {/* Loading state */}
-            {!selectedCinema && (
-              <div style={{ marginBottom: '32px', color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}>
-                Đang tải menu của rạp...
-              </div>
-            )}
-
             {/* Menu Display */}
-            {selectedCinema && (
-              <>
-                {/* Menu Items Grid */}
-                {menuItems.length === 0 ? (
-                  <div style={{ 
-                    textAlign: 'center', 
-                    padding: '60px 20px',
-                    color: '#c9c4c5'
-                  }}>
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 20px', opacity: 0.5 }}>
-                      <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
-                      <path d="M7 2v20"/>
-                      <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3v0"/>
-                    </svg>
-                    <p style={{ fontSize: '16px', margin: 0 }}>Không có món nào trong mục này</p>
-                  </div>
-                ) : (
-                  <div className="food-menu-grid">
-                    {menuItems.map((item) => {
+            <div>
+              {menuItems.length === 0 && selectedCinema && (
+                <div style={{ marginBottom: '24px', color: 'rgba(255,255,255,0.7)', fontSize: '14px', padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                  Menu của rạp hiện đang được cập nhật. Bạn có thể bỏ qua bước này và tiếp tục thanh toán vé.
+                </div>
+              )}
+              {menuItems.length > 0 && (
+                <div className="food-menu-grid">
+                  {menuItems.map((item) => {
                       const quantity = getItemQuantity(item.id);
                       return (
                         <div key={item.id} className="food-item-card">
@@ -463,30 +469,29 @@ export default function FoodAndDrinksWithTicket() {
                         </div>
                       );
                     })}
-                  </div>
-                )}
-
-                {/* Skip Button */}
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '32px', marginBottom: '32px' }}>
-                  <button
-                    className="btn btn--primary"
-                    onClick={handleSkip}
-                    style={{ 
-                      padding: '14px 32px', 
-                      minWidth: '200px', 
-                      fontSize: '16px', 
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      textAlign: 'center'
-                    }}
-                  >
-                    Bỏ qua
-                  </button>
                 </div>
-              </>
-            )}
+              )}
+              
+              {/* Skip Button - Always visible */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '32px', marginBottom: '32px' }}>
+                <button
+                  className="btn btn--primary"
+                  onClick={handleSkip}
+                  style={{ 
+                    padding: '14px 32px', 
+                    minWidth: '200px', 
+                    fontSize: '16px', 
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center'
+                  }}
+                >
+                  {menuItems.length === 0 ? 'Tiếp tục không mua đồ ăn' : 'Bỏ qua đồ ăn'}
+                </button>
+              </div>
+            </div>
 
             {/* Floating Cart Button */}
             {cart.length > 0 && (

@@ -1,6 +1,9 @@
 package com.example.backend.config;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -26,5 +29,29 @@ public class GlobalExceptionHandler {
         response.put("message", errors);
 
         return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDeniedException(AccessDeniedException ex) {
+        System.out.println("GlobalExceptionHandler: AccessDeniedException - " + ex.getMessage());
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", "Bạn không có quyền truy cập tài nguyên này");
+        response.put("error", "Access denied");
+        
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    @ExceptionHandler(AuthenticationCredentialsNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleAuthenticationException(AuthenticationCredentialsNotFoundException ex) {
+        System.out.println("GlobalExceptionHandler: AuthenticationCredentialsNotFoundException - " + ex.getMessage());
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", "Vui lòng đăng nhập để truy cập tài nguyên này");
+        response.put("error", "Authentication required");
+        
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 }

@@ -597,8 +597,8 @@ export default function BookTicket() {
                                   movieTitle: movies.find(m => m.movieId === Number(selectedMovie || movieIdFromUrl))?.title
                                 };
                                 localStorage.setItem('pendingBooking', JSON.stringify(bookingInfo));
-                                // Navigate to food and drinks page
-                                navigate('/order-food');
+                                // Navigate to food and drinks page with ticket
+                                navigate('/food-drinks-with-ticket');
                               }}
                               style={{ padding: '14px 32px', minWidth: '200px' }}
                             >

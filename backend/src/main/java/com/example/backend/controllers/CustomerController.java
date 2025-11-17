@@ -208,16 +208,29 @@ public class CustomerController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<?> getFavoriteMovies() {
         try {
+            System.out.println("CustomerController: getFavoriteMovies called");
+            System.out.println("CustomerController: SecurityContext authentication: " + 
+                (SecurityContextHolder.getContext().getAuthentication() != null ? 
+                    SecurityContextHolder.getContext().getAuthentication().getName() : "null"));
+            
             Long userId = getCurrentCustomerId();
+            System.out.println("CustomerController: Current customer ID: " + userId);
+            
             List<MovieResponseDTO> movies = customerService.getFavoriteMovies(userId);
+            System.out.println("CustomerController: Found " + movies.size() + " favorite movies");
+            
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Lấy danh sách phim yêu thích thành công");
             response.put("data", movies);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
+            System.out.println("CustomerController: RuntimeException in getFavoriteMovies: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
+            System.out.println("CustomerController: Exception in getFavoriteMovies: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
         }

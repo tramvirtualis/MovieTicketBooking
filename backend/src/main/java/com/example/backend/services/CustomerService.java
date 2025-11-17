@@ -32,6 +32,7 @@ public class CustomerService {
     private final VoucherRepository voucherRepository;
     private final MovieRepository movieRepository;
     private final MovieService movieService;
+    private final NotificationService notificationService;
 
     // Constructor injection with @Lazy for MovieService to avoid circular dependency
     public CustomerService(
@@ -40,13 +41,15 @@ public class CustomerService {
             CustomerRepository customerRepository,
             VoucherRepository voucherRepository,
             MovieRepository movieRepository,
-            @Lazy MovieService movieService) {
+            @Lazy MovieService movieService,
+            NotificationService notificationService) {
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
         this.customerRepository = customerRepository;
         this.voucherRepository = voucherRepository;
         this.movieRepository = movieRepository;
         this.movieService = movieService;
+        this.notificationService = notificationService;
     }
 
     public Customer updateProfile(Long userId, UpdateCustomerProfileRequestDTO req) throws Exception {
@@ -123,6 +126,9 @@ public class CustomerService {
         // Add voucher to customer's list
         customer.getVouchers().add(voucher);
         customerRepository.save(customer);
+
+        // Gửi thông báo WebSocket khi voucher được lưu thành công
+        notificationService.notifyVoucherSaved(userId, voucher.getCode(), voucher.getName());
 
         return mapToDTO(voucher);
     }

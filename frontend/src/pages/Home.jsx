@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Header from '../components/Header.jsx';
 import HeroCarousel from '../components/HeroCarousel.jsx';
@@ -68,6 +69,7 @@ const formatMovieData = (movie) => {
 };
 
 export default function Home() {
+  const navigate = useNavigate();
   const [trailerModal, setTrailerModal] = useState({ isOpen: false, videoId: null });
   const [nowShowing, setNowShowing] = useState([]);
   const [comingSoon, setComingSoon] = useState([]);
@@ -76,6 +78,32 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadingBanners, setLoadingBanners] = useState(true);
   const [loadingPromos, setLoadingPromos] = useState(true);
+
+  // Kiểm tra role - chặn admin và manager vào trang chủ
+  useEffect(() => {
+    const checkRole = () => {
+      try {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          const role = (user.role || '').toString().toUpperCase().trim();
+          
+          // Nếu là ADMIN hoặc MANAGER, redirect về dashboard tương ứng
+          if (role === 'ADMIN') {
+            navigate('/admin', { replace: true });
+          } else if (role === 'MANAGER') {
+            navigate('/manager', { replace: true });
+          }
+          // CUSTOMER hoặc chưa đăng nhập được phép truy cập
+        }
+      } catch (e) {
+        console.error('Error checking role:', e);
+        // Nếu có lỗi, vẫn cho phép truy cập (không block)
+      }
+    };
+    
+    checkRole();
+  }, [navigate]);
 
   // Fetch banners from backend
   useEffect(() => {

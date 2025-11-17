@@ -1,6 +1,8 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import ScrollToTop from './components/ScrollToTop.jsx';
+import NotificationProvider from './components/NotificationProvider.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Home from './pages/Home.jsx';
 import SignIn from './pages/SignIn.jsx';
 import SignUp from './pages/SignUp.jsx';
@@ -24,7 +26,7 @@ import BookTicket from './pages/BookTicket.jsx';
 
 export default function App() {
   return (
-    <>
+    <NotificationProvider>
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<Home />} />
@@ -41,27 +43,110 @@ export default function App() {
         <Route path="/schedule" element={<Schedule />} />
         <Route path="/cinemas" element={<Cinemas />} />
         <Route path="/cinema/:name" element={<CinemaDetail />} />
-        <Route path="/booking-history" element={<BookingHistory />} />
-        <Route path="/orders" element={<Orders />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/library" element={<Library />} />
+        {/* Customer routes - chỉ CUSTOMER mới có thể truy cập */}
+        <Route path="/booking-history" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <BookingHistory />
+          </ProtectedRoute>
+        } />
+        <Route path="/orders" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <Orders />
+          </ProtectedRoute>
+        } />
+        <Route path="/profile" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <Profile />
+          </ProtectedRoute>
+        } />
+        <Route path="/library" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <Library />
+          </ProtectedRoute>
+        } />
+        <Route path="/food-drinks" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <FoodAndDrinks />
+          </ProtectedRoute>
+        } />
+        <Route path="/food-and-drinks" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <FoodAndDrinks />
+          </ProtectedRoute>
+        } />
+        <Route path="/order-food" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <FoodAndDrinks />
+          </ProtectedRoute>
+        } />
+        <Route path="/food-drinks-with-ticket" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <FoodAndDrinksWithTicket />
+          </ProtectedRoute>
+        } />
+        <Route path="/checkout" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <Checkout />
+          </ProtectedRoute>
+        } />
+        <Route path="/booking" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <BookTicket />
+          </ProtectedRoute>
+        } />
+        <Route path="/book-ticket" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <BookTicket />
+          </ProtectedRoute>
+        } />
+        
+        {/* Public routes - Events có thể xem nhưng một số chức năng cần đăng nhập */}
         <Route path="/events" element={<Events />} />
-        <Route path="/food-drinks" element={<FoodAndDrinks />} />
-        <Route path="/food-and-drinks" element={<FoodAndDrinks />} />
-        <Route path="/order-food" element={<FoodAndDrinks />} />
-        <Route path="/food-drinks-with-ticket" element={<FoodAndDrinksWithTicket />} />
-        <Route path="/checkout" element={<Checkout />} />
-        <Route path="/booking" element={<BookTicket />} />
-        <Route path="/book-ticket" element={<BookTicket />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/*" element={<AdminDashboard />} />
-        <Route path="/admindashboard" element={<AdminDashboard />} />
-        <Route path="/admin-dashboard" element={<AdminDashboard />} />
-        <Route path="/manager" element={<ManagerDashboard />} />
-        <Route path="/manager/*" element={<ManagerDashboard />} />
-        <Route path="/managerdashboard" element={<ManagerDashboard />} />
-        <Route path="/manager-dashboard" element={<ManagerDashboard />} />
+        
+        {/* Admin routes - chỉ ADMIN mới có thể truy cập */}
+        <Route path="/admin" element={
+          <ProtectedRoute allowedRoles="ADMIN">
+            <AdminDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/*" element={
+          <ProtectedRoute allowedRoles="ADMIN">
+            <AdminDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/admindashboard" element={
+          <ProtectedRoute allowedRoles="ADMIN">
+            <AdminDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin-dashboard" element={
+          <ProtectedRoute allowedRoles="ADMIN">
+            <AdminDashboard />
+          </ProtectedRoute>
+        } />
+        
+        {/* Manager routes - chỉ MANAGER mới có thể truy cập */}
+        <Route path="/manager" element={
+          <ProtectedRoute allowedRoles="MANAGER">
+            <ManagerDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/manager/*" element={
+          <ProtectedRoute allowedRoles="MANAGER">
+            <ManagerDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/managerdashboard" element={
+          <ProtectedRoute allowedRoles="MANAGER">
+            <ManagerDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/manager-dashboard" element={
+          <ProtectedRoute allowedRoles="MANAGER">
+            <ManagerDashboard />
+          </ProtectedRoute>
+        } />
       </Routes>
-    </>
+    </NotificationProvider>
   );
 }

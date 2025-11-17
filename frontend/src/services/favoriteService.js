@@ -57,6 +57,7 @@ export const favoriteService = {
       }
 
       console.log('favoriteService: Fetching favorite movies...');
+      console.log('favoriteService: Token:', token ? token.substring(0, 20) + '...' : 'missing');
       const response = await axiosInstance.get('/customer/favorites');
       console.log('favoriteService: Response:', response);
       console.log('favoriteService: Response data:', response.data);
@@ -92,13 +93,37 @@ export const favoriteService = {
       
       if (error.response) {
         console.error('favoriteService: Response status:', error.response.status);
+        console.error('favoriteService: Response headers:', error.response.headers);
+        console.error('favoriteService: Response data:', error.response.data);
+        console.error('favoriteService: Full error response:', error.response);
+        
         if (error.response.status === 401 || error.response.status === 403) {
-          errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+          // Lấy message từ response body nếu có
+          if (error.response.data && error.response.data.message) {
+            errorMessage = error.response.data.message;
+          } else if (error.response.data && error.response.data.error) {
+            errorMessage = error.response.data.error;
+          } else {
+            errorMessage = error.response.status === 401 
+              ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+              : 'Bạn không có quyền truy cập tài nguyên này. Vui lòng đăng nhập lại.';
+          }
+          
           localStorage.removeItem('jwt');
-        } else if (error.response.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.response.data?.error) {
-          errorMessage = error.response.data.error;
+          localStorage.removeItem('user');
+          
+          // Redirect to login page if in browser (delay để user có thể thấy error message)
+          if (typeof window !== 'undefined') {
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 2000);
+          }
+        } else if (error.response.data) {
+          if (error.response.data.message) {
+            errorMessage = error.response.data.message;
+          } else if (error.response.data.error) {
+            errorMessage = error.response.data.error;
+          }
         }
       } else if (error.message) {
         errorMessage = error.message;
