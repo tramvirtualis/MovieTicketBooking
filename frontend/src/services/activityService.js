@@ -104,5 +104,54 @@ export const activityService = {
     }
   },
 
+  /**
+   * Admin: Xóa một hoạt động theo ID
+   * @param {Number} activityId - ID của hoạt động cần xóa
+   * @returns {Promise<Object>} Response từ server
+   */
+  deleteActivity: async (activityId) => {
+    try {
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        return {
+          success: false,
+          error: 'Vui lòng đăng nhập để tiếp tục',
+        };
+      }
+
+      const response = await axiosInstance.delete(`/admin/activities/${activityId}`);
+      
+      if (response.data && response.data.success) {
+        return {
+          success: true,
+          message: response.data.message || 'Xóa hoạt động thành công',
+        };
+      }
+
+      return {
+        success: false,
+        error: response.data?.message || 'Không thể xóa hoạt động',
+      };
+    } catch (error) {
+      let errorMessage = 'Không thể xóa hoạt động';
+      
+      if (error.response) {
+        if (error.response.status === 401 || error.response.status === 403) {
+          errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+          localStorage.removeItem('jwt');
+        } else if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  },
+
 };
 

@@ -139,6 +139,41 @@ public class ActivityLogService {
     }
     
     /**
+     * Xóa một hoạt động theo ID
+     * Chỉ admin mới có quyền xóa
+     */
+    @Transactional
+    public boolean deleteActivity(Long activityId) {
+        try {
+            if (activityId == null) {
+                log.error("Cannot delete activity: activityId is null");
+                return false;
+            }
+            
+            ActivityLog activity = activityLogRepository.findById(activityId)
+                    .orElse(null);
+            
+            if (activity == null) {
+                log.error("Cannot delete activity: Activity not found with id: {}", activityId);
+                return false;
+            }
+            
+            // Chỉ cho phép xóa activities của Admin
+            if (!(activity.getActor() instanceof Admin)) {
+                log.error("Cannot delete activity: Only admin activities can be deleted");
+                return false;
+            }
+            
+            activityLogRepository.deleteById(activityId);
+            log.info("Activity deleted successfully - activityId: {}", activityId);
+            return true;
+        } catch (Exception e) {
+            log.error("Error deleting activity: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+    
+    /**
      * Convert ActivityLog entity sang DTO
      */
     private ActivityLogResponseDTO convertToDTO(ActivityLog activityLog) {

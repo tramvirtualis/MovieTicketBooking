@@ -63,6 +63,26 @@ public class ActivityLogController {
     }
     
     /**
+     * Admin endpoint: Xóa một hoạt động theo ID
+     */
+    @DeleteMapping("/api/admin/activities/{activityId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> deleteActivity(@PathVariable Long activityId) {
+        try {
+            boolean deleted = activityLogService.deleteActivity(activityId);
+            if (deleted) {
+                return ResponseEntity.ok(createSuccessResponse("Xóa hoạt động thành công", null));
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(createErrorResponse("Không thể xóa hoạt động. Vui lòng kiểm tra lại."));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse("Lỗi khi xóa hoạt động: " + e.getMessage()));
+        }
+    }
+    
+    /**
      * Test endpoint: Tạo activity log thủ công để test
      * Chỉ dùng cho testing, có thể xóa sau
      */

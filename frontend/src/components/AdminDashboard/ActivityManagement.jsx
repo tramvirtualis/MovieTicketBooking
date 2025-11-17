@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { activityService } from '../../services/activityService';
 import { websocketService } from '../../services/websocketService';
+import ConfirmDeleteModal from '../Common/ConfirmDeleteModal';
 
 // Sample activities data - fallback khi API không có data
 const initialActivities = [
@@ -127,6 +128,11 @@ function ActivityManagement({ onNewActivity }) {
   const [filterAction, setFilterAction] = useState('');
   const [filterObjectType, setFilterObjectType] = useState('');
   const [filterDateRange, setFilterDateRange] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const activitiesPerPage = 10;
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [notification, setNotification] = useState(null);
 
   const activitiesSubscriptionRef = useRef(null);
   const lastActivityIdRef = useRef(null);
@@ -271,6 +277,69 @@ function ActivityManagement({ onNewActivity }) {
     });
   }, [activities, searchTerm]);
 
+  // Pagination calculation
+  const totalPages = Math.ceil(filteredActivities.length / activitiesPerPage);
+  const startIndex = (currentPage - 1) * activitiesPerPage;
+  const endIndex = startIndex + activitiesPerPage;
+  const currentActivities = filteredActivities.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterActor, filterAction, filterObjectType, filterDateRange]);
+
+  // Show notification
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000);
+  };
+
+  // Handle delete activity
+  const handleDeleteActivity = async () => {
+    if (!deleteConfirm) return;
+    
+    setIsDeleting(true);
+    const activityId = deleteConfirm.activityId;
+    
+    try {
+      const result = await activityService.deleteActivity(activityId);
+      if (result.success) {
+        // Remove activity from state
+        setActivities(prev => {
+          const updated = prev.filter(activity => activity.activityId !== activityId);
+          // If current page becomes empty and not on page 1, go to previous page
+          const newFiltered = updated.filter(activity => {
+            if (searchTerm) {
+              const searchLower = searchTerm.toLowerCase();
+              const matchesSearch = 
+                (activity.actorName && activity.actorName.toLowerCase().includes(searchLower)) ||
+                (activity.objectName && activity.objectName.toLowerCase().includes(searchLower)) ||
+                (activity.description && activity.description.toLowerCase().includes(searchLower));
+              if (!matchesSearch) return false;
+            }
+            return true;
+          });
+          const newTotalPages = Math.ceil(newFiltered.length / activitiesPerPage);
+          if (currentPage > newTotalPages && newTotalPages > 0) {
+            setCurrentPage(newTotalPages);
+          }
+          return updated;
+        });
+        setDeleteConfirm(null);
+        showNotification('Xóa hoạt động thành công', 'success');
+      } else {
+        showNotification(result.error || 'Không thể xóa hoạt động', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting activity:', error);
+      showNotification('Có lỗi xảy ra khi xóa hoạt động', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Format timestamp
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return 'N/A';
@@ -395,7 +464,20 @@ function ActivityManagement({ onNewActivity }) {
   }
 
   return (
-    <div className="admin-card">
+    <>
+      <style>{`
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
+      <div className="admin-card">
       {/* Filters */}
       <div className="admin-card__header">
         <h2 className="admin-card__title">Quản lý hoạt động</h2>
@@ -493,16 +575,16 @@ function ActivityManagement({ onNewActivity }) {
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: '180px' }}>Thời gian</th>
-                  <th style={{ width: '150px' }}>Người thực hiện</th>
+                  <th style={{ width: '160px' }}>Thời gian</th>
                   <th style={{ width: '120px' }}>Hành động</th>
                   <th style={{ width: '120px' }}>Đối tượng</th>
-                  <th>Tên đối tượng</th>
-                  <th style={{ width: '200px' }}>Mô tả</th>
+                  <th style={{ width: '180px' }}>Tên đối tượng</th>
+                  <th>Mô tả</th>
+                  <th style={{ width: '100px' }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredActivities.map((activity) => (
+                {currentActivities.map((activity) => (
                   <tr key={activity.activityId} className="admin-table-row">
                     <td>
                       <div style={{ 
@@ -523,45 +605,6 @@ function ActivityManagement({ onNewActivity }) {
                         }}>
                           {formatFullTimestamp(activity.timestamp)}
                         </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '8px' 
-                      }}>
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          background: activity.actorRole === 'ADMIN' 
-                            ? 'linear-gradient(135deg, #7b61ff 0%, #6b51e8 100%)'
-                            : 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#fff',
-                          fontWeight: 600,
-                          fontSize: '14px'
-                        }}>
-                          {activity.actorRole === 'ADMIN' ? 'A' : 'M'}
-                        </div>
-                        <div>
-                          <div style={{ 
-                            fontSize: '14px', 
-                            fontWeight: 600,
-                            color: '#fff'
-                          }}>
-                            {activity.actorName}
-                          </div>
-                          <div style={{ 
-                            fontSize: '12px', 
-                            color: 'rgba(255, 255, 255, 0.5)' 
-                          }}>
-                            {activity.actorRole === 'ADMIN' ? 'Quản trị viên' : 'Quản lý rạp'}
-                          </div>
-                        </div>
                       </div>
                     </td>
                     <td>
@@ -598,18 +641,64 @@ function ActivityManagement({ onNewActivity }) {
                       <span style={{ 
                         fontSize: '14px', 
                         color: '#fff',
-                        fontWeight: 500
-                      }}>
+                        fontWeight: 500,
+                        display: 'block',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: '180px'
+                      }} title={activity.objectName}>
                         {activity.objectName}
                       </span>
                     </td>
                     <td>
                       <span style={{ 
                         fontSize: '13px', 
-                        color: 'rgba(255, 255, 255, 0.7)'
-                      }}>
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        display: 'block',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: '100%'
+                      }} title={activity.description}>
                         {activity.description}
                       </span>
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => setDeleteConfirm({ 
+                          activityId: activity.activityId, 
+                          description: activity.description || 'hoạt động này' 
+                        })}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          background: 'rgba(244, 67, 54, 0.1)',
+                          border: '1px solid rgba(244, 67, 54, 0.3)',
+                          color: '#f44336',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = 'rgba(244, 67, 54, 0.2)';
+                          e.target.style.borderColor = 'rgba(244, 67, 54, 0.5)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = 'rgba(244, 67, 54, 0.1)';
+                          e.target.style.borderColor = 'rgba(244, 67, 54, 0.3)';
+                        }}
+                        title="Xóa hoạt động"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="3 6 5 6 21 6"/>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -617,7 +706,98 @@ function ActivityManagement({ onNewActivity }) {
             </table>
           </div>
         )}
+        
+        {/* Pagination */}
+        {filteredActivities.length > 0 && totalPages > 1 && (
+          <div className="movie-reviews-pagination mt-8 justify-center" style={{ marginTop: '24px', display: 'flex', justifyContent: 'center' }}>
+            <button
+              className="movie-reviews-pagination__btn"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                className={`movie-reviews-pagination__btn movie-reviews-pagination__btn--number ${currentPage === page ? 'movie-reviews-pagination__btn--active' : ''}`}
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              className="movie-reviews-pagination__btn"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Notification */}
+      {notification && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 10000,
+          padding: '16px 20px',
+          borderRadius: '12px',
+          background: notification.type === 'success' 
+            ? 'rgba(76, 175, 80, 0.95)' 
+            : 'rgba(244, 67, 54, 0.95)',
+          color: '#fff',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          minWidth: '300px',
+          maxWidth: '500px',
+          animation: 'slideInRight 0.3s ease-out',
+        }}>
+          <div style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            {notification.type === 'success' ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            )}
+          </div>
+          <span style={{ fontSize: '14px', fontWeight: 500 }}>{notification.message}</span>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteConfirm !== null}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={handleDeleteActivity}
+        title={deleteConfirm?.description}
+        message={deleteConfirm ? `Bạn có chắc chắn muốn xóa hoạt động "${deleteConfirm.description}"?` : ''}
+        confirmText="Xóa hoạt động"
+        isDeleting={isDeleting}
+      />
 
       {/* Summary */}
       {filteredActivities.length > 0 && (
@@ -698,7 +878,8 @@ function ActivityManagement({ onNewActivity }) {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
