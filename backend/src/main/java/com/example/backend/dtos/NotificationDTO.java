@@ -12,11 +12,13 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class NotificationDTO {
-    private String type; // REVIEW_SUCCESS, VOUCHER_ADDED, VOUCHER_SAVED, ORDER_SUCCESS
+    private Long notificationId; // ID từ database
+    private String type; // REVIEW_SUCCESS, VOUCHER_ADDED, VOUCHER_SAVED, BOOKING_SUCCESS
     private String title;
     private String message;
     private LocalDateTime timestamp;
     private Object data; // Optional additional data
+    private Boolean isRead; // Trạng thái đã đọc
 }
 
 

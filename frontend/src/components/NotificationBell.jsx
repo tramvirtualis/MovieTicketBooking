@@ -1,50 +1,111 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { notificationService } from '../services/notificationService';
+import { websocketService } from '../services/websocketService';
 
 const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: 'Phim mới: Wicked',
-      message: 'Đặt vé ngay cho bom tấn âm nhạc Wicked - Khởi chiếu 22/11',
-      time: '2 giờ trước',
-      isRead: false
-    },
-    {
-      id: 2,
-      title: 'Ưu đãi đặc biệt',
-      message: 'Mua 2 tặng 1 vé xem phim - Áp dụng cuối tuần này',
-      time: '5 giờ trước',
-      isRead: false
-    },
-    {
-      id: 3,
-      title: 'Gladiator II',
-      message: 'Bom tấn hành động đỉnh cao đã có lịch chiếu tại rạp',
-      time: '1 ngày trước',
-      isRead: false
-    },
-    {
-      id: 4,
-      title: 'Thành viên VIP',
-      message: 'Tích điểm đổi quà - Giảm 30% combo bắp nước cho thành viên Gold',
-      time: '2 ngày trước',
-      isRead: false
-    },
-    {
-      id: 5,
-      title: 'Moana 2',
-      message: 'Phim hoạt hình Disney mới nhất sắp ra mắt - Đặt vé trước ngay',
-      time: '3 ngày trước',
-      isRead: false
-    }
-  ]);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
   const dropdownRef = useRef(null);
+  const userIdRef = useRef(null);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-  const displayedNotifications = showAll ? notifications : notifications.slice(0, 3);
+  // Format timestamp
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'Vừa xong';
+    
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return 'Vừa xong';
+    
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
+    if (diffMins < 1) return 'Vừa xong';
+    if (diffMins < 60) return `${diffMins} phút trước`;
+    if (diffHours < 24) return `${diffHours} giờ trước`;
+    if (diffDays < 7) return `${diffDays} ngày trước`;
+    
+    return date.toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Load notifications from API
+  const loadNotifications = async () => {
+    try {
+      setLoading(true);
+      const result = await notificationService.getNotifications();
+      if (result.success && result.data) {
+        setNotifications(result.data);
+      } else {
+        console.error('Failed to load notifications:', result.error);
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load unread count
+  const loadUnreadCount = async () => {
+    try {
+      const result = await notificationService.getUnreadCount();
+      // Count will be updated from notifications state
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+    }
+  };
+
+  // Get userId from localStorage
+  const getUserId = () => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        return user.userId || user.id;
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
+    return null;
+  };
+
+  // Load notifications on mount
+  useEffect(() => {
+    const userId = getUserId();
+    if (userId) {
+      userIdRef.current = userId;
+      loadNotifications();
+      
+      // Connect WebSocket
+      websocketService.connect(userId, (notification) => {
+        console.log('New notification received:', notification);
+        // Add notification to the list
+        setNotifications(prev => {
+          // Check if notification already exists (by notificationId)
+          const exists = prev.some(n => n.notificationId === notification.notificationId);
+          if (exists) return prev;
+          
+          // Add new notification at the beginning
+          return [notification, ...prev];
+        });
+      });
+    }
+
+    return () => {
+      websocketService.disconnect();
+    };
+  }, []);
+
+  // Click outside handler
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -61,21 +122,71 @@ const NotificationBell = () => {
     };
   }, [isOpen]);
 
-  const markAsRead = (id) => {
-    setNotifications(prev => 
-      prev.filter(notification => notification.id !== id)
-    );
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const displayedNotifications = showAll ? notifications : notifications.slice(0, 3);
+
+  const markAsRead = async (notificationId) => {
+    try {
+      const result = await notificationService.markAsRead(notificationId);
+      if (result.success) {
+        // Update local state
+        setNotifications(prev => 
+          prev.map(n => 
+            n.notificationId === notificationId 
+              ? { ...n, isRead: true }
+              : n
+          )
+        );
+      } else {
+        console.error('Failed to mark as read:', result.error);
+      }
+    } catch (error) {
+      console.error('Error marking as read:', error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications([]);
-    setShowAll(false);
+  const markAllAsRead = async () => {
+    try {
+      const result = await notificationService.markAllAsRead();
+      if (result.success) {
+        // Update local state
+        setNotifications(prev => 
+          prev.map(n => ({ ...n, isRead: true }))
+        );
+        setShowAll(false);
+      } else {
+        console.error('Failed to mark all as read:', result.error);
+      }
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
+
+  const deleteNotification = async (notificationId) => {
+    try {
+      const result = await notificationService.deleteNotification(notificationId);
+      if (result.success) {
+        // Remove from local state
+        setNotifications(prev => 
+          prev.filter(n => n.notificationId !== notificationId)
+        );
+      } else {
+        console.error('Failed to delete notification:', result.error);
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
   };
 
   return (
     <div className="relative" ref={dropdownRef} style={{ position: 'relative' }}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setIsOpen(!isOpen);
+          if (!isOpen) {
+            loadNotifications(); // Refresh when opening
+          }
+        }}
         className="relative p-2 text-[#e6e1e2] hover:text-white transition-colors"
         aria-label="Thông báo"
         style={{
@@ -129,7 +240,20 @@ const NotificationBell = () => {
           </div>
 
           <div className="overflow-y-auto flex-1">
-            {notifications.length === 0 ? (
+            {loading ? (
+              <div className="p-8 text-center text-[#c9c4c5]">
+                <div style={{
+                  display: 'inline-block',
+                  width: '24px',
+                  height: '24px',
+                  border: '3px solid rgba(255, 255, 255, 0.3)',
+                  borderTopColor: '#ffd159',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }}></div>
+                <p style={{ marginTop: '12px' }}>Đang tải...</p>
+              </div>
+            ) : notifications.length === 0 ? (
               <div className="p-8 text-center text-[#c9c4c5]">
                 <svg className="mx-auto mb-3 w-12 h-12 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -141,7 +265,7 @@ const NotificationBell = () => {
               <>
                 {displayedNotifications.map((notification) => (
                   <div
-                    key={notification.id}
+                    key={notification.notificationId || notification.id}
                     className="p-4 border-b border-[#4a3f41] hover:bg-[#1a1415] transition-colors group"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -157,10 +281,18 @@ const NotificationBell = () => {
                         <p className="text-[#c9c4c5] text-xs mb-2 line-clamp-2">
                           {notification.message}
                         </p>
-                        <span className="text-[#9e9e9e] text-xs">{notification.time}</span>
+                        <span className="text-[#9e9e9e] text-xs">
+                          {formatTimestamp(notification.timestamp)}
+                        </span>
                       </div>
                       <button
-                        onClick={() => markAsRead(notification.id)}
+                        onClick={() => {
+                          markAsRead(notification.notificationId || notification.id);
+                          // Remove notification after marking as read
+                          setTimeout(() => {
+                            deleteNotification(notification.notificationId || notification.id);
+                          }, 500);
+                        }}
                         className="text-[#9e9e9e] hover:text-white transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
                         aria-label="Đánh dấu đã đọc"
                       >
@@ -194,6 +326,10 @@ const NotificationBell = () => {
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
