@@ -222,7 +222,7 @@ export default function Home() {
       <Header />
       <HeroCarousel posters={banners.length > 0 ? banners : [interstellar, inception, darkKnightRises, driveMyCar]} />
       <main className="main">
-        <Section id="now-showing" title="Phim Đang Chiếu" linkText="Xem tất cả">
+        <Section id="now-showing" title="Phim Đang Chiếu">
           {loading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
               Đang tải phim...
@@ -231,7 +231,7 @@ export default function Home() {
             <CardsGrid items={nowShowing} isNowShowing={true} onPlayTrailer={handlePlayTrailer} />
           )}
         </Section>
-        <Section id="coming-soon" title="Phim Sắp Chiếu" linkText="Xem tất cả">
+        <Section id="coming-soon" title="Phim Sắp Chiếu">
           {loading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
               Đang tải phim...

@@ -9,6 +9,69 @@ const NotificationBell = () => {
   const [showAll, setShowAll] = useState(false);
   const dropdownRef = useRef(null);
   const userIdRef = useRef(null);
+  const audioContextRef = useRef(null);
+
+  // Tạo âm thanh chill khi có thông báo mới
+  const playNotificationSound = async () => {
+    try {
+      // Tạo AudioContext nếu chưa có
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      
+      const audioContext = audioContextRef.current;
+      
+      // Resume audio context nếu bị suspended (do browser policy)
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+      
+      // Tạo oscillator với tần số nhẹ nhàng (C5 = 523.25 Hz)
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      // Kết nối oscillator với gain node và output
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Cấu hình âm thanh chill (sine wave, tần số thấp)
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+      
+      // Envelope mềm mại (fade in và fade out)
+      const now = audioContext.currentTime;
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(0.3, now + 0.05); // Fade in nhanh
+      gainNode.gain.linearRampToValueAtTime(0.2, now + 0.15); // Giữ volume
+      gainNode.gain.linearRampToValueAtTime(0, now + 0.4); // Fade out mềm
+      
+      // Phát âm thanh
+      oscillator.start(now);
+      oscillator.stop(now + 0.4);
+      
+      // Tạo thêm một nốt nhẹ nhàng sau đó (tạo hiệu ứng chuông)
+      setTimeout(() => {
+        const oscillator2 = audioContext.createOscillator();
+        const gainNode2 = audioContext.createGain();
+        
+        oscillator2.connect(gainNode2);
+        gainNode2.connect(audioContext.destination);
+        
+        oscillator2.type = 'sine';
+        oscillator2.frequency.setValueAtTime(659.25, audioContext.currentTime); // E5
+        
+        const now2 = audioContext.currentTime;
+        gainNode2.gain.setValueAtTime(0, now2);
+        gainNode2.gain.linearRampToValueAtTime(0.25, now2 + 0.03);
+        gainNode2.gain.linearRampToValueAtTime(0, now2 + 0.3);
+        
+        oscillator2.start(now2);
+        oscillator2.stop(now2 + 0.3);
+      }, 100);
+    } catch (error) {
+      console.log('Could not play notification sound:', error);
+    }
+  };
 
   // Format timestamp
   const formatTimestamp = (timestamp) => {
@@ -88,6 +151,10 @@ const NotificationBell = () => {
       // Connect WebSocket
       websocketService.connect(userId, (notification) => {
         console.log('New notification received:', notification);
+        
+        // Phát âm thanh khi có thông báo mới
+        playNotificationSound();
+        
         // Add notification to the list
         setNotifications(prev => {
           // Check if notification already exists (by notificationId)
@@ -102,6 +169,10 @@ const NotificationBell = () => {
 
     return () => {
       websocketService.disconnect();
+      // Cleanup audio context
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
     };
   }, []);
 

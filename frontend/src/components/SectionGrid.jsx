@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export function Section({ id, title, linkText, children }) {
@@ -7,9 +7,6 @@ export function Section({ id, title, linkText, children }) {
       <div className="container">
         <div className="section__head">
           <h2 className="section__title">{title}</h2>
-          {linkText ? (
-            <a className="section__link" href="/">{linkText} →</a>
-          ) : null}
         </div>
         {children}
       </div>
@@ -19,74 +16,314 @@ export function Section({ id, title, linkText, children }) {
 
 export function CardsGrid({ items, isNowShowing = false, onPlayTrailer }) {
   const navigate = useNavigate();
-  const displayItems = items.slice(0, 5); // Chỉ hiển thị tối đa 5 phim
+  const scrollContainerRef = useRef(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const displayItems = items.length > 0 ? items : [];
+  const scrollInterval = 5000; // 5 giây tự động chuyển (tăng lên để mượt hơn)
+  const itemsPerScroll = 5; // Số phim cuộn mỗi lần (tương ứng với grid 5 cột)
+
+  // Auto-scroll effect - cuộn theo nhóm phim
+  useEffect(() => {
+    if (displayItems.length <= itemsPerScroll || isPaused) return;
+
+    const interval = setInterval(() => {
+      setCurrentIndex((prevIndex) => {
+        const nextIndex = prevIndex + itemsPerScroll;
+        // Loop back to start if reached end
+        return nextIndex >= displayItems.length ? 0 : nextIndex;
+      });
+    }, scrollInterval);
+
+    return () => clearInterval(interval);
+  }, [displayItems.length, isPaused, itemsPerScroll]);
+
+  // Scroll to current index với animation mềm mại
+  useEffect(() => {
+    if (scrollContainerRef.current && displayItems.length > 0) {
+      const container = scrollContainerRef.current.querySelector('.movie-carousel-track');
+      if (container) {
+        const cardElement = container.querySelector('.card');
+        if (cardElement) {
+          const cardWidth = cardElement.offsetWidth;
+          const gap = 24; // gap giữa các cards
+          const scrollPosition = currentIndex * (cardWidth + gap);
+          const startPosition = container.scrollLeft;
+          const distance = scrollPosition - startPosition;
+          const duration = 1000; // 1 giây cho animation mượt
+          let startTime = null;
+
+          // Custom smooth scroll với easing function
+          const easeInOutCubic = (t) => {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+          };
+
+          const animateScroll = (currentTime) => {
+            if (startTime === null) startTime = currentTime;
+            const timeElapsed = currentTime - startTime;
+            const progress = Math.min(timeElapsed / duration, 1);
+            const easedProgress = easeInOutCubic(progress);
+            
+            container.scrollLeft = startPosition + distance * easedProgress;
+            
+            if (progress < 1) {
+              requestAnimationFrame(animateScroll);
+            }
+          };
+
+          requestAnimationFrame(animateScroll);
+        }
+      }
+    }
+  }, [currentIndex, displayItems.length]);
+
+  const handlePrev = () => {
+    setIsPaused(true);
+    setCurrentIndex((prevIndex) => {
+      const newIndex = prevIndex - itemsPerScroll;
+      return newIndex < 0 ? Math.max(0, displayItems.length - itemsPerScroll) : newIndex;
+    });
+    setTimeout(() => setIsPaused(false), 3000);
+  };
+
+  const handleNext = () => {
+    setIsPaused(true);
+    setCurrentIndex((prevIndex) => {
+      const nextIndex = prevIndex + itemsPerScroll;
+      return nextIndex >= displayItems.length ? 0 : nextIndex;
+    });
+    setTimeout(() => setIsPaused(false), 3000);
+  };
+
+  if (displayItems.length === 0) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
+        Chưa có phim nào
+      </div>
+    );
+  }
+
+  const canScroll = displayItems.length > itemsPerScroll;
+
   return (
-    <div className="grid grid--cards">
-      {displayItems.map((m, idx) => (
-        <div key={idx} className="card" style={{ position: 'relative' }}>
-          <div 
-            onClick={() => navigate(`/movie/${m.movieId || encodeURIComponent(m.title)}`)}
-            style={{ textDecoration: 'none', display: 'block', cursor: 'pointer' }}
+    <div style={{ position: 'relative' }}>
+      {/* Navigation Buttons */}
+      {canScroll && (
+        <>
+          <button
+            onClick={handlePrev}
+            className="movie-carousel-nav movie-carousel-nav--prev"
+            aria-label="Previous"
           >
-            <div className="card__img-wrapper">
-              {m.rating && (
-                <span className="card__rating-badge">{m.rating}</span>
-              )}
-              <img src={m.poster} alt={m.title} className="card__img" />
-              <div className="card__play-overlay">
-                <div className="card__buttons">
-                  <button 
-                    className="card__play-btn"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (onPlayTrailer && m.trailerId) {
-                        onPlayTrailer(m.trailerId);
-                      }
-                    }}
-                    aria-label="Play trailer"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                  </button>
-                  {isNowShowing && (
-                    <button
-                      className="card__book-btn"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        navigate(`/movie/${m.movieId || encodeURIComponent(m.title)}`);
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+          </button>
+          <button
+            onClick={handleNext}
+            className="movie-carousel-nav movie-carousel-nav--next"
+            aria-label="Next"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </button>
+        </>
+      )}
+
+      {/* Horizontal Carousel Container với auto-scroll */}
+      <div 
+        ref={scrollContainerRef}
+        className="movie-carousel-wrapper"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+      >
+        <div className="grid grid--cards movie-carousel-track">
+          {displayItems.map((m, idx) => (
+            <div key={idx} className="card" style={{ position: 'relative' }}>
+              <div 
+                onClick={() => navigate(`/movie/${m.movieId || encodeURIComponent(m.title)}`)}
+                style={{ textDecoration: 'none', display: 'block', cursor: 'pointer' }}
+              >
+                <div className="card__img-wrapper">
+                  {m.rating && (
+                    <span className="card__rating-badge">{m.rating}</span>
+                  )}
+                  <img src={m.poster} alt={m.title} className="card__img" />
+                  <div className="card__play-overlay">
+                    <div className="card__buttons">
+                      <button 
+                        className="card__play-btn"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (onPlayTrailer && m.trailerId) {
+                            onPlayTrailer(m.trailerId);
+                          }
+                        }}
+                        aria-label="Play trailer"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </button>
+                      {isNowShowing && (
+                        <button
+                          className="card__book-btn"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate(`/movie/${m.movieId || encodeURIComponent(m.title)}`);
+                          }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
+                            <path d="M6 9v6M18 9v6"/>
+                          </svg>
+                          <span>Đặt vé</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="card__body">
+                  <h3 className="card__title">{m.title}</h3>
+                  {m.genre ? (
+                    <p 
+                      className="card__meta" 
+                      style={{ 
+                        whiteSpace: 'normal', 
+                        overflow: 'visible', 
+                        textOverflow: 'clip' 
                       }}
                     >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
-                        <path d="M6 9v6M18 9v6"/>
-                      </svg>
-                      <span>Đặt vé</span>
-                    </button>
-                  )}
+                      {m.genre}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </div>
-            <div className="card__body">
-              <h3 className="card__title">{m.title}</h3>
-              {m.genre ? (
-                <p 
-                  className="card__meta" 
-                  style={{ 
-                    whiteSpace: 'normal', 
-                    overflow: 'visible', 
-                    textOverflow: 'clip' 
-                  }}
-                >
-                  {m.genre}
-                </p>
-              ) : null}
-            </div>
-          </div>
+          ))}
         </div>
-      ))}
+      </div>
+
+      <style>{`
+        .movie-carousel-wrapper {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .movie-carousel-track {
+          display: flex !important;
+          grid-template-columns: none !important;
+          flex-wrap: nowrap;
+          gap: 24px;
+          overflow-x: auto;
+          scroll-behavior: smooth;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+          padding-bottom: 10px;
+          scroll-snap-type: x proximity;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .movie-carousel-track::-webkit-scrollbar {
+          display: none;
+        }
+
+        .movie-carousel-track .card {
+          flex: 0 0 auto;
+          width: calc((100% - 96px) / 5);
+          min-width: 200px;
+          max-width: 280px;
+          scroll-snap-align: start;
+          transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.5s ease-out;
+        }
+
+        @media (max-width: 1400px) {
+          .movie-carousel-track .card {
+            width: calc((100% - 72px) / 5);
+            min-width: 180px;
+            max-width: 260px;
+          }
+        }
+
+        @media (max-width: 1200px) {
+          .movie-carousel-track .card {
+            width: calc((100% - 72px) / 4);
+            min-width: 180px;
+            max-width: 240px;
+          }
+        }
+
+        @media (max-width: 900px) {
+          .movie-carousel-track .card {
+            width: calc((100% - 48px) / 3);
+            min-width: 160px;
+            max-width: 200px;
+          }
+        }
+
+        @media (max-width: 600px) {
+          .movie-carousel-track .card {
+            width: calc((100% - 24px) / 2);
+            min-width: 140px;
+            max-width: 180px;
+          }
+        }
+
+        .movie-carousel-nav {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 10;
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          background: rgba(42, 38, 39, 0.95);
+          border: 2px solid rgba(255, 209, 89, 0.6);
+          color: #ffd159;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          backdrop-filter: blur(10px);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .movie-carousel-nav:hover {
+          background: rgba(255, 209, 89, 0.25);
+          border-color: #ffd159;
+          transform: translateY(-50%) scale(1.15);
+          box-shadow: 0 6px 24px rgba(255, 209, 89, 0.4);
+        }
+
+        .movie-carousel-nav:active {
+          transform: translateY(-50%) scale(1.05);
+        }
+
+        .movie-carousel-nav--prev {
+          left: -24px;
+        }
+
+        .movie-carousel-nav--next {
+          right: -24px;
+        }
+
+        @media (max-width: 768px) {
+          .movie-carousel-nav {
+            width: 40px;
+            height: 40px;
+          }
+          .movie-carousel-nav--prev {
+            left: -20px;
+          }
+          .movie-carousel-nav--next {
+            right: -20px;
+          }
+        }
+      `}</style>
     </div>
   );
 }

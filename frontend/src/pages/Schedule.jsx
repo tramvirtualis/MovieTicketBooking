@@ -1,55 +1,164 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import scheduleService from '../services/scheduleService.js';
 
-const movies = [
-  { id: 'drive', title: 'Drive My Car', poster: '/src/assets/images/drive-my-car.jpg' },
-  { id: 'inception', title: 'Inception', poster: '/src/assets/images/inception.jpg' },
-  { id: 'interstellar', title: 'Interstellar', poster: '/src/assets/images/interstellar.jpg' },
-];
+const formatTime = (value) => {
+  if (!value) return '--:--';
+  return new Date(value).toLocaleTimeString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+};
 
-const cinemas = [
-  { id: 'cns_q6', name: 'Cinestar Satra Quận 6 (TPHCM)' },
-  { id: 'cns_qt', name: 'Cinestar Quốc Thanh (TPHCM)' },
-  { id: 'cns_hbt', name: 'Cinestar Hai Bà Trưng (TPHCM)' },
-];
-
-const listings = [
-  {
-    movieId: 'drive',
-    cinemaId: 'cns_hbt',
-    address: '135 Hai Bà Trưng, Quận 1, TPHCM',
-    formats: [{ label: 'STANDARD', times: ['21:10'] }],
-  },
-  {
-    movieId: 'inception',
-    cinemaId: 'cns_q6',
-    address: '1466 Võ Văn Kiệt, Quận 6, TPHCM',
-    formats: [{ label: 'STANDARD', times: ['23:00', '23:30'] }],
-  },
-  {
-    movieId: 'interstellar',
-    cinemaId: 'cns_qt',
-    address: '271 Nguyễn Trãi, Quận 1, TPHCM',
-    formats: [{ label: 'STANDARD', times: ['22:10'] }],
-  },
-];
+const formatRoomType = (format) => {
+  if (!format) return '';
+  // Convert TYPE_2D -> 2D, TYPE_3D -> 3D, DELUXE -> DELUXE
+  if (format.startsWith('TYPE_')) {
+    return format.replace('TYPE_', '');
+  }
+  return format;
+};
 
 export default function Schedule() {
-  const today = useMemo(() => new Date(), []);
-  const [date, setDate] = useState(today.toISOString().substring(0, 10));
+  const [date, setDate] = useState('');
   const [movie, setMovie] = useState('');
   const [cinema, setCinema] = useState('');
+  const [options, setOptions] = useState({ movies: [], cinemas: [] });
+  const [listings, setListings] = useState([]);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [listingsLoading, setListingsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const filtered = listings.filter((l) => {
-    const okMovie = movie ? l.movieId === movie : true;
-    const okCinema = cinema ? l.cinemaId === cinema : true;
-    return okMovie && okCinema; // date filter placeholder (extend when backend ready)
-  });
+  useEffect(() => {
+    let mounted = true;
 
-  const getMovie = (id) => movies.find((m) => m.id === id);
-  const getCinema = (id) => cinemas.find((c) => c.id === id);
+    const fetchOptions = async () => {
+      setOptionsLoading(true);
+      try {
+        const data = await scheduleService.getOptions({ date: date || undefined });
+        if (!mounted) return;
+
+        const movies = data?.movies || [];
+        const cinemas = data?.cinemas || [];
+        setOptions({ movies, cinemas });
+
+        if (movie && !movies.some((m) => String(m.movieId) === movie)) {
+          setMovie('');
+        }
+        if (cinema && !cinemas.some((c) => String(c.cinemaId) === cinema)) {
+          setCinema('');
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err.message || 'Không thể tải dữ liệu.');
+        }
+      } finally {
+        if (mounted) {
+          setOptionsLoading(false);
+        }
+      }
+    };
+
+    fetchOptions();
+    return () => {
+      mounted = false;
+    };
+  }, [date]);
+
+  useEffect(() => {
+    let mounted = true;
+    const movieId = movie ? Number(movie) : undefined;
+    const cinemaId = cinema ? Number(cinema) : undefined;
+
+    const fetchListings = async () => {
+      setListingsLoading(true);
+      setError('');
+      try {
+        const data = await scheduleService.getListings({
+          date: date || undefined,
+          movieId,
+          cinemaId,
+        });
+        if (!mounted) return;
+        setListings(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (mounted) {
+          setError(err.message || 'Không thể tải lịch chiếu.');
+          setListings([]);
+        }
+      } finally {
+        if (mounted) {
+          setListingsLoading(false);
+        }
+      }
+    };
+
+    fetchListings();
+    return () => {
+      mounted = false;
+    };
+  }, [date, movie, cinema]);
+
+  const cards = useMemo(() => {
+    const movieGroups = new Map();
+
+    listings.forEach((item) => {
+      const movieKey = item.movieId ?? `movie-${item.showtimeId}`;
+
+      if (!movieGroups.has(movieKey)) {
+        movieGroups.set(movieKey, {
+          key: movieKey,
+          movie: {
+            id: item.movieId,
+            title: item.movieTitle,
+            poster: item.moviePoster,
+          },
+          cinemas: new Map(),
+        });
+      }
+
+      const group = movieGroups.get(movieKey);
+      const cinemaKey = item.cinemaId ?? `cinema-${item.showtimeId}`;
+
+      if (!group.cinemas.has(cinemaKey)) {
+        group.cinemas.set(cinemaKey, {
+          id: item.cinemaId,
+          name: item.cinemaName,
+          address: item.cinemaAddress,
+          showtimes: [],
+        });
+      }
+
+      group.cinemas.get(cinemaKey).showtimes.push({
+        id: item.showtimeId,
+        label: formatTime(item.startTime),
+        format: formatRoomType(item.formatLabel || 'STANDARD'),
+        room: item.cinemaRoomName,
+        startTime: item.startTime,
+        cinemaId: item.cinemaId,
+      });
+    });
+
+    // Convert to array and sort showtimes
+    return Array.from(movieGroups.values()).map((group) => ({
+      ...group,
+      cinemas: Array.from(group.cinemas.values()).map((cinema) => ({
+        ...cinema,
+        showtimes: cinema.showtimes.sort(
+          (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+        ),
+      })),
+    }));
+  }, [listings]);
+
+  const movieOptions = options.movies || [];
+  const cinemaOptions = options.cinemas || [];
+  const isLoading = optionsLoading || listingsLoading;
+  const hasData = cards.length > 0;
+  const placeholderPoster = '/src/assets/images/drive-my-car.jpg';
 
   return (
     <div className="min-h-screen cinema-mood">
@@ -57,65 +166,211 @@ export default function Schedule() {
 
       <main className="main">
         <section className="section">
-          <div className="container grid gap-4">
-            <div className="grid grid-cols-3 gap-3">
-              <label className="field">
-                <span className="field__label">Ngày</span>
-                <input className="field__input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-              </label>
-              <label className="field">
-                <span className="field__label">Phim</span>
-                <select className="field__input" value={movie} onChange={(e) => setMovie(e.target.value)}>
-                  <option value="">Chọn phim</option>
-                  {movies.map((m) => (
-                    <option key={m.id} value={m.id}>{m.title}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span className="field__label">Rạp</span>
-                <select className="field__input" value={cinema} onChange={(e) => setCinema(e.target.value)}>
-                  <option value="">Chọn rạp</option>
-                  {cinemas.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </label>
+          <div className="container">
+            {/* Header Section */}
+            <div className="mb-8">
+              <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight mb-2 flex items-center gap-3">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#ffd159]">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                Lịch chiếu phim
+              </h1>
+              <p className="text-[#c9c4c5] text-sm">Tìm và đặt vé xem phim yêu thích của bạn</p>
             </div>
 
-            <div className="grid gap-5 mt-2">
-              {filtered.map((item, idx) => {
-                const m = getMovie(item.movieId);
-                const c = getCinema(item.cinemaId);
-                return (
-                  <div key={idx} className="card grid grid-cols-[160px_1fr] gap-4 p-3">
-                    <Link to={`/movie/${m?.id || encodeURIComponent(m?.title || '')}`}>
-                      <img src={m?.poster} alt={m?.title} className="w-full h-[220px] object-cover rounded-lg" />
+            {/* Filter Section */}
+            <div className="bg-gradient-to-br from-[#2d2627] to-[#1a1415] border border-[#4a3f41] rounded-xl p-6 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <label className="field">
+                  <span className="field__label flex items-center gap-2 text-white mb-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#ffd159]">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                      <line x1="16" y1="2" x2="16" y2="6"/>
+                      <line x1="8" y1="2" x2="8" y2="6"/>
+                      <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                    NGÀY
+                  </span>
+                  <input
+                    className="field__input bg-[#1a1415] border-[#4a3f41] text-white focus:border-[#ffd159] focus:ring-1 focus:ring-[#ffd159]"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                  />
+                </label>
+
+                <label className="field">
+                  <span className="field__label flex items-center gap-2 text-white mb-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#ffd159]">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                      <circle cx="12" cy="10" r="3"/>
+                    </svg>
+                    PHIM
+                  </span>
+                  <select 
+                    className="field__input bg-[#1a1415] border-[#4a3f41] text-white focus:border-[#ffd159] focus:ring-1 focus:ring-[#ffd159]" 
+                    value={movie} 
+                    onChange={(e) => setMovie(e.target.value)}
+                  >
+                    <option value="">Chọn phim</option>
+                    {movieOptions.map((m) => (
+                      <option key={m.movieId} value={String(m.movieId)}>{m.title}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span className="field__label flex items-center gap-2 text-white mb-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#ffd159]">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                      <circle cx="12" cy="10" r="3"/>
+                    </svg>
+                    RẠP
+                  </span>
+                  <select 
+                    className="field__input bg-[#1a1415] border-[#4a3f41] text-white focus:border-[#ffd159] focus:ring-1 focus:ring-[#ffd159]" 
+                    value={cinema} 
+                    onChange={(e) => setCinema(e.target.value)}
+                  >
+                    <option value="">Chọn rạp</option>
+                    {cinemaOptions.map((c) => (
+                      <option key={c.cinemaId} value={String(c.cinemaId)}>{c.name}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            {/* Content Section */}
+            <div className="space-y-6">
+              {error && (
+                <div className="bg-gradient-to-br from-red-900/20 to-red-800/10 border border-red-500/30 rounded-xl p-4 text-red-400 flex items-center gap-3">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  {error}
+                </div>
+              )}
+
+              {isLoading && (
+                <div className="bg-gradient-to-br from-[#2d2627] to-[#1a1415] border border-[#4a3f41] rounded-xl p-12 text-center">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-[#ffd159] border-t-transparent mb-4"></div>
+                  <p className="text-[#c9c4c5]">Đang tải dữ liệu...</p>
+                </div>
+              )}
+
+              {!isLoading && !error && !hasData && (
+                <div className="bg-gradient-to-br from-[#2d2627] to-[#1a1415] border border-[#4a3f41] rounded-xl p-12 text-center">
+                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#4a3f41] mx-auto mb-4">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <p className="text-[#c9c4c5] text-lg mb-2">Không tìm thấy lịch chiếu phù hợp</p>
+                  <p className="text-[#7a6f71] text-sm">Vui lòng thử bộ lọc khác hoặc chọn ngày khác</p>
+                </div>
+              )}
+
+              {!isLoading && !error && hasData && cards.map((card) => (
+                <div 
+                  key={card.key} 
+                  className="bg-gradient-to-br from-[#2d2627] to-[#1a1415] border border-[#4a3f41] rounded-xl p-6 hover:border-[#ffd159]/50 transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-6">
+                    {/* Movie Poster */}
+                    <Link 
+                      to={card.movie.id ? `/movie/${card.movie.id}` : '#'}
+                      className="group relative overflow-hidden rounded-lg"
+                    >
+                      <img
+                        src={card.movie.poster || placeholderPoster}
+                        alt={card.movie.title || 'Poster'}
+                        className="w-full h-[260px] object-cover rounded-lg transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-end justify-center pb-4">
+                        <span className="text-white text-sm font-semibold">Xem chi tiết</span>
+                      </div>
                     </Link>
-                    <div>
-                      <div className="card__title text-lg">{m?.title}</div>
-                      <div className="card__meta mt-1">{c?.name}</div>
-                      <div className="card__meta">{item.address}</div>
-                      <div className="mt-3">
+
+                    {/* Movie Info */}
+                    <div className="flex flex-col">
+                      <Link 
+                        to={card.movie.id ? `/movie/${card.movie.id}` : '#'}
+                        className="group"
+                      >
+                        <h2 className="text-2xl font-bold text-white mb-4 group-hover:text-[#ffd159] transition-colors">
+                          {card.movie.title || 'Đang cập nhật'}
+                        </h2>
+                      </Link>
+
+                      {/* All Cinemas and Showtimes */}
+                      <div className="space-y-4">
+                        {card.cinemas.map((cinema) => (
+                          <div key={cinema.id || cinema.name} className="pb-4 border-b border-[#4a3f41] last:border-0 last:pb-0">
+                            {/* Cinema Info */}
+                            <div className="flex items-start gap-2 mb-3">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#ffd159] flex-shrink-0 mt-0.5">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                <circle cx="12" cy="10" r="3"/>
+                              </svg>
+                              <div className="flex-1">
+                                <div className="text-white font-semibold mb-1">{cinema.name || 'Rạp đang cập nhật'}</div>
+                                <div className="text-[#c9c4c5] text-sm">{cinema.address}</div>
+                              </div>
+                            </div>
+
+                            {/* Showtimes */}
+                            {cinema.showtimes.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {cinema.showtimes.map((showtime) => (
+                                  <button
+                                    key={showtime.id}
+                                    className="px-4 py-2 bg-gradient-to-r from-[#ffd159] to-[#ffc107] text-[#1a1415] rounded-lg text-sm font-bold shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200"
+                                    title={showtime.room ? `Phòng: ${showtime.room}` : undefined}
+                                  >
+                                    {showtime.label} - {showtime.format}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Book Button */}
+                      <div className="mt-6 pt-4 border-t border-[#4a3f41]">
                         <Link
-                          to={`/movie/${m?.id || encodeURIComponent(m?.title || '')}?cinema=${encodeURIComponent(c?.id || '')}`}
-                          className="inline-flex items-center justify-center px-6 py-2.5 bg-gradient-to-r from-[#e83b41] to-[#ff5258] hover:from-[#ff5258] hover:to-[#ff6b6b] text-white font-semibold text-sm rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                          to={card.movie.id ? `/movie/${card.movie.id}` : '#'}
+                          className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-[#e83b41] to-[#ff5258] hover:from-[#ff5258] hover:to-[#ff6b6b] text-white font-bold text-base rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                          onClick={(e) => {
+                            if (!card.movie.id) {
+                              e.preventDefault();
+                            }
+                          }}
                         >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
+                            <path d="M6 9v6M18 9v6"/>
+                          </svg>
                           Đặt vé
                         </Link>
                       </div>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
+
           </div>
         </section>
       </main>
+
       <Footer />
     </div>
   );
 }
-
-
-
