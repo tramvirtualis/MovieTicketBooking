@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Footer from '../components/Footer.jsx';
 import authService from '../services/authService.js';
+import { useNotification } from '../components/AdminDashboard/NotificationSystem.jsx';
 
 
 function GoogleButton() {
@@ -46,6 +47,7 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const { showToast, NotificationContainer } = useNotification();
 
   const showMessage = (type, text) => {
     setMessage({ type, text });
@@ -61,6 +63,7 @@ export default function SignIn() {
 
     if (result.success) {
       showMessage('success', 'Đăng nhập thành công!');
+      showToast('Đăng nhập thành công!', 'success');
       const user = result.data;
     
       // User data đã được lưu trong authService.login()
@@ -101,7 +104,8 @@ export default function SignIn() {
       }, 1000);
     } else {
       // Nếu login thất bại
-      showMessage('error', result.error || 'Tên đăng nhập hoặc mật khẩu không đúng');
+      const errorText = result.error || 'Tên đăng nhập hoặc mật khẩu không đúng';
+      showMessage('error', errorText);
     }
     
     setLoading(false);
@@ -109,6 +113,7 @@ export default function SignIn() {
 
   return (
     <div className="min-h-screen cinema-mood">
+      <NotificationContainer />
       <div className="split">
         <section className="intro">
           <div className="intro__content">
