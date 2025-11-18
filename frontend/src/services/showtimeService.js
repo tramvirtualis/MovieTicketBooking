@@ -92,6 +92,27 @@ const mapRoomTypeFromBackend = (roomType) => {
 
 const showtimeService = {
   /**
+   * Lấy showtime theo ID (Public)
+   * @param {number} showtimeId - ID của showtime
+   * @returns {Promise<Object>} Response từ server
+   */
+  getShowtimeById: async (showtimeId) => {
+    try {
+      const response = await axiosInstance.get(`/public/showtimes/${showtimeId}`);
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('[showtimeService] Error getting showtime by ID:', error);
+      return {
+        success: false,
+        error: error.message || 'Không thể lấy thông tin suất chiếu',
+      };
+    }
+  },
+
+  /**
    * Lấy danh sách lịch chiếu theo roomId (Manager)
    * @param {number} roomId - ID của phòng chiếu
    * @returns {Promise<Object>} Response từ server
@@ -210,17 +231,8 @@ const showtimeService = {
       }
 
       const url = `/public/showtimes?${params.toString()}`;
-      console.log('=== DEBUG: showtimeService.getPublicShowtimes ===');
-      console.log('Request URL:', url);
-      console.log('Params:', { movieId, province, date });
-
       const response = await axiosInstance.get(url);
-      console.log('Response status:', response.status);
-      console.log('Response data:', response.data);
-      
       const data = response.data.data || response.data || [];
-      console.log('Extracted data:', data);
-      console.log('Data length:', data.length);
       
       return {
         success: true,
@@ -228,10 +240,6 @@ const showtimeService = {
         message: response.data.message || 'Lấy danh sách lịch chiếu thành công',
       };
     } catch (error) {
-      console.error('=== ERROR: showtimeService.getPublicShowtimes ===');
-      console.error('Error:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
       return {
         success: false,
         error: error.message || 'Không thể lấy danh sách lịch chiếu',

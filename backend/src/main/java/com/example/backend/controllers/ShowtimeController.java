@@ -283,6 +283,32 @@ public class ShowtimeController {
     }
     
     /**
+     * Lấy showtime theo ID (public - không cần đăng nhập)
+     */
+    @GetMapping("/api/public/showtimes/{showtimeId}")
+    public ResponseEntity<?> getShowtimeById(@PathVariable Long showtimeId) {
+        try {
+            System.out.println("=== ShowtimeController.getShowtimeById ===");
+            System.out.println("showtimeId: " + showtimeId);
+            
+            ShowtimeResponseDTO showtime = showtimeService.getShowtimeById(showtimeId);
+            
+            System.out.println("Returning showtime: " + (showtime != null ? showtime.getShowtimeId() : "null"));
+            
+            return ResponseEntity.ok(showtime);
+        } catch (RuntimeException e) {
+            System.err.println("ERROR in getShowtimeById: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            System.err.println("ERROR in getShowtimeById: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    /**
      * Lấy danh sách ghế đã đặt cho showtime (public - không cần đăng nhập)
      */
     @GetMapping("/api/public/showtimes/{showtimeId}/booked-seats")

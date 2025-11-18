@@ -36,13 +36,13 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Long> {
      * Lấy showtimes theo movieId, province và date (public API)
      * Query trực tiếp qua MovieVersion để đảm bảo lấy được đúng
      */
-    @Query("SELECT s FROM Showtime s " +
-           "JOIN FETCH s.movieVersion mv " +
-           "JOIN FETCH mv.movie m " +
-           "JOIN FETCH s.cinemaRoom cr " +
-           "JOIN FETCH cr.cinemaComplex cc " +
-           "JOIN FETCH cc.address a " +
-           "WHERE mv.movie.movieId = :movieId " +
+    @Query("SELECT DISTINCT s FROM Showtime s " +
+           "INNER JOIN FETCH s.movieVersion mv " +
+           "INNER JOIN FETCH mv.movie m " +
+           "INNER JOIN FETCH s.cinemaRoom cr " +
+           "INNER JOIN FETCH cr.cinemaComplex cc " +
+           "INNER JOIN FETCH cc.address a " +
+           "WHERE m.movieId = :movieId " +
            "AND (:province IS NULL OR a.province = :province) " +
            "AND s.startTime >= :startOfDay " +
            "AND s.startTime < :endOfDay " +
@@ -55,33 +55,35 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Long> {
     
     /**
      * Lấy tất cả showtimes theo movieId và date (không filter province)
-     * Query trực tiếp qua MovieVersion để đảm bảo lấy được đúng
+     * Query đi từ Movie -> MovieVersion -> Showtime để đảm bảo lấy được đúng
+     * Chỉ lấy showtimes trong tương lai (startTime >= CURRENT_TIMESTAMP)
      */
-    @Query("SELECT s FROM Showtime s " +
-           "JOIN FETCH s.movieVersion mv " +
-           "JOIN FETCH mv.movie m " +
-           "JOIN FETCH s.cinemaRoom cr " +
-           "JOIN FETCH cr.cinemaComplex cc " +
-           "JOIN FETCH cc.address a " +
-           "WHERE mv.movie.movieId = :movieId " +
+    @Query("SELECT DISTINCT s FROM Showtime s " +
+           "INNER JOIN FETCH s.movieVersion mv " +
+           "INNER JOIN FETCH mv.movie m " +
+           "INNER JOIN FETCH s.cinemaRoom cr " +
+           "INNER JOIN FETCH cr.cinemaComplex cc " +
+           "INNER JOIN FETCH cc.address a " +
+           "WHERE m.movieId = :movieId " +
            "AND s.startTime >= :startOfDay " +
            "AND s.startTime < :endOfDay " +
+           "AND s.startTime >= CURRENT_TIMESTAMP " +
            "ORDER BY cc.name ASC, s.startTime ASC")
     List<Showtime> findPublicShowtimesWithoutProvince(@Param("movieId") Long movieId, 
-                                                       @Param("startOfDay") java.time.LocalDateTime startOfDay,
-                                                       @Param("endOfDay") java.time.LocalDateTime endOfDay);
+                                                      @Param("startOfDay") java.time.LocalDateTime startOfDay,
+                                                      @Param("endOfDay") java.time.LocalDateTime endOfDay);
     
     /**
      * Test query: Lấy tất cả showtimes theo movieId (không filter gì cả) - để debug
-     * Query trực tiếp qua MovieVersion để đảm bảo lấy được đúng
+     * Query đi từ Movie -> MovieVersion -> Showtime để đảm bảo lấy được đúng
      */
-    @Query("SELECT s FROM Showtime s " +
-           "JOIN FETCH s.movieVersion mv " +
-           "JOIN FETCH mv.movie m " +
-           "JOIN FETCH s.cinemaRoom cr " +
-           "JOIN FETCH cr.cinemaComplex cc " +
-           "JOIN FETCH cc.address a " +
-           "WHERE mv.movie.movieId = :movieId " +
+    @Query("SELECT DISTINCT s FROM Showtime s " +
+           "INNER JOIN FETCH s.movieVersion mv " +
+           "INNER JOIN FETCH mv.movie m " +
+           "INNER JOIN FETCH s.cinemaRoom cr " +
+           "INNER JOIN FETCH cr.cinemaComplex cc " +
+           "INNER JOIN FETCH cc.address a " +
+           "WHERE m.movieId = :movieId " +
            "ORDER BY s.startTime ASC")
     List<Showtime> findAllByMovieId(@Param("movieId") Long movieId);
 

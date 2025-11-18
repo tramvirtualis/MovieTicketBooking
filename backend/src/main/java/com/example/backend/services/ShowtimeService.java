@@ -98,6 +98,17 @@ public class ShowtimeService {
     }
     
     /**
+     * Lấy showtime theo ID (public - không cần đăng nhập)
+     */
+    @Transactional(readOnly = true)
+    public ShowtimeResponseDTO getShowtimeById(Long showtimeId) {
+        Showtime showtime = showtimeRepository.findByIdWithRelations(showtimeId)
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch chiếu với ID: " + showtimeId));
+        
+        return mapToDTO(showtime);
+    }
+    
+    /**
      * Lấy danh sách lịch chiếu theo roomId
      */
     @Transactional(readOnly = true)
@@ -192,9 +203,41 @@ public class ShowtimeService {
         System.out.println("province: " + province);
         System.out.println("date: " + date);
         
-        // First, test if there are ANY showtimes for this movie
+        // First, check if movie exists and has MovieVersions
+        try {
+            Optional<Movie> movieOpt = movieRepository.findById(movieId);
+            if (movieOpt.isPresent()) {
+                Movie movie = movieOpt.get();
+                System.out.println("Movie found: " + movie.getTitle() + " (ID: " + movie.getMovieId() + ")");
+                
+                // Check MovieVersions
+                List<MovieVersion> versions = movieVersionRepository.findByMovie(movie);
+                System.out.println("MovieVersions count: " + versions.size());
+                for (MovieVersion mv : versions) {
+                    System.out.println("  - MovieVersion ID: " + mv.getMovieVersionId() + 
+                        ", RoomType: " + mv.getRoomType() + 
+                        ", Language: " + mv.getLanguage());
+                    // Count showtimes for this version by querying
+                    List<Showtime> versionShowtimes = showtimeRepository.findAll().stream()
+                        .filter(st -> st.getMovieVersion() != null && 
+                                     st.getMovieVersion().getMovieVersionId().equals(mv.getMovieVersionId()))
+                        .collect(Collectors.toList());
+                    System.out.println("    Showtimes count for this version: " + versionShowtimes.size());
+                    if (!versionShowtimes.isEmpty()) {
+                        System.out.println("    First showtime: " + versionShowtimes.get(0).getStartTime());
+                    }
+                }
+            } else {
+                System.out.println("ERROR: Movie not found with ID: " + movieId);
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR checking movie and versions: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        // Test if there are ANY showtimes for this movie
         List<Showtime> allMovieShowtimes = showtimeRepository.findAllByMovieId(movieId);
-        System.out.println("Total showtimes for movie " + movieId + ": " + allMovieShowtimes.size());
+        System.out.println("Total showtimes for movie " + movieId + " (via query): " + allMovieShowtimes.size());
         if (!allMovieShowtimes.isEmpty()) {
             Showtime first = allMovieShowtimes.get(0);
             System.out.println("First showtime ID: " + first.getShowtimeId());
@@ -218,6 +261,33 @@ public class ShowtimeService {
         // Get showtimes for the date (without province filter)
         List<Showtime> allShowtimes = showtimeRepository.findPublicShowtimesWithoutProvince(movieId, startOfDay, endOfDay);
         System.out.println("Showtimes for date " + date + ": " + allShowtimes.size());
+        
+        // Debug: Log details of each showtime found
+        if (!allShowtimes.isEmpty()) {
+            System.out.println("=== DEBUG: Showtimes found ===");
+            for (int i = 0; i < Math.min(allShowtimes.size(), 5); i++) {
+                Showtime st = allShowtimes.get(i);
+                System.out.println("Showtime " + (i+1) + ":");
+                System.out.println("  - ID: " + st.getShowtimeId());
+                System.out.println("  - StartTime: " + st.getStartTime());
+                if (st.getMovieVersion() != null) {
+                    System.out.println("  - MovieVersion ID: " + st.getMovieVersion().getMovieVersionId());
+                    System.out.println("  - RoomType: " + st.getMovieVersion().getRoomType());
+                    if (st.getMovieVersion().getMovie() != null) {
+                        System.out.println("  - Movie ID: " + st.getMovieVersion().getMovie().getMovieId());
+                    }
+                } else {
+                    System.out.println("  - MovieVersion: NULL!");
+                }
+                if (st.getCinemaRoom() != null && st.getCinemaRoom().getCinemaComplex() != null) {
+                    System.out.println("  - CinemaComplex ID: " + st.getCinemaRoom().getCinemaComplex().getComplexId());
+                    System.out.println("  - CinemaComplex Name: " + st.getCinemaRoom().getCinemaComplex().getName());
+                    if (st.getCinemaRoom().getCinemaComplex().getAddress() != null) {
+                        System.out.println("  - Province: " + st.getCinemaRoom().getCinemaComplex().getAddress().getProvince());
+                    }
+                }
+            }
+        }
         
         // Filter by province in Java code for more flexible matching
         List<Showtime> showtimes;
@@ -250,9 +320,21 @@ public class ShowtimeService {
             System.out.println("After province filter: " + showtimes.size() + " showtimes");
         }
         
-        List<ShowtimeResponseDTO> result = showtimes.stream()
-            .map(this::mapToDTO)
-            .collect(Collectors.toList());
+        // Map to DTO and handle any mapping errors
+        List<ShowtimeResponseDTO> result = new ArrayList<>();
+        for (Showtime st : showtimes) {
+            try {
+                ShowtimeResponseDTO dto = mapToDTO(st);
+                result.add(dto);
+                System.out.println("Mapped showtime " + st.getShowtimeId() + " to DTO: " + 
+                    "cinemaComplexId=" + dto.getCinemaComplexId() + 
+                    ", roomType=" + dto.getRoomType() + 
+                    ", startTime=" + dto.getStartTime());
+            } catch (Exception e) {
+                System.err.println("ERROR mapping showtime " + st.getShowtimeId() + ": " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
         
         System.out.println("Final result count: " + result.size());
         System.out.println("=== DEBUG: getPublicShowtimes END ===");

@@ -138,6 +138,7 @@ export default function BookTicket() {
   const dateFromUrl = searchParams.get('date');
   const formatFromUrl = searchParams.get('format');
   const cinemaNameFromUrl = searchParams.get('cinemaName');
+  const showtimeIdFromUrl = searchParams.get('showtimeId'); // Get showtimeId directly
 
   const [selectedMovie, setSelectedMovie] = useState(movieIdFromUrl || '');
   const [selectedCinema, setSelectedCinema] = useState(cinemaIdFromUrl || '');
@@ -219,23 +220,75 @@ export default function BookTicket() {
     }
   }, [movieIdFromUrl, cinemaIdFromUrl, showtimeFromUrl]);
 
+  const [loadingShowtime, setLoadingShowtime] = useState(false);
+  const [showtimeError, setShowtimeError] = useState(null);
+
   // Initialize showtime from URL params - load from database
   useEffect(() => {
-    if (movieIdFromUrl && cinemaIdFromUrl && showtimeFromUrl && dateFromUrl && !selectedShowtime) {
+    if (movieIdFromUrl && showtimeIdFromUrl && !selectedShowtime && !loadingShowtime) {
+      // If showtimeId is provided, load showtime directly by ID
+      const loadShowtimeById = async () => {
+        setLoadingShowtime(true);
+        setShowtimeError(null);
+        try {
+          console.log('[BookTicket] Loading showtime by ID:', showtimeIdFromUrl);
+          const showtimeResult = await showtimeService.getShowtimeById(Number(showtimeIdFromUrl));
+          console.log('[BookTicket] Showtime API response:', showtimeResult);
+          
+          if (showtimeResult.success && showtimeResult.data) {
+            const st = showtimeResult.data;
+            console.log('[BookTicket] Showtime data received:', st);
+            
+            // Validate required fields
+            if (!st.showtimeId || !st.cinemaRoomId) {
+              throw new Error('Dữ liệu suất chiếu không đầy đủ');
+            }
+            
+            const mockShowtime = {
+              showtimeId: st.showtimeId,
+              movieId: st.movieId || Number(movieIdFromUrl),
+              roomId: st.cinemaRoomId,
+              startTime: st.startTime,
+              endTime: st.endTime
+            };
+            console.log('[BookTicket] Loaded showtime:', mockShowtime);
+            setSelectedShowtime(mockShowtime);
+            if (st.cinemaComplexId) {
+              setSelectedCinema(String(st.cinemaComplexId));
+            }
+            setSelectedMovie(movieIdFromUrl);
+            setStep(2); // Ensure we're on step 2
+          } else {
+            const errorMsg = showtimeResult.error || 'Không thể tải thông tin suất chiếu';
+            console.error('[BookTicket] Failed to load showtime:', errorMsg);
+            setShowtimeError(errorMsg);
+          }
+        } catch (error) {
+          console.error('[BookTicket] Error loading showtime by ID:', error);
+          setShowtimeError(error.message || 'Có lỗi xảy ra khi tải thông tin suất chiếu');
+        } finally {
+          setLoadingShowtime(false);
+        }
+      };
+      
+      loadShowtimeById();
+    } else if (movieIdFromUrl && cinemaIdFromUrl && showtimeFromUrl && dateFromUrl && !selectedShowtime && !showtimeIdFromUrl && !loadingShowtime) {
+      // Fallback: Load by time matching (old method)
       const [hours, minutes] = showtimeFromUrl.split(':');
       const showtimeDate = new Date(dateFromUrl);
       showtimeDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
       
-      // Load actual showtime to get roomId and showtimeId
       const loadShowtime = async () => {
+        setLoadingShowtime(true);
+        setShowtimeError(null);
         try {
+          console.log('[BookTicket] Loading showtime by time matching (fallback)');
           const showtimeResult = await showtimeService.getPublicShowtimes(
             Number(movieIdFromUrl),
-            null, // province - will be determined from cinema
+            null,
             dateFromUrl
           );
           if (showtimeResult.success && showtimeResult.data) {
-            // Find showtime matching the time and cinema
             const matchingShowtime = showtimeResult.data.find(st => {
               const stTime = new Date(st.startTime);
               return stTime.getHours() === parseInt(hours) && 
@@ -253,16 +306,24 @@ export default function BookTicket() {
               setSelectedShowtime(mockShowtime);
               setSelectedCinema(String(matchingShowtime.cinemaComplexId));
               setSelectedMovie(movieIdFromUrl);
+              setStep(2);
+            } else {
+              setShowtimeError('Không tìm thấy suất chiếu phù hợp');
             }
+          } else {
+            setShowtimeError(showtimeResult.error || 'Không thể tải danh sách suất chiếu');
           }
         } catch (error) {
-          console.error('Error loading showtime:', error);
+          console.error('[BookTicket] Error loading showtime:', error);
+          setShowtimeError(error.message || 'Có lỗi xảy ra khi tải thông tin suất chiếu');
+        } finally {
+          setLoadingShowtime(false);
         }
       };
       
       loadShowtime();
     }
-  }, [movieIdFromUrl, cinemaIdFromUrl, showtimeFromUrl, dateFromUrl, selectedShowtime]);
+  }, [movieIdFromUrl, cinemaIdFromUrl, showtimeFromUrl, dateFromUrl, showtimeIdFromUrl, selectedShowtime, loadingShowtime]);
 
   // Get available showtimes for selected movie and cinema
   const availableShowtimes = useMemo(() => {
@@ -276,15 +337,24 @@ export default function BookTicket() {
     );
   }, [selectedMovie, selectedCinema]);
 
+  const [roomError, setRoomError] = useState(null);
+
   // Load room and seats from database when showtime is selected
   useEffect(() => {
     const loadRoomAndSeats = async () => {
-      if (!selectedShowtime || !selectedShowtime.roomId) return;
+      if (!selectedShowtime || !selectedShowtime.roomId) {
+        console.log('[BookTicket] No showtime or roomId, skipping room load');
+        return;
+      }
       
+      console.log('[BookTicket] Loading room data for roomId:', selectedShowtime.roomId);
       setLoadingRoom(true);
+      setRoomError(null);
       try {
         // Load room with seats
         const roomResult = await cinemaRoomService.getPublicRoomById(selectedShowtime.roomId);
+        console.log('[BookTicket] Room API response:', roomResult);
+        
         if (roomResult.success && roomResult.data) {
           // Map seats from database format to frontend format
           const mappedSeats = (roomResult.data.seats || []).map(seat => ({
@@ -306,18 +376,26 @@ export default function BookTicket() {
             seats: mappedSeats
           };
           
+          console.log('[BookTicket] Mapped room data:', mappedRoom);
           setRoomData(mappedRoom);
+        } else {
+          const errorMsg = roomResult.error || 'Không thể tải thông tin phòng chiếu';
+          console.error('[BookTicket] Failed to load room:', errorMsg);
+          setRoomError(errorMsg);
         }
         
         // Load booked seats if showtimeId exists
         if (selectedShowtime.showtimeId && typeof selectedShowtime.showtimeId === 'number') {
+          console.log('[BookTicket] Loading booked seats for showtimeId:', selectedShowtime.showtimeId);
           const bookedResult = await showtimeService.getBookedSeats(selectedShowtime.showtimeId);
+          console.log('[BookTicket] Booked seats response:', bookedResult);
           if (bookedResult.success && bookedResult.data) {
             setBookedSeatIds(new Set(bookedResult.data));
           }
         }
       } catch (error) {
-        console.error('Error loading room and seats:', error);
+        console.error('[BookTicket] Error loading room and seats:', error);
+        setRoomError(error.message || 'Có lỗi xảy ra khi tải thông tin phòng chiếu');
       } finally {
         setLoadingRoom(false);
       }
@@ -632,7 +710,80 @@ export default function BookTicket() {
             {/* Step 2: Select Seats */}
             {step === 2 && (
               <>
-                {selectedRoom && selectedShowtime ? (
+                {loadingShowtime ? (
+                  <div className="book-ticket-step">
+                    <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.7)' }}>
+                      <p>Đang tải thông tin suất chiếu...</p>
+                    </div>
+                  </div>
+                ) : showtimeError ? (
+                  <div className="book-ticket-step">
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#f87171' }}>
+                      <p style={{ marginBottom: '16px' }}>{showtimeError}</p>
+                      <button
+                        onClick={() => navigate('/')}
+                        style={{
+                          padding: '12px 24px',
+                          background: '#e83b41',
+                          border: 'none',
+                          borderRadius: '8px',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          fontWeight: 600
+                        }}
+                      >
+                        Về trang chủ
+                      </button>
+                    </div>
+                  </div>
+                ) : !selectedShowtime ? (
+                  <div className="book-ticket-step">
+                    <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.7)' }}>
+                      <p>Không tìm thấy thông tin suất chiếu</p>
+                      <button
+                        onClick={() => navigate('/')}
+                        style={{
+                          padding: '12px 24px',
+                          background: '#e83b41',
+                          border: 'none',
+                          borderRadius: '8px',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          marginTop: '16px'
+                        }}
+                      >
+                        Về trang chủ
+                      </button>
+                    </div>
+                  </div>
+                ) : loadingRoom ? (
+                  <div className="book-ticket-step">
+                    <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.7)' }}>
+                      <p>Đang tải thông tin phòng chiếu...</p>
+                    </div>
+                  </div>
+                ) : roomError ? (
+                  <div className="book-ticket-step">
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#f87171' }}>
+                      <p style={{ marginBottom: '16px' }}>{roomError}</p>
+                      <button
+                        onClick={() => navigate('/')}
+                        style={{
+                          padding: '12px 24px',
+                          background: '#e83b41',
+                          border: 'none',
+                          borderRadius: '8px',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          fontWeight: 600
+                        }}
+                      >
+                        Về trang chủ
+                      </button>
+                    </div>
+                  </div>
+                ) : selectedRoom && selectedShowtime ? (
                   <div className="book-ticket-step">
                     <div className="book-ticket-seat-selection">
                       <div className="book-ticket-seat-selection__header">
@@ -729,7 +880,22 @@ export default function BookTicket() {
                 ) : (
                   <div className="book-ticket-step">
                     <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.7)' }}>
-                      <p>Đang tải thông tin suất chiếu...</p>
+                      <p>Không có thông tin phòng chiếu</p>
+                      <button
+                        onClick={() => navigate('/')}
+                        style={{
+                          padding: '12px 24px',
+                          background: '#e83b41',
+                          border: 'none',
+                          borderRadius: '8px',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          marginTop: '16px'
+                        }}
+                      >
+                        Về trang chủ
+                      </button>
                     </div>
                   </div>
                 )}

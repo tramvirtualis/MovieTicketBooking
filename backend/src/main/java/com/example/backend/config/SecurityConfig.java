@@ -59,6 +59,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/reviews/movie/**").permitAll() // Public access to movie reviews
                 .requestMatchers("/api/enums/**").permitAll() // Public access to enum values
+                .requestMatchers("/api/public/showtimes/**").permitAll() // Public access to showtimes
                 
                 // WebSocket endpoints - không cần authentication
                 .requestMatchers("/ws/**").permitAll()

@@ -6,7 +6,6 @@ import com.example.backend.entities.Price;
 import com.example.backend.entities.enums.RoomType;
 import com.example.backend.entities.enums.SeatType;
 import com.example.backend.repositories.PriceRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,10 +15,14 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class PriceService {
     
     private final PriceRepository priceRepository;
+    
+    // Constructor for dependency injection
+    public PriceService(PriceRepository priceRepository) {
+        this.priceRepository = priceRepository;
+    }
     
     /**
      * Lấy tất cả giá từ database
