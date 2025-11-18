@@ -23,6 +23,8 @@ import FoodAndDrinks from './pages/FoodAndDrinks.jsx';
 import FoodAndDrinksWithTicket from './pages/FoodAndDrinksWithTicket.jsx';
 import Checkout from './pages/Checkout.jsx';
 import BookTicket from './pages/BookTicket.jsx';
+import VnPayReturn from './pages/VnPayReturn.jsx';
+import FakeVnPay from './pages/FakeVnPay.jsx';
 
 export default function App() {
   return (
@@ -97,6 +99,16 @@ export default function App() {
         <Route path="/book-ticket" element={
           <ProtectedRoute allowedRoles="CUSTOMER">
             <BookTicket />
+          </ProtectedRoute>
+        } />
+        <Route path="/payment/fake-vnpay" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <FakeVnPay />
+          </ProtectedRoute>
+        } />
+        <Route path="/payment/vnpay-return" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <VnPayReturn />
           </ProtectedRoute>
         } />
         

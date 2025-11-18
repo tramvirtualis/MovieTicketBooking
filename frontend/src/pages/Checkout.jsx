@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import { customerVoucherService } from '../services/customerVoucherService.js';
+import paymentService from '../services/paymentService.js';
 
 // Get saved vouchers from localStorage
 const getSavedVouchers = () => {
@@ -126,13 +127,41 @@ export default function Checkout() {
     }).format(price);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Here you would process the payment
-    alert('Đặt hàng thành công!');
-    localStorage.removeItem('checkoutCart');
-    localStorage.removeItem('pendingBooking');
-    navigate('/orders');
+
+    const totalAmount = getTotalAmount();
+    if (totalAmount <= 0) {
+      alert('Số tiền thanh toán không hợp lệ.');
+      return;
+    }
+
+    // Thanh toán qua VNPAY (fake gateway)
+    if (paymentMethod === 'VNPAY') {
+      try {
+        const payload = {
+          amount: totalAmount,
+          voucherId: selectedVoucher?.voucherId || null,
+          orderDescription: 'Thanh toán đơn hàng tại Cinesmart',
+        };
+
+        const response = await paymentService.createVnPayPayment(payload);
+        if (response.success && response.data?.txnRef) {
+          const txnRef = response.data.txnRef;
+          // Điều hướng sang trang fake VNPay trong hệ thống
+          navigate(`/payment/fake-vnpay?txnRef=${encodeURIComponent(txnRef)}&amount=${encodeURIComponent(totalAmount)}`);
+        } else {
+          alert(response.message || 'Không thể khởi tạo đơn hàng thanh toán. Vui lòng thử lại.');
+        }
+      } catch (error) {
+        console.error('Error creating VNPay payment:', error);
+        alert(error.message || 'Không thể khởi tạo đơn hàng thanh toán. Vui lòng thử lại.');
+      }
+      return;
+    }
+
+    // Các phương thức thanh toán khác (chưa tích hợp)
+    alert('Chức năng thanh toán cho phương thức này chưa được hỗ trợ. Vui lòng chọn VNPay.');
   };
 
   const getSubtotal = () => {
