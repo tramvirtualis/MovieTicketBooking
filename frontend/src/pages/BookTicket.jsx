@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
@@ -6,6 +6,7 @@ import { cinemaRoomService } from '../services/cinemaRoomService';
 import showtimeService from '../services/showtimeService';
 import { movieService } from '../services/movieService';
 import { cinemaComplexService } from '../services/cinemaComplexService';
+import { websocketService } from '../services/websocketService';
 
 // Generate seats for a room
 function generateSeats(rows, cols) {
@@ -222,6 +223,9 @@ export default function BookTicket() {
 
   const [loadingShowtime, setLoadingShowtime] = useState(false);
   const [showtimeError, setShowtimeError] = useState(null);
+  const [temporarilySelectedSeats, setTemporarilySelectedSeats] = useState(new Set()); // Seats selected by other users
+  const websocketSubscribedRef = useRef(false);
+  const selectedSeatsRef = useRef([]); // Keep latest selectedSeats for WebSocket callback
 
   // Initialize showtime from URL params - load from database
   useEffect(() => {
@@ -404,6 +408,87 @@ export default function BookTicket() {
     loadRoomAndSeats();
   }, [selectedShowtime]);
 
+  // Update ref when selectedSeats changes
+  useEffect(() => {
+    selectedSeatsRef.current = selectedSeats;
+  }, [selectedSeats]);
+
+  // WebSocket connection for real-time seat selection
+  useEffect(() => {
+    if (!selectedShowtime || !selectedShowtime.showtimeId) {
+      return;
+    }
+
+    const showtimeId = selectedShowtime.showtimeId;
+
+    // Connect WebSocket if not connected
+    if (!websocketService.getConnectionStatus()) {
+      console.log('[BookTicket] Connecting WebSocket for seat selection...');
+      websocketService.connectForSeats();
+    }
+
+    // Wait for connection and then subscribe
+    const setupSubscription = () => {
+      if (websocketService.getConnectionStatus()) {
+        if (!websocketSubscribedRef.current) {
+          console.log('[BookTicket] Subscribing to seat updates for showtime:', showtimeId);
+          
+          websocketService.subscribeToSeats(showtimeId, (update) => {
+            console.log('[BookTicket] Received seat update:', update);
+            
+            // Update temporarily selected seats, but exclude seats that this user has selected
+            setTemporarilySelectedSeats(prev => {
+              const newSet = new Set();
+              const currentUserSeats = selectedSeatsRef.current; // Use ref to get latest value
+              
+              // Get all selected seats from server
+              if (update.selectedSeats && Array.isArray(update.selectedSeats)) {
+                update.selectedSeats.forEach(seatId => {
+                  // Only add if this user hasn't selected it
+                  if (!currentUserSeats.includes(seatId)) {
+                    newSet.add(seatId);
+                  }
+                });
+              } else {
+                // Fallback: update based on status
+                const currentSet = new Set(prev);
+                if (update.status === 'SELECTED') {
+                  // Only add if this user hasn't selected it
+                  if (!currentUserSeats.includes(update.seatId)) {
+                    currentSet.add(update.seatId);
+                  }
+                } else if (update.status === 'DESELECTED') {
+                  currentSet.delete(update.seatId);
+                }
+                return currentSet;
+              }
+              
+              return newSet;
+            });
+          });
+
+          websocketSubscribedRef.current = true;
+        }
+      } else {
+        // Retry after a short delay
+        setTimeout(setupSubscription, 500);
+      }
+    };
+
+    // Wait a bit for connection to establish
+    const timeoutId = setTimeout(setupSubscription, 1000);
+
+    // Cleanup function
+    return () => {
+      clearTimeout(timeoutId);
+      if (websocketSubscribedRef.current && showtimeId) {
+        console.log('[BookTicket] Unsubscribing from seat updates for showtime:', showtimeId);
+        websocketService.unsubscribeFromSeats(showtimeId);
+        websocketSubscribedRef.current = false;
+      }
+    };
+  }, [selectedShowtime]);
+
   // Get room for selected showtime - use database data if available
   const selectedRoom = useMemo(() => {
     if (roomData) return roomData; // Use data from database
@@ -447,9 +532,10 @@ export default function BookTicket() {
     }).format(price);
   };
 
-  const getSeatColor = (type, isBooked, isSelected) => {
-    if (isBooked) return '#666666';
-    if (isSelected) return '#4caf50';
+  const getSeatColor = (type, isBooked, isSelected, isTemporarilySelected) => {
+    if (isBooked) return '#666666'; // Gray for booked seats
+    if (isSelected) return '#4caf50'; // Green for user's selected seats
+    if (isTemporarilySelected) return '#ff9800'; // Orange for temporarily selected by others
     const colorMap = {
       'NORMAL': '#4a90e2',
       'VIP': '#ffd159',
@@ -460,14 +546,27 @@ export default function BookTicket() {
 
   const handleSeatClick = (seatId) => {
     if (bookedSeatsForShowtime.has(seatId)) return; // Can't select booked seats
+    if (temporarilySelectedSeats.has(seatId) && !selectedSeats.includes(seatId)) {
+      // Can't select seats that are temporarily selected by others (unless it's already selected by this user)
+      return;
+    }
     
+    const wasSelected = selectedSeats.includes(seatId);
+    const action = wasSelected ? 'DESELECT' : 'SELECT';
+    
+    // Update local state
     setSelectedSeats(prev => {
-      if (prev.includes(seatId)) {
+      if (wasSelected) {
         return prev.filter(id => id !== seatId);
       } else {
         return [...prev, seatId];
       }
     });
+
+    // Send WebSocket message
+    if (selectedShowtime && selectedShowtime.showtimeId) {
+      websocketService.sendSeatSelection(selectedShowtime.showtimeId, seatId, action);
+    }
   };
 
   const renderSeatLayout = () => {
@@ -546,21 +645,23 @@ export default function BookTicket() {
                     const isCouple = seat.type === 'COUPLE';
                     const isBooked = bookedSeatsForShowtime.has(seat.seatId);
                     const isSelected = selectedSeats.includes(seat.seatId);
+                    const isTemporarilySelected = temporarilySelectedSeats.has(seat.seatId) && !isSelected;
+                    const isDisabled = isBooked || isTemporarilySelected;
                     
                     return (
                       <button
                         key={seat.seatId}
-                        className={`seat-button ${isCouple ? 'seat-button--couple' : ''} ${isBooked ? 'seat-button--booked' : ''} ${isSelected ? 'seat-button--selected' : ''}`}
+                        className={`seat-button ${isCouple ? 'seat-button--couple' : ''} ${isBooked ? 'seat-button--booked' : ''} ${isSelected ? 'seat-button--selected' : ''} ${isTemporarilySelected ? 'seat-button--temporarily-selected' : ''}`}
                         style={{
-                          backgroundColor: getSeatColor(seat.type, isBooked, isSelected),
-                          borderColor: isBooked ? '#666' : (isSelected ? '#4caf50' : getSeatColor(seat.type, false, false)),
+                          backgroundColor: getSeatColor(seat.type, isBooked, isSelected, isTemporarilySelected),
+                          borderColor: isBooked ? '#666' : (isSelected ? '#4caf50' : (isTemporarilySelected ? '#ff9800' : getSeatColor(seat.type, false, false, false))),
                           width: isCouple ? '64px' : '44px',
-                          cursor: isBooked ? 'not-allowed' : 'pointer',
-                          opacity: isBooked ? 0.5 : 1
+                          cursor: isDisabled ? 'not-allowed' : 'pointer',
+                          opacity: isBooked ? 0.5 : (isTemporarilySelected ? 0.7 : 1)
                         }}
                         onClick={() => handleSeatClick(seat.seatId)}
-                        disabled={isBooked}
-                        title={`${seat.seatId} - ${seat.type === 'NORMAL' ? 'Thường' : seat.type === 'VIP' ? 'VIP' : 'Đôi'}${isBooked ? ' (Đã đặt)' : ''}`}
+                        disabled={isDisabled}
+                        title={`${seat.seatId} - ${seat.type === 'NORMAL' ? 'Thường' : seat.type === 'VIP' ? 'VIP' : 'Đôi'}${isBooked ? ' (Đã đặt)' : (isTemporarilySelected ? ' (Đang được chọn)' : '')}`}
                       >
                         <span className="seat-button__number">{seat.column}</span>
                         <span className="seat-button__type">

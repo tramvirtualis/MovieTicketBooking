@@ -160,6 +160,111 @@ class WebSocketService {
   getConnectionStatus() {
     return this.isConnected;
   }
+
+  // Seat selection methods
+  subscribeToSeats(showtimeId, onSeatUpdate) {
+    if (!this.client || !this.isConnected) {
+      console.error('WebSocket not connected, cannot subscribe to seats');
+      return null;
+    }
+
+    const destination = '/topic/seats';
+
+    const subscription = this.client.subscribe(destination, (message) => {
+      try {
+        const update = JSON.parse(message.body);
+        console.log('[WebSocket] Received seat update:', update);
+        
+        // Only process updates for the current showtime
+        if (update.showtimeId === showtimeId && onSeatUpdate) {
+          onSeatUpdate(update);
+        }
+      } catch (error) {
+        console.error('Error parsing seat update:', error);
+      }
+    });
+
+    this.subscriptions.set(`seats-${showtimeId}`, subscription);
+    console.log(`[WebSocket] Subscribed to ${destination} for showtime ${showtimeId}`);
+    return subscription;
+  }
+
+  unsubscribeFromSeats(showtimeId) {
+    const key = `seats-${showtimeId}`;
+    const subscription = this.subscriptions.get(key);
+    if (subscription) {
+      subscription.unsubscribe();
+      this.subscriptions.delete(key);
+      console.log(`[WebSocket] Unsubscribed from seats for showtime ${showtimeId}`);
+    }
+  }
+
+  sendSeatSelection(showtimeId, seatId, action) {
+    if (!this.client || !this.isConnected) {
+      console.error('WebSocket not connected, cannot send seat selection');
+      return;
+    }
+
+    const message = {
+      showtimeId: showtimeId,
+      seatId: seatId,
+      action: action, // "SELECT" or "DESELECT"
+      sessionId: this.generateSessionId() // Generate a unique session ID
+    };
+
+    this.client.publish({
+      destination: '/app/seat/select',
+      body: JSON.stringify(message)
+    });
+
+    console.log(`[WebSocket] Sent seat selection: ${action} seat ${seatId} for showtime ${showtimeId}`);
+  }
+
+  generateSessionId() {
+    // Generate a simple session ID (can be improved)
+    return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  // Connect without userId (for public seat selection)
+  connectForSeats() {
+    if (this.getConnectionStatus()) {
+      console.log('[WebSocket] Already connected for seats');
+      return;
+    }
+
+    // Create SockJS connection
+    const socket = new SockJS('http://localhost:8080/ws');
+    
+    // Create STOMP client
+    this.client = new Client({
+      webSocketFactory: () => socket,
+      reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+      onConnect: () => {
+        console.log('[WebSocket] Connected for seat selection');
+        this.isConnected = true;
+        this.reconnectAttempts = 0;
+      },
+      onDisconnect: () => {
+        console.log('[WebSocket] Disconnected from seat selection');
+        this.isConnected = false;
+        this.subscriptions.clear();
+      },
+      onStompError: (frame) => {
+        console.error('[WebSocket] STOMP error:', frame);
+        this.isConnected = false;
+        this.handleReconnect();
+      },
+      onWebSocketError: (event) => {
+        console.error('[WebSocket] WebSocket error:', event);
+        this.isConnected = false;
+        this.handleReconnect();
+      }
+    });
+
+    this.client.activate();
+  }
 }
 
 // Export singleton instance
