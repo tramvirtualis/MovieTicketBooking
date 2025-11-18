@@ -315,6 +315,10 @@ public class AuthService {
             throw new Exception("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
+        if (Boolean.FALSE.equals(user.getStatus())) {
+            throw new Exception("Tài khoản của bạn đã bị chặn. Vui lòng liên hệ quản trị viên.");
+        }
+
         String role = "";
         String name = null;
         LocalDate dob = null;
