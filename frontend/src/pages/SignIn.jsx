@@ -1,31 +1,33 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useGoogleLogin } from '@react-oauth/google';
 import Footer from '../components/Footer.jsx';
 import authService from '../services/authService.js';
 import { useNotification } from '../components/AdminDashboard/NotificationSystem.jsx';
 
 
-function GoogleButton() {
+function GoogleButton({ onClick, loading }) {
   return (
     <button
       type="button"
       className="btn btn--google"
       aria-label="Continue with Google"
-      style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         gap: '10px',
         width: '100%',
         marginTop: '8px'
       }}
-      disabled
+      onClick={onClick}
+      disabled={loading}
     >
-      <svg 
-        xmlns="http://www.w3.org/2000/svg" 
-        width="20" 
-        height="20" 
-        viewBox="0 0 48 48" 
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="20"
+        height="20"
+        viewBox="0 0 48 48"
         aria-hidden="true"
       >
         <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.602 31.91 29.197 35 24 35 16.82 35 11 29.18 11 22S16.82 9 24 9c3.59 0 6.84 1.353 9.35 3.57l5.657-5.657C34.884 3.029 29.7 1 24 1 10.745 1 0 11.745 0 25s10.745 24 24 24c12.426 0 23-9.065 23-24 0-1.604-.175-3.162-.389-4.917z"/>
@@ -34,7 +36,7 @@ function GoogleButton() {
         <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-1.32 3.91-5.725 7-10.922 7-5.057 0-9.395-3.23-10.95-7.726l-2.34 1.807C13.008 39.495 21.303 45 31 45c12.426 0 23-9.065 23-24 0-1.604-.175-3.162-.389-4.917z"/>
       </svg>
       <span style={{ fontSize: '14px', fontWeight: 500 }}>
-        Tiếp tục với Google
+        {loading ? 'Đang kết nối Google...' : 'Tiếp tục với Google'}
       </span>
     </button>
   );
@@ -46,6 +48,7 @@ export default function SignIn() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const { showToast, NotificationContainer } = useNotification();
 
@@ -54,61 +57,91 @@ export default function SignIn() {
     setTimeout(() => setMessage({ type: '', text: '' }), 5000);
   };
 
+  const handleLoginSuccess = (userData, source = 'PASSWORD') => {
+    showMessage('success', 'Đăng nhập thành công!');
+    showToast('Đăng nhập thành công!', 'success');
+
+    console.log(`=== LOGIN DEBUG (${source}) ===`);
+    console.log('Full login response data:', userData);
+    console.log('User role (raw):', userData?.role);
+    console.log('User role type:', typeof userData?.role);
+    console.log('User role value:', JSON.stringify(userData?.role));
+
+    setTimeout(() => {
+      const role = (userData?.role || '').toString().toUpperCase().trim();
+      console.log('=== REDIRECT DEBUG ===');
+      console.log('Final role for redirect:', role);
+      console.log('Role === "MANAGER":', role === 'MANAGER');
+      console.log('Role === "ADMIN":', role === 'ADMIN');
+
+      if (role === 'ADMIN') {
+        console.log('Redirecting to /admin');
+        navigate('/admin');
+      } else if (role === 'MANAGER') {
+        console.log('Redirecting to /manager');
+        navigate('/manager');
+      } else if (role === 'CUSTOMER') {
+        console.log('Redirecting to home (CUSTOMER)');
+        navigate('/');
+      } else {
+        console.warn('Unknown role, redirecting to home. Role was:', role);
+        navigate('/');
+      }
+    }, 1000);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setMessage({ type: '', text: '' });
 
-    const result = await authService.login(username, password);
+    try {
+      const result = await authService.login(username, password);
 
-    if (result.success) {
-      showMessage('success', 'Đăng nhập thành công!');
-      showToast('Đăng nhập thành công!', 'success');
-      const user = result.data;
-    
-      // User data đã được lưu trong authService.login()
-      // Debug: Log để kiểm tra
-      console.log('=== LOGIN DEBUG ===');
-      console.log('Full login response data:', user);
-      console.log('User role (raw):', user.role);
-      console.log('User role type:', typeof user.role);
-      console.log('User role value:', JSON.stringify(user.role));
-      
-      // Kiểm tra role từ localStorage (đã được lưu trong authService)
-      const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      console.log('Saved user from localStorage:', savedUser);
-      console.log('Saved user role:', savedUser.role);
-      
-      // Chỉ cần redirect dựa trên role
-      setTimeout(() => {
-        // Lấy role từ user object hoặc từ localStorage
-        const role = (user.role || savedUser.role || '').toString().toUpperCase().trim();
-        console.log('=== REDIRECT DEBUG ===');
-        console.log('Final role for redirect:', role);
-        console.log('Role === "MANAGER":', role === 'MANAGER');
-        console.log('Role === "ADMIN":', role === 'ADMIN');
-        
-        if (role === 'ADMIN') {
-          console.log('Redirecting to /admin');
-          navigate('/admin');
-        } else if (role === 'MANAGER') {
-          console.log('Redirecting to /manager');
-          navigate('/manager');
-        } else if (role === 'CUSTOMER') {
-          console.log('Redirecting to home (CUSTOMER)');
-          navigate('/');
-        } else {
-          console.warn('Unknown role, redirecting to home. Role was:', role);
-          navigate('/');
-        }
-      }, 1000);
-    } else {
-      // Nếu login thất bại
-      const errorText = result.error || 'Tên đăng nhập hoặc mật khẩu không đúng';
-      showMessage('error', errorText);
+      if (result.success) {
+        handleLoginSuccess(result.data, 'PASSWORD');
+      } else {
+        const errorText = result.error || 'Tên đăng nhập hoặc mật khẩu không đúng';
+        showMessage('error', errorText);
+      }
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
+  };
+
+  const startGoogleLogin = useGoogleLogin({
+    flow: 'auth-code',
+    scope: 'openid email profile',
+    onSuccess: async (response) => {
+      try {
+        const result = await authService.loginWithGoogle(response.code);
+        if (result.success) {
+          handleLoginSuccess(result.data, 'GOOGLE');
+        } else {
+          showMessage('error', result.error || 'Không thể đăng nhập bằng Google');
+        }
+      } catch (err) {
+        showMessage('error', err.message || 'Không thể đăng nhập bằng Google');
+      } finally {
+        setGoogleLoading(false);
+      }
+    },
+    onError: () => {
+      setGoogleLoading(false);
+      showMessage('error', 'Không thể kết nối với Google. Vui lòng thử lại.');
+    },
+  });
+
+  const handleGoogleButtonClick = () => {
+    if (googleLoading) return;
+    setGoogleLoading(true);
+    try {
+      startGoogleLogin();
+    } catch (error) {
+      console.error('Google login init failed', error);
+      setGoogleLoading(false);
+      showMessage('error', 'Không thể khởi tạo đăng nhập Google. Vui lòng thử lại.');
+    }
   };
 
   return (
@@ -220,7 +253,7 @@ export default function SignIn() {
 
               {/* ✅ Thêm GoogleButton vào đúng vị trí trong form */}
               <div style={{ marginTop: '16px' }}>
-                <GoogleButton />
+                <GoogleButton onClick={handleGoogleButtonClick} loading={googleLoading} />
               </div>
             </form>
 
