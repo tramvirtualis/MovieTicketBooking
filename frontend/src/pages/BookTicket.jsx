@@ -955,16 +955,25 @@ export default function BookTicket() {
                               className="btn btn--primary"
                               onClick={() => {
                                 // Save booking info to localStorage
+                                // Đảm bảo seats là array và có ít nhất 1 ghế
+                                if (!selectedSeats || selectedSeats.length === 0) {
+                                  alert('Vui lòng chọn ít nhất một ghế');
+                                  return;
+                                }
+                                
                                 const bookingInfo = {
                                   movieId: selectedMovie || movieIdFromUrl,
                                   cinemaId: selectedCinema || cinemaIdFromUrl,
                                   cinemaName: cinemaData?.name || cinemaNameFromUrl,
                                   showtime: selectedShowtime,
+                                  showtimeId: selectedShowtime?.showtimeId || null, // Thêm showtimeId để Checkout có thể dùng
                                   room: selectedRoom,
-                                  seats: selectedSeats,
+                                  seats: Array.isArray(selectedSeats) ? selectedSeats : [], // Đảm bảo seats là array
                                   totalPrice: totalPrice,
                                   movieTitle: movieData?.title || ''
                                 };
+                                
+                                console.log('Saving bookingInfo to localStorage:', bookingInfo);
                                 localStorage.setItem('pendingBooking', JSON.stringify(bookingInfo));
                                 // Navigate to food and drinks page with ticket
                                 navigate('/food-drinks-with-ticket');

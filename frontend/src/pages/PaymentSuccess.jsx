@@ -7,117 +7,222 @@ const PaymentSuccess = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [paymentInfo, setPaymentInfo] = useState({
-    appid: '',
-    apptransid: '',
+    paymentMethod: '',
+    transactionId: '',
     amount: '',
     status: '',
-    pmcid: '',
-    bankcode: ''
+    orderId: '',
+    txnRef: '',
+    message: ''
   });
+  const [loading, setLoading] = useState(true);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   useEffect(() => {
-    // Lấy thông tin từ URL query parameters
-    const appid = searchParams.get('appid');
-    const apptransid = searchParams.get('apptransid');
-    const amount = searchParams.get('amount');
-    const status = searchParams.get('status');
-    const pmcid = searchParams.get('pmcid');
-    const bankcode = searchParams.get('bankcode');
+    // Xác định payment method từ URL params
+    const apptransid = searchParams.get('apptransid'); // ZaloPay
+    const orderId = searchParams.get('orderId'); // MoMo
+    const vnp_TxnRef = searchParams.get('vnp_TxnRef'); // VNPay
+    const status = searchParams.get('status'); // ZaloPay status
+    const resultCode = searchParams.get('resultCode'); // MoMo resultCode
+    const vnp_ResponseCode = searchParams.get('vnp_ResponseCode'); // VNPay response code
+    const amount = searchParams.get('amount') || searchParams.get('vnp_Amount'); // Amount
+    const txnRef = orderId || vnp_TxnRef || apptransid;
 
+    // Xác định payment method
+    let paymentMethod = 'UNKNOWN';
+    let transactionId = '';
+    let paymentStatus = '';
+    let isPaymentSuccess = false;
+
+    if (apptransid) {
+      // ZaloPay
+      paymentMethod = 'ZaloPay';
+      transactionId = apptransid;
+      paymentStatus = status === '1' ? 'Thành công' : 'Thất bại';
+      isPaymentSuccess = status === '1';
+    } else if (orderId) {
+      // MoMo
+      paymentMethod = 'MoMo';
+      transactionId = orderId;
+      paymentStatus = resultCode === '0' ? 'Thành công' : 'Thất bại';
+      isPaymentSuccess = resultCode === '0';
+    } else if (vnp_TxnRef) {
+      // VNPay
+      paymentMethod = 'VNPay';
+      transactionId = vnp_TxnRef;
+      paymentStatus = vnp_ResponseCode === '00' ? 'Thành công' : 'Thất bại';
+      isPaymentSuccess = vnp_ResponseCode === '00';
+    } else {
+      setLoading(false);
+      return;
+    }
+
+    // Set initial info
     setPaymentInfo({
-      appid,
-      apptransid,
-      amount,
-      status,
-      pmcid,
-      bankcode
+      paymentMethod,
+      transactionId,
+      amount: amount ? (parseInt(amount) / 100).toLocaleString('vi-VN') + ' đ' : '',
+      status: paymentStatus,
+      orderId: '',
+      txnRef: txnRef || '',
+      message: isPaymentSuccess ? 'Thanh toán thành công!' : 'Thanh toán thất bại.'
     });
-
-    console.log('Payment success info:', {
-      appid,
-      apptransid,
-      amount,
-      status,
-      pmcid,
-      bankcode
-    });
-
-    // Tạo order từ pending order khi thanh toán thành công
-    if (apptransid && status === '1') {
-      completeOrder(apptransid);
+    setIsSuccess(isPaymentSuccess);
+    
+    // Chỉ fetch order info nếu thanh toán thành công (vì chỉ lưu đơn thành công)
+    if (isPaymentSuccess && txnRef) {
+      fetchOrderInfo(txnRef);
+    } else {
+      setLoading(false);
     }
   }, [searchParams]);
 
-  const completeOrder = async (appTransId) => {
+  const fetchOrderInfo = async (txnRef) => {
     try {
-      console.log('Completing order for appTransId:', appTransId);
-      
-      const result = await paymentService.completeZaloPayOrder(appTransId);
-      console.log('Complete order result:', result);
-
-      if (result.success) {
-        console.log('Order created successfully! OrderId:', result.orderId);
+      const result = await paymentService.getOrderByTxnRef(txnRef);
+      if (result.success && result.data) {
+        const orderData = result.data;
+        // Nếu tìm thấy order thì thanh toán thành công (vì chỉ lưu đơn thành công)
+        setIsSuccess(true);
+        setPaymentInfo(prev => ({
+          ...prev,
+          orderId: orderData.orderId,
+          amount: new Intl.NumberFormat('vi-VN', {
+            style: 'currency',
+            currency: 'VND',
+          }).format(orderData.totalAmount || 0),
+          status: 'Thành công',
+          message: 'Thanh toán thành công!'
+        }));
+        
         // Xóa cart và booking data
         localStorage.removeItem('checkoutCart');
         localStorage.removeItem('pendingBooking');
       } else {
-        console.error('Failed to create order:', result.message || result.error);
+        // Không tìm thấy order = thanh toán thất bại
+        setIsSuccess(false);
+        setPaymentInfo(prev => ({
+          ...prev,
+          status: 'Thất bại',
+          message: 'Thanh toán thất bại.'
+        }));
       }
     } catch (error) {
-      console.error('Error completing order:', error);
+      console.error('Error fetching order info:', error);
+      setIsSuccess(false);
+    } finally {
+      setLoading(false);
     }
   };
 
   const formatAmount = (amount) => {
-    if (!amount) return '0';
-    return new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
+    if (!amount) return '0 đ';
+    if (typeof amount === 'string') return amount;
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+    }).format(amount);
   };
+
+  if (loading) {
+    return (
+      <div className="payment-success">
+        <div className="payment-success__container">
+          <div className="text-center text-[#c9c4c5]">Đang xử lý kết quả thanh toán...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="payment-success">
       <div className="payment-success__container">
-        <div className="payment-success__icon">
-          <svg
-            width="80"
-            height="80"
-            viewBox="0 0 80 80"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <circle cx="40" cy="40" r="40" fill="#4CAF50" />
-            <path
-              d="M25 40L35 50L55 30"
-              stroke="white"
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+        <div className={`payment-success__icon ${isSuccess ? 'success' : 'failure'}`}>
+          {isSuccess ? (
+            <svg
+              width="80"
+              height="80"
+              viewBox="0 0 80 80"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle cx="40" cy="40" r="40" fill="#4CAF50" />
+              <path
+                d="M25 40L35 50L55 30"
+                stroke="white"
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : (
+            <svg
+              width="80"
+              height="80"
+              viewBox="0 0 80 80"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle cx="40" cy="40" r="40" fill="#f44336" />
+              <path
+                d="M30 30L50 50M50 30L30 50"
+                stroke="white"
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
         </div>
 
-        <h1 className="payment-success__title">Thanh toán thành công!</h1>
+        <h1 className="payment-success__title">
+          {isSuccess ? 'Thanh toán thành công!' : 'Thanh toán thất bại'}
+        </h1>
         <p className="payment-success__message">
-          Cảm ơn bạn đã đặt vé. Đơn hàng của bạn đã được xác nhận.
+          {paymentInfo.message || (isSuccess 
+            ? 'Cảm ơn bạn đã đặt vé. Đơn hàng của bạn đã được xác nhận.'
+            : 'Có lỗi xảy ra trong quá trình thanh toán. Vui lòng thử lại.')}
         </p>
 
         <div className="payment-success__details">
-          <div className="payment-success__detail-item">
-            <span className="payment-success__detail-label">Mã giao dịch:</span>
-            <span className="payment-success__detail-value">
-              {paymentInfo.apptransid || 'N/A'}
-            </span>
-          </div>
-          <div className="payment-success__detail-item">
-            <span className="payment-success__detail-label">Số tiền:</span>
-            <span className="payment-success__detail-value payment-success__amount">
-              {formatAmount(paymentInfo.amount)}
-            </span>
-          </div>
+          {paymentInfo.paymentMethod && (
+            <div className="payment-success__detail-item">
+              <span className="payment-success__detail-label">Phương thức:</span>
+              <span className="payment-success__detail-value">
+                {paymentInfo.paymentMethod}
+              </span>
+            </div>
+          )}
+          {paymentInfo.transactionId && (
+            <div className="payment-success__detail-item">
+              <span className="payment-success__detail-label">Mã giao dịch:</span>
+              <span className="payment-success__detail-value">
+                {paymentInfo.transactionId}
+              </span>
+            </div>
+          )}
+          {paymentInfo.orderId && (
+            <div className="payment-success__detail-item">
+              <span className="payment-success__detail-label">Mã đơn hàng:</span>
+              <span className="payment-success__detail-value">
+                #{paymentInfo.orderId}
+              </span>
+            </div>
+          )}
+          {paymentInfo.amount && (
+            <div className="payment-success__detail-item">
+              <span className="payment-success__detail-label">Số tiền:</span>
+              <span className="payment-success__detail-value payment-success__amount">
+                {formatAmount(paymentInfo.amount)}
+              </span>
+            </div>
+          )}
           {paymentInfo.status && (
             <div className="payment-success__detail-item">
               <span className="payment-success__detail-label">Trạng thái:</span>
               <span className="payment-success__detail-value">
-                {paymentInfo.status === '1' ? 'Thành công' : 'Đang xử lý'}
+                {paymentInfo.status}
               </span>
             </div>
           )}
@@ -168,16 +273,17 @@ const PaymentSuccess = () => {
           </button>
         </div>
 
-        <div className="payment-success__note">
-          <p>
-            <strong>Lưu ý:</strong> Vé điện tử đã được gửi đến email của bạn.
-            Vui lòng kiểm tra hộp thư đến hoặc thư rác.
-          </p>
-        </div>
+        {isSuccess && (
+          <div className="payment-success__note">
+            <p>
+              <strong>Lưu ý:</strong> Vé điện tử đã được gửi đến email của bạn.
+              Vui lòng kiểm tra hộp thư đến hoặc thư rác.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 export default PaymentSuccess;
-

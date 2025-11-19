@@ -42,6 +42,7 @@ export const paymentService = {
    * @param {number} amount - Số tiền (VND)
    * @param {string} description - Mô tả đơn hàng
    * @param {string} orderId - ID đơn hàng
+   * @param {Object} bookingInfo - Thông tin booking (optional)
    * @returns {Promise<Object>} Response từ server
    */
   createZaloPayOrder: async (amount, description, orderId, bookingInfo = null) => {
@@ -82,7 +83,7 @@ export const paymentService = {
   },
 
   /**
-   * Kiểm tra trạng thái thanh toán
+   * Kiểm tra trạng thái thanh toán ZaloPay
    * @param {string} appTransId - Transaction ID từ ZaloPay
    * @returns {Promise<Object>} Response từ server
    */
@@ -100,6 +101,52 @@ export const paymentService = {
         data: null
       };
     }
-  }
+  },
+
+  /**
+   * Tạo payment URL cho MoMo
+   * @param {Object} payload - Payload chứa amount, voucherId, orderDescription
+   * @returns {Promise<Object>} Response từ server
+   */
+  createMomoPayment: async (payload) => {
+    try {
+      const response = await axiosInstance.post('/payment/momo/create', payload);
+      return {
+        success: response.data?.success,
+        message: response.data?.message,
+        data: response.data?.data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Không thể tạo đơn hàng thanh toán MoMo',
+        data: null
+      };
+    }
+  },
+
+  /**
+   * Lấy thông tin đơn hàng theo transaction reference
+   * @param {string} txnRef - Transaction reference
+   * @returns {Promise<Object>} Response từ server
+   */
+  getOrderByTxnRef: async (txnRef) => {
+    try {
+      const response = await axiosInstance.get(`/payment/orders/${txnRef}`);
+      return {
+        success: response.data?.success,
+        message: response.data?.message,
+        data: response.data?.data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Không thể lấy thông tin đơn hàng',
+        data: null
+      };
+    }
+  },
 };
 
+// Export default để tương thích với code cũ
+export default paymentService;

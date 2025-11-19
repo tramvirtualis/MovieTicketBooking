@@ -100,6 +100,8 @@ export default function App() {
             <BookTicket />
           </ProtectedRoute>
         } />
+        
+        {/* Payment success/return routes - dùng chung cho tất cả payment methods */}
         <Route path="/payment/success" element={<PaymentSuccess />} />
         
         {/* Public routes - Events có thể xem nhưng một số chức năng cần đăng nhập */}
