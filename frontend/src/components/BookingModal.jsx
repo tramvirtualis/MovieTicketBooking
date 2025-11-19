@@ -1,6 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function BookingModal({ isOpen, onClose, movieTitle, options, onShowtimeClick, onFiltersChange }) {
+  const navigate = useNavigate();
   const today = useMemo(() => new Date(), []);
   const dates = useMemo(() => {
     const arr = [];
@@ -45,6 +47,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
   const [province, setProvince] = useState(''); // Default: Tất cả (empty = all provinces)
   const [cinema, setCinema] = useState(''); // Default: Tất cả (empty = all cinemas)
   const [format, setFormat] = useState('Tất cả');
+  const [showLoginModal, setShowLoginModal] = useState(false);
   
   // Update date when dates array is ready
   useEffect(() => {
@@ -71,6 +74,9 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
       setCinema('');
       setDate('');
       setFormat('Tất cả');
+    } else {
+      // Close login modal when main modal closes
+      setShowLoginModal(false);
     }
   }, [isOpen]);
   
@@ -279,6 +285,15 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
                           <button
                             key={timeStr}
                             onClick={() => {
+                              // Check if user is logged in
+                              const token = localStorage.getItem('jwt');
+                              if (!token) {
+                                // Show login modal if not logged in
+                                setShowLoginModal(true);
+                                return;
+                              }
+                              
+                              // If logged in, proceed with booking
                               if (onShowtimeClick) {
                                 onShowtimeClick(bookingUrl);
                               } else {
@@ -300,6 +315,48 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
           </div>
         </div>
       </div>
+      
+      {/* Login Required Modal */}
+      {showLoginModal && (
+        <div className="modal cinema-mood" role="dialog" aria-modal="true" style={{ zIndex: 10001 }}>
+          <div className="modal__panel" style={{ maxWidth: '500px', width: '90%' }}>
+            <div className="modal__header">
+              <h3 className="section__title m-0">Yêu cầu đăng nhập</h3>
+              <button 
+                className="close" 
+                aria-label="Close" 
+                onClick={() => setShowLoginModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal__body" style={{ padding: '24px' }}>
+              <p style={{ marginBottom: '24px', color: '#c9c4c5', fontSize: '16px', lineHeight: '1.6' }}>
+                Bạn cần đăng nhập để đặt vé xem phim. Vui lòng đăng nhập để tiếp tục.
+              </p>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  className="btn btn--ghost"
+                  onClick={() => setShowLoginModal(false)}
+                  style={{ padding: '10px 20px' }}
+                >
+                  Hủy
+                </button>
+                <button
+                  className="btn btn--primary"
+                  onClick={() => {
+                    setShowLoginModal(false);
+                    navigate('/signin');
+                  }}
+                  style={{ padding: '10px 20px', background: '#e83b41', color: '#fff' }}
+                >
+                  Đăng nhập
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

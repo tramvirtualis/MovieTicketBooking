@@ -29,4 +29,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     
     // Methods from origin/nhan (for MoMo payment)
     Optional<Order> findByVnpTxnRef(String vnpTxnRef);
+    
+    // Check if voucher has been used by user in any order
+    @Query("SELECT COUNT(o) > 0 FROM Order o WHERE o.user.userId = :userId AND o.voucher.voucherId = :voucherId")
+    boolean existsByUserUserIdAndVoucherVoucherId(@Param("userId") Long userId, @Param("voucherId") Long voucherId);
 }

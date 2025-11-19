@@ -193,9 +193,11 @@ public class CustomerController {
         try {
             Long userId = getCurrentCustomerId();
             boolean hasVoucher = customerService.hasVoucher(userId, voucherId);
+            boolean isUsed = customerService.isVoucherUsed(userId, voucherId);
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("hasVoucher", hasVoucher);
+            response.put("isUsed", isUsed);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));

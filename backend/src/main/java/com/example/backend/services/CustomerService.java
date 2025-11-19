@@ -11,6 +11,7 @@ import com.example.backend.entities.Voucher;
 import com.example.backend.repositories.AddressRepository;
 import com.example.backend.repositories.CustomerRepository;
 import com.example.backend.repositories.MovieRepository;
+import com.example.backend.repositories.OrderRepository;
 import com.example.backend.repositories.UserRepository;
 import com.example.backend.repositories.VoucherRepository;
 import com.example.backend.services.MovieService;
@@ -31,6 +32,7 @@ public class CustomerService {
     private final CustomerRepository customerRepository;
     private final VoucherRepository voucherRepository;
     private final MovieRepository movieRepository;
+    private final OrderRepository orderRepository;
     private final MovieService movieService;
     private final NotificationService notificationService;
 
@@ -41,6 +43,7 @@ public class CustomerService {
             CustomerRepository customerRepository,
             VoucherRepository voucherRepository,
             MovieRepository movieRepository,
+            OrderRepository orderRepository,
             @Lazy MovieService movieService,
             NotificationService notificationService) {
         this.userRepository = userRepository;
@@ -48,6 +51,7 @@ public class CustomerService {
         this.customerRepository = customerRepository;
         this.voucherRepository = voucherRepository;
         this.movieRepository = movieRepository;
+        this.orderRepository = orderRepository;
         this.movieService = movieService;
         this.notificationService = notificationService;
     }
@@ -115,6 +119,12 @@ public class CustomerService {
             throw new RuntimeException("Voucher này không phải voucher công khai");
         }
 
+        // Kiểm tra xem voucher đã được sử dụng trong Order chưa
+        boolean voucherUsed = orderRepository.existsByUserUserIdAndVoucherVoucherId(userId, voucherId);
+        if (voucherUsed) {
+            throw new RuntimeException("Voucher này đã được sử dụng và không thể lưu lại");
+        }
+        
         // Kiểm tra xem voucher đã được lưu chưa (kiểm tra bằng voucherId thay vì object)
         boolean alreadyExists = customer.getVouchers().stream()
                 .anyMatch(v -> v.getVoucherId().equals(voucherId));
@@ -176,6 +186,11 @@ public class CustomerService {
         // Kiểm tra bằng voucherId
         return customer.getVouchers().stream()
                 .anyMatch(v -> v.getVoucherId().equals(voucherId));
+    }
+    
+    @Transactional(readOnly = true)
+    public boolean isVoucherUsed(Long userId, Long voucherId) {
+        return orderRepository.existsByUserUserIdAndVoucherVoucherId(userId, voucherId);
     }
 
     private VoucherResponseDTO mapToDTO(Voucher voucher) {

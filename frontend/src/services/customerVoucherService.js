@@ -158,9 +158,9 @@ export const customerVoucherService = {
   },
 
   /**
-   * Kiểm tra user đã lưu voucher chưa
+   * Kiểm tra user đã lưu voucher chưa và đã sử dụng chưa
    * @param {number} voucherId - ID của voucher
-   * @returns {Promise<Object>} Response từ server với hasVoucher: boolean
+   * @returns {Promise<Object>} Response từ server với hasVoucher: boolean, isUsed: boolean
    */
   checkVoucher: async (voucherId) => {
     try {
@@ -168,12 +168,14 @@ export const customerVoucherService = {
       return {
         success: true,
         hasVoucher: response.data.hasVoucher || false,
+        isUsed: response.data.isUsed || false,
         message: response.data.message || 'Kiểm tra voucher thành công',
       };
     } catch (error) {
       return {
         success: false,
         hasVoucher: false,
+        isUsed: false,
         error: error.message || 'Không thể kiểm tra voucher',
       };
     }

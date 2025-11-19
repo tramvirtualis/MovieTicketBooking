@@ -72,6 +72,7 @@ const getDaysLeft = (voucher) => {
 export default function Events() {
   const [vouchers, setVouchers] = useState([]);
   const [savedVouchers, setSavedVouchers] = useState(new Set()); // Set of voucher IDs that user has saved
+  const [usedVouchers, setUsedVouchers] = useState(new Set()); // Set of voucher IDs that user has used
   const [loading, setLoading] = useState(true);
   const [savingVoucherId, setSavingVoucherId] = useState(null);
 
@@ -85,9 +86,10 @@ export default function Events() {
         const publicVouchers = await getPublicVouchers();
         console.log('Events: Public vouchers loaded:', publicVouchers);
         
-        // Load user's saved vouchers if logged in
+        // Load user's saved vouchers and check used vouchers if logged in
         const token = localStorage.getItem('jwt');
         let savedSet = new Set();
+        let usedSet = new Set();
         if (token) {
           try {
             const savedResult = await customerVoucherService.getUserVouchers();
@@ -95,12 +97,26 @@ export default function Events() {
               savedSet = new Set(savedResult.data.map(v => v.voucherId));
               console.log('Events: Saved vouchers loaded:', savedSet.size);
             }
+            
+            // Check which vouchers have been used
+            for (const voucher of publicVouchers) {
+              try {
+                const checkResult = await customerVoucherService.checkVoucher(voucher.voucherId);
+                if (checkResult.success && checkResult.isUsed) {
+                  usedSet.add(voucher.voucherId);
+                }
+              } catch (error) {
+                console.error(`Error checking voucher ${voucher.voucherId}:`, error);
+              }
+            }
+            console.log('Events: Used vouchers loaded:', usedSet.size);
           } catch (error) {
             console.error('Error loading saved vouchers:', error);
           }
         }
 
         setSavedVouchers(savedSet);
+        setUsedVouchers(usedSet);
 
         // Map vouchers with status
         const mappedVouchers = publicVouchers.map((voucher) => {
@@ -199,6 +215,7 @@ export default function Events() {
           ) : (
             vouchers.map((voucher) => {
               const isSaved = savedVouchers.has(voucher.voucherId);
+              const isUsed = usedVouchers.has(voucher.voucherId);
               const isSaving = savingVoucherId === voucher.voucherId;
               
               return (
@@ -244,11 +261,11 @@ export default function Events() {
                         </span>
                       </div>
                       <button
-                        className={`btn ${isSaved ? 'btn--ghost' : 'btn--primary'}`}
-                        disabled={!voucher.active || isSaved || isSaving}
+                        className={`btn ${isSaved || isUsed ? 'btn--ghost' : 'btn--primary'}`}
+                        disabled={!voucher.active || isSaved || isUsed || isSaving}
                         onClick={() => handleSave(voucher.voucherId)}
                       >
-                        {isSaving ? 'Đang lưu...' : isSaved ? 'Đã lưu voucher' : 'Lưu voucher'}
+                        {isSaving ? 'Đang lưu...' : isUsed ? 'Đã sử dụng' : isSaved ? 'Đã lưu voucher' : 'Lưu voucher'}
                       </button>
                     </footer>
                   </div>
