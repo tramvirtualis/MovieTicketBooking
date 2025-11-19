@@ -60,6 +60,7 @@ export default function Checkout() {
     email: ''
   });
   const [loadingVouchers, setLoadingVouchers] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double submission
 
   useEffect(() => {
     const savedCart = localStorage.getItem('checkoutCart');
@@ -155,12 +156,20 @@ export default function Checkout() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Prevent double submission
+    if (isSubmitting) {
+      console.log('Payment is already being processed, please wait...');
+      return;
+    }
+    
     const totalAmount = getTotalAmount();
     
     if (totalAmount <= 0) {
       alert('Số tiền thanh toán không hợp lệ.');
       return;
     }
+
+    setIsSubmitting(true);
 
     // Thanh toán qua ZaloPay
     if (paymentMethod === 'ZALOPAY') {
@@ -218,11 +227,19 @@ export default function Checkout() {
           // Hiển thị lỗi chi tiết từ backend
           const errorMsg = result.error || result.message || 'Không thể tạo đơn hàng thanh toán';
           console.error('ZaloPay error:', result);
-          alert('Lỗi thanh toán ZaloPay: ' + errorMsg);
+          
+          // Nếu là duplicate order, hiển thị thông báo đặc biệt
+          if (result.message && result.message.includes('đang được xử lý')) {
+            alert('Đơn hàng đang được xử lý. Vui lòng đợi và không nhấn lại nút thanh toán.');
+          } else {
+            alert('Lỗi thanh toán ZaloPay: ' + errorMsg);
+          }
+          setIsSubmitting(false);
         }
       } catch (error) {
         console.error('Error creating ZaloPay order:', error);
         alert('Có lỗi xảy ra khi tạo đơn hàng thanh toán');
+        setIsSubmitting(false);
       }
       return;
     }
@@ -248,11 +265,18 @@ export default function Checkout() {
         if (response.success && response.data?.paymentUrl) {
           window.location.href = response.data.paymentUrl;
         } else {
-          alert(response.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
+          // Nếu là duplicate order, hiển thị thông báo đặc biệt
+          if (response.message && response.message.includes('đang được xử lý')) {
+            alert('Đơn hàng đang được xử lý. Vui lòng đợi và không nhấn lại nút thanh toán.');
+          } else {
+            alert(response.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
+          }
+          setIsSubmitting(false);
         }
       } catch (error) {
         console.error('Error creating MoMo payment:', error);
         alert(error.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
+        setIsSubmitting(false);
       }
       return;
     }
@@ -622,10 +646,11 @@ export default function Checkout() {
 
                   {/* Submit Button */}
                   <button 
-                    className="w-full bg-gradient-to-r from-[#e83b41] to-[#ff5258] hover:from-[#ff5258] hover:to-[#ff6b6b] text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] uppercase tracking-wide"
+                    className="w-full bg-gradient-to-r from-[#e83b41] to-[#ff5258] hover:from-[#ff5258] hover:to-[#ff6b6b] text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     onClick={handleSubmit}
+                    disabled={isSubmitting}
                   >
-                    Xác nhận thanh toán
+                    {isSubmitting ? 'Đang xử lý...' : 'Xác nhận thanh toán'}
                   </button>
                 </div>
               </div>

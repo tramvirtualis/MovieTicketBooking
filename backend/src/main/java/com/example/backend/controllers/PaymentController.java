@@ -8,6 +8,7 @@ import com.example.backend.entities.Order;
 import com.example.backend.entities.User;
 import com.example.backend.entities.Voucher;
 import com.example.backend.entities.enums.PaymentMethod;
+import com.example.backend.repositories.OrderRepository;
 import com.example.backend.repositories.UserRepository;
 import com.example.backend.repositories.VoucherRepository;
 import com.example.backend.services.OrderCreationService;
@@ -35,6 +36,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +61,7 @@ public class PaymentController {
     // MoMo dependencies
     private final UserRepository userRepository;
     private final VoucherRepository voucherRepository;
+    private final OrderRepository orderRepository;
     private final OrderService orderService;
     private final MomoService momoService;
     private final MomoProperties momoProperties;
@@ -118,6 +121,77 @@ public class PaymentController {
                 if (voucherCode != null && !voucherCode.isEmpty()) {
                     voucher = voucherRepository.findByCode(voucherCode).orElse(null);
                 }
+            }
+            
+            // Check for duplicate order trong vòng 3 giây gần đây (tránh double-click)
+            // Tạo final copies để sử dụng trong lambda
+            final Long finalShowtimeId = showtimeId;
+            final List<String> finalSeatIds = new ArrayList<>(seatIds);
+            final List<Map<String, Object>> finalFoodComboMaps = new ArrayList<>(foodComboMaps);
+            
+            LocalDateTime threeSecondsAgo = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusSeconds(3);
+            List<Order> recentOrders = orderRepository.findByUserUserIdOrderByOrderDateDesc(user.getUserId());
+            Optional<Order> duplicateOrder = recentOrders.stream()
+                .filter(o -> o.getOrderDate() != null && o.getOrderDate().isAfter(threeSecondsAgo))
+                .filter(o -> {
+                    // Check cùng showtime và seats (nếu có vé)
+                    if (finalShowtimeId != null && !finalSeatIds.isEmpty()) {
+                        if (o.getTickets() != null && !o.getTickets().isEmpty()) {
+                            Long orderShowtimeId = o.getTickets().get(0).getShowtime().getShowtimeId();
+                            if (orderShowtimeId.equals(finalShowtimeId)) {
+                                List<String> orderSeats = o.getTickets().stream()
+                                    .map(t -> t.getSeat().getSeatRow() + String.valueOf(t.getSeat().getSeatColumn()))
+                                    .sorted()
+                                    .toList();
+                                List<String> requestSeats = new ArrayList<>(finalSeatIds);
+                                requestSeats.sort(String::compareTo);
+                                return orderSeats.equals(requestSeats);
+                            }
+                        }
+                    }
+                    // Check cùng food combos (nếu chỉ có đồ ăn)
+                    if ((finalShowtimeId == null || finalSeatIds.isEmpty()) && !finalFoodComboMaps.isEmpty()) {
+                        return o.getOrderCombos() != null && !o.getOrderCombos().isEmpty();
+                    }
+                    return false;
+                })
+                .findFirst();
+            
+            if (duplicateOrder.isPresent()) {
+                System.out.println("Duplicate order detected (created " + 
+                    java.time.Duration.between(duplicateOrder.get().getOrderDate(), 
+                        LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))).getSeconds() + 
+                    " seconds ago), returning existing order");
+                
+                Order existingOrder = duplicateOrder.get();
+                String existingTxnRef = existingOrder.getVnpTxnRef();
+                
+                // Nếu đã có txnRef, thử tạo lại payment URL
+                if (existingTxnRef != null && !existingTxnRef.isEmpty() && !existingTxnRef.startsWith("ORDER-")) {
+                    Map<String, Object> result = zaloPayService.createPaymentOrder(
+                        totalAmount.longValue(), 
+                        description, 
+                        existingTxnRef
+                    );
+                    
+                    if (result != null && result.get("order_url") != null) {
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("success", true);
+                        Map<String, Object> data = new HashMap<>();
+                        data.put("payment_url", result.get("order_url"));
+                        data.put("app_trans_id", result.get("app_trans_id"));
+                        data.put("orderId", existingOrder.getOrderId());
+                        response.put("data", data);
+                        return ResponseEntity.ok(response);
+                    }
+                }
+                
+                // Return error để frontend biết đã có order đang xử lý
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "Đơn hàng đang được xử lý, vui lòng đợi...");
+                response.put("orderId", existingOrder.getOrderId());
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
             }
             
             // Tạo Order trực tiếp (giống MoMo)
@@ -334,6 +408,52 @@ public class PaymentController {
                 voucher = voucherRepository.findByCode(voucherCode).orElse(null);
             }
 
+            // Check for duplicate order trong vòng 3 giây gần đây (tránh double-click)
+            // Tạo final copies để sử dụng trong lambda
+            final Long finalShowtimeId = showtimeId;
+            final List<String> finalSeatIds = new ArrayList<>(seatIds);
+            final List<Map<String, Object>> finalFoodComboMaps = new ArrayList<>(foodComboMaps);
+            
+            LocalDateTime threeSecondsAgo = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusSeconds(3);
+            List<Order> recentOrders = orderRepository.findByUserUserIdOrderByOrderDateDesc(user.getUserId());
+            Optional<Order> duplicateOrder = recentOrders.stream()
+                .filter(o -> o.getOrderDate() != null && o.getOrderDate().isAfter(threeSecondsAgo))
+                .filter(o -> {
+                    // Check cùng showtime và seats (nếu có vé)
+                    if (finalShowtimeId != null && !finalSeatIds.isEmpty()) {
+                        if (o.getTickets() != null && !o.getTickets().isEmpty()) {
+                            Long orderShowtimeId = o.getTickets().get(0).getShowtime().getShowtimeId();
+                            if (orderShowtimeId.equals(finalShowtimeId)) {
+                                List<String> orderSeats = o.getTickets().stream()
+                                    .map(t -> t.getSeat().getSeatRow() + String.valueOf(t.getSeat().getSeatColumn()))
+                                    .sorted()
+                                    .toList();
+                                List<String> requestSeats = new ArrayList<>(finalSeatIds);
+                                requestSeats.sort(String::compareTo);
+                                return orderSeats.equals(requestSeats);
+                            }
+                        }
+                    }
+                    // Check cùng food combos (nếu chỉ có đồ ăn)
+                    if ((finalShowtimeId == null || finalSeatIds.isEmpty()) && !finalFoodComboMaps.isEmpty()) {
+                        return o.getOrderCombos() != null && !o.getOrderCombos().isEmpty();
+                    }
+                    return false;
+                })
+                .findFirst();
+            
+            if (duplicateOrder.isPresent()) {
+                System.out.println("Duplicate MoMo order detected, returning existing order");
+                Order existingOrder = duplicateOrder.get();
+                
+                // Return error để frontend biết đã có order đang xử lý
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "Đơn hàng đang được xử lý, vui lòng đợi...");
+                response.put("orderId", existingOrder.getOrderId());
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+            }
+            
             // Tạo Order với tickets và orderCombos (giống ZaloPay)
             List<OrderCreationService.FoodComboRequest> foodComboRequests = foodComboMaps.stream()
                 .map(map -> {

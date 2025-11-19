@@ -316,4 +316,22 @@ public class CustomerController {
                     .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
         }
     }
+    
+    // ============ ADMIN ORDERS ENDPOINT ============
+    
+    @GetMapping("/admin/orders")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getAllOrders() {
+        try {
+            List<OrderResponseDTO> orders = orderService.getAllOrders();
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Lấy danh sách đơn hàng thành công");
+            response.put("data", orders);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
 }

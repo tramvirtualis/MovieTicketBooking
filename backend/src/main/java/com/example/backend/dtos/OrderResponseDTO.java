@@ -21,5 +21,10 @@ public class OrderResponseDTO {
     private List<OrderItemDTO> items; // Tickets
     private List<OrderComboDTO> combos; // Food & drinks
     private String voucherCode; // If voucher was used
+    // User info for admin
+    private Long userId;
+    private String userName;
+    private String userEmail;
+    private String userPhone;
 }
 

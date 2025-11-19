@@ -64,3 +64,15 @@ export const getMyOrders = async () => {
     throw err;
   }
 };
+
+export const getAllOrdersAdmin = async () => {
+  try {
+    const res = await axiosInstance.get('/customer/admin/orders');
+    if (res.data.success && res.data.data) {
+      return res.data.data;
+    }
+    throw new Error(res.data.message || 'Lấy danh sách đơn hàng thất bại');
+  } catch (err) {
+    throw err;
+  }
+};

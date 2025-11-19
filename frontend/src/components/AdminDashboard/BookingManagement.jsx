@@ -1,8 +1,11 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { getAllOrdersAdmin } from '../../services/customer';
 
 // Booking Management Component
 function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies: moviesList, onOrdersChange }) {
-  const [orders, setOrders] = useState(initialOrders);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCinema, setFilterCinema] = useState('');
   const [filterMovie, setFilterMovie] = useState('');
@@ -13,9 +16,79 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
   const [sortField, setSortField] = useState('showtime');
   const [sortDirection, setSortDirection] = useState('desc');
 
+  // Load orders from backend
   useEffect(() => {
-    if (onOrdersChange) onOrdersChange(orders);
-  }, [orders, onOrdersChange]);
+    const loadOrders = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const ordersData = await getAllOrdersAdmin();
+        console.log('Loaded orders from backend:', ordersData);
+        
+        // Map backend format to frontend format
+        // Backend returns OrderResponseDTO with items (tickets) array
+        // Frontend expects one booking per ticket
+        const mappedOrders = [];
+        ordersData.forEach(order => {
+          if (order.items && order.items.length > 0) {
+            // Group tickets by showtime to create booking records
+            const ticketsByShowtime = {};
+            order.items.forEach(item => {
+              const key = `${item.showtimeStart}_${item.cinemaComplexId}_${item.roomId}`;
+              if (!ticketsByShowtime[key]) {
+                ticketsByShowtime[key] = [];
+              }
+              ticketsByShowtime[key].push(item);
+            });
+            
+            // Create a booking record for each showtime group
+            Object.values(ticketsByShowtime).forEach(ticketGroup => {
+              const firstTicket = ticketGroup[0];
+              const seats = ticketGroup.map(t => t.seatId);
+              const totalTicketPrice = ticketGroup.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
+              
+              // Calculate total including combos
+              const comboTotal = order.combos ? order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0) : 0;
+              const totalAmount = totalTicketPrice + comboTotal;
+              
+              mappedOrders.push({
+                bookingId: order.orderId,
+                user: {
+                  name: order.userName || 'N/A',
+                  email: order.userEmail || '',
+                  phone: order.userPhone || ''
+                },
+                movieId: firstTicket.movieId,
+                movieTitle: firstTicket.movieTitle,
+                cinemaComplexId: firstTicket.cinemaComplexId,
+                cinemaName: firstTicket.cinemaComplexName,
+                roomId: firstTicket.roomId,
+                roomName: firstTicket.roomName,
+                showtime: firstTicket.showtimeStart,
+                seats: seats,
+                pricePerSeat: ticketGroup.length > 0 ? parseFloat(ticketGroup[0].price) || 0 : 0,
+                totalAmount: parseFloat(order.totalAmount) || totalAmount,
+                status: 'PAID', // All orders in DB are successful (status removed)
+                paymentMethod: order.paymentMethod || 'UNKNOWN'
+              });
+            });
+          }
+        });
+        
+        console.log('Mapped orders:', mappedOrders);
+        setOrders(mappedOrders);
+        if (onOrdersChange) onOrdersChange(mappedOrders);
+      } catch (err) {
+        console.error('Error loading orders:', err);
+        setError(err.message || 'Không thể tải danh sách đơn hàng');
+        setOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadOrders();
+  }, [onOrdersChange]);
 
   const withinRange = (dt) => {
     const t = new Date(dt).getTime();
@@ -138,7 +211,17 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
       </div>
 
       <div className="admin-card__content">
-        {sorted.length === 0 ? (
+        {loading ? (
+          <div className="movie-empty">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#e83b41] mb-4"></div>
+            <p>Đang tải dữ liệu...</p>
+          </div>
+        ) : error ? (
+          <div className="movie-empty">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <p>{error}</p>
+          </div>
+        ) : sorted.length === 0 ? (
           <div className="movie-empty">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             <p>Không có đơn đặt vé</p>

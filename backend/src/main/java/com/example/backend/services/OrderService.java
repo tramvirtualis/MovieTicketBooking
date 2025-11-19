@@ -39,6 +39,14 @@ public class OrderService {
             .collect(Collectors.toList());
     }
     
+    @Transactional(readOnly = true)
+    public List<OrderResponseDTO> getAllOrders() {
+        List<Order> orders = orderRepository.findAllWithDetails();
+        return orders.stream()
+            .map(this::mapToDTO)
+            .collect(Collectors.toList());
+    }
+    
     private OrderResponseDTO mapToDTO(Order order) {
         // Map tickets to items
         List<OrderItemDTO> items = order.getTickets().stream()
@@ -116,6 +124,19 @@ public class OrderService {
         dto.setVoucherCode(order.getVoucher() != null 
             ? order.getVoucher().getCode() 
             : null);
+        // Set user info
+        if (order.getUser() != null) {
+            dto.setUserId(order.getUser().getUserId());
+            dto.setUserEmail(order.getUser().getEmail());
+            dto.setUserPhone(order.getUser().getPhone());
+            // Get user name if Customer
+            if (order.getUser() instanceof com.example.backend.entities.Customer) {
+                com.example.backend.entities.Customer customer = (com.example.backend.entities.Customer) order.getUser();
+                dto.setUserName(customer.getName());
+            } else {
+                dto.setUserName(order.getUser().getUsername());
+            }
+        }
         return dto;
     }
     

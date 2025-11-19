@@ -27,6 +27,20 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "ORDER BY o.orderDate DESC")
     List<Order> findByUserUserIdWithDetails(@Param("userId") Long userId);
     
+    // Get all orders for admin
+    @Query("SELECT DISTINCT o FROM Order o " +
+           "LEFT JOIN FETCH o.tickets t " +
+           "LEFT JOIN FETCH t.showtime s " +
+           "LEFT JOIN FETCH s.movieVersion mv " +
+           "LEFT JOIN FETCH mv.movie m " +
+           "LEFT JOIN FETCH t.seat se " +
+           "LEFT JOIN FETCH s.cinemaRoom cr " +
+           "LEFT JOIN FETCH cr.cinemaComplex cc " +
+           "LEFT JOIN FETCH cc.address a " +
+           "LEFT JOIN FETCH o.user u " +
+           "ORDER BY o.orderDate DESC")
+    List<Order> findAllWithDetails();
+    
     // Methods from origin/nhan (for MoMo payment)
     Optional<Order> findByVnpTxnRef(String vnpTxnRef);
     
