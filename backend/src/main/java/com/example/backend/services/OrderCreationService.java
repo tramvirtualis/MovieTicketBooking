@@ -24,6 +24,7 @@ public class OrderCreationService {
     private final FoodComboRepository foodComboRepository;
     private final VoucherRepository voucherRepository;
     private final PriceRepository priceRepository;
+    private final CustomerRepository customerRepository;
     
     /**
      * Tạo đơn hàng từ booking info
@@ -75,10 +76,31 @@ public class OrderCreationService {
                 .orderCombos(new ArrayList<>())
                 .build();
         
-        // 4. Set voucher nếu có
+        // 4. Set voucher nếu có và xóa khỏi danh sách voucher của user
         if (voucherCode != null && !voucherCode.isEmpty()) {
             Optional<Voucher> voucherOpt = voucherRepository.findByCode(voucherCode);
-            voucherOpt.ifPresent(order::setVoucher);
+            if (voucherOpt.isPresent()) {
+                Voucher voucher = voucherOpt.get();
+                order.setVoucher(voucher);
+                
+                // Xóa voucher khỏi danh sách voucher của customer
+                // Chỉ xóa nếu user là Customer
+                if (user instanceof Customer) {
+                    Customer customer = (Customer) user;
+                    // Load customer với vouchers để có thể xóa
+                    Optional<Customer> customerWithVouchersOpt = customerRepository.findByIdWithVouchers(userId);
+                    if (customerWithVouchersOpt.isPresent()) {
+                        Customer customerWithVouchers = customerWithVouchersOpt.get();
+                        if (customerWithVouchers.getVouchers() != null) {
+                            // Xóa voucher khỏi danh sách
+                            customerWithVouchers.getVouchers().removeIf(v -> v.getVoucherId().equals(voucher.getVoucherId()));
+                            // Lưu customer để cập nhật relationship
+                            customerRepository.save(customerWithVouchers);
+                            System.out.println("Removed voucher " + voucherCode + " from user " + userId + " vouchers list");
+                        }
+                    }
+                }
+            }
         }
         
         // 5. Tạo Tickets (chỉ khi có showtimeId và seatIds)

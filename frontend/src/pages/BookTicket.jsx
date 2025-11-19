@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import { cinemaRoomService } from '../services/cinemaRoomService';
@@ -131,6 +131,7 @@ const bookedSeats = [
 export default function BookTicket() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Read parameters from URL
   const movieIdFromUrl = searchParams.get('movieId');
@@ -226,6 +227,9 @@ export default function BookTicket() {
   const [temporarilySelectedSeats, setTemporarilySelectedSeats] = useState(new Set()); // Seats selected by other users
   const websocketSubscribedRef = useRef(false);
   const selectedSeatsRef = useRef([]); // Keep latest selectedSeats for WebSocket callback
+  const currentSessionIdRef = useRef(null); // Track current user's session ID
+  const recentlySelectedSeatsRef = useRef(new Set()); // Track seats just selected by this user (to ignore own WebSocket messages)
+  const isNavigatingToCheckoutRef = useRef(false); // Track nếu đang navigate đến checkout
 
   // Initialize showtime from URL params - load from database
   useEffect(() => {
@@ -413,6 +417,47 @@ export default function BookTicket() {
     selectedSeatsRef.current = selectedSeats;
   }, [selectedSeats]);
 
+  // Clear temporarily selected seats when component mounts or showtime changes
+  // Và restore selectedSeats từ pendingBooking nếu quay lại từ checkout
+  useEffect(() => {
+    // Clear temporarily selected seats khi mount lại hoặc showtime thay đổi
+    setTemporarilySelectedSeats(new Set());
+    recentlySelectedSeatsRef.current.clear();
+    
+    // Restore selectedSeats từ pendingBooking nếu có (khi user quay lại từ checkout)
+    if (selectedShowtime?.showtimeId) {
+      try {
+        const savedBooking = localStorage.getItem('pendingBooking');
+        if (savedBooking) {
+          const booking = JSON.parse(savedBooking);
+          // Chỉ restore nếu showtimeId khớp
+          const bookingShowtimeId = booking.showtimeId || booking.showtime?.showtimeId;
+          if (bookingShowtimeId === selectedShowtime.showtimeId && booking.seats && Array.isArray(booking.seats) && booking.seats.length > 0) {
+            console.log('[BookTicket] Restoring selectedSeats from pendingBooking:', booking.seats);
+            setSelectedSeats(booking.seats);
+            
+            // Gửi SELECT lại cho các ghế này qua WebSocket để đánh dấu là user này đang chọn
+            if (websocketService.getConnectionStatus()) {
+              booking.seats.forEach(seatId => {
+                websocketService.sendSeatSelection(selectedShowtime.showtimeId, seatId, 'SELECT');
+              });
+            }
+            
+            // Đánh dấu các ghế này là vừa được restore để tránh thêm vào temporarilySelectedSeats
+            booking.seats.forEach(seatId => {
+              recentlySelectedSeatsRef.current.add(seatId);
+              setTimeout(() => {
+                recentlySelectedSeatsRef.current.delete(seatId);
+              }, 2000);
+            });
+          }
+        }
+      } catch (e) {
+        console.error('[BookTicket] Error restoring selectedSeats:', e);
+      }
+    }
+  }, [selectedShowtime?.showtimeId]);
+
   // WebSocket connection for real-time seat selection
   useEffect(() => {
     if (!selectedShowtime || !selectedShowtime.showtimeId) {
@@ -440,12 +485,15 @@ export default function BookTicket() {
             setTemporarilySelectedSeats(prev => {
               const newSet = new Set();
               const currentUserSeats = selectedSeatsRef.current; // Use ref to get latest value
+              const recentlySelected = recentlySelectedSeatsRef.current; // Ghế vừa được chọn bởi user này
               
               // Get all selected seats from server
               if (update.selectedSeats && Array.isArray(update.selectedSeats)) {
                 update.selectedSeats.forEach(seatId => {
-                  // Only add if this user hasn't selected it
-                  if (!currentUserSeats.includes(seatId)) {
+                  // Chỉ thêm vào temporarilySelectedSeats nếu:
+                  // 1. User này chưa chọn ghế đó
+                  // 2. Ghế đó không phải là ghế vừa được chọn bởi user này (để tránh hiển thị "đang được chọn" cho ghế của chính mình)
+                  if (!currentUserSeats.includes(seatId) && !recentlySelected.has(seatId)) {
                     newSet.add(seatId);
                   }
                 });
@@ -453,8 +501,8 @@ export default function BookTicket() {
                 // Fallback: update based on status
                 const currentSet = new Set(prev);
                 if (update.status === 'SELECTED') {
-                  // Only add if this user hasn't selected it
-                  if (!currentUserSeats.includes(update.seatId)) {
+                  // Chỉ thêm nếu user này chưa chọn và không phải ghế vừa chọn bởi user này
+                  if (!currentUserSeats.includes(update.seatId) && !recentlySelected.has(update.seatId)) {
                     currentSet.add(update.seatId);
                   }
                 } else if (update.status === 'DESELECTED') {
@@ -478,9 +526,32 @@ export default function BookTicket() {
     // Wait a bit for connection to establish
     const timeoutId = setTimeout(setupSubscription, 1000);
 
-    // Cleanup function
+    // Cleanup function - gửi DESELECT cho tất cả ghế đã chọn khi rời trang (trừ khi đi đến checkout)
     return () => {
       clearTimeout(timeoutId);
+      
+      // Chỉ gửi DESELECT nếu KHÔNG đang navigate đến checkout
+      const currentSelectedSeats = selectedSeatsRef.current;
+      if (currentSelectedSeats && currentSelectedSeats.length > 0 && showtimeId && !isNavigatingToCheckoutRef.current) {
+        console.log('[BookTicket] Deselecting all seats before leaving page (not going to checkout):', currentSelectedSeats);
+        currentSelectedSeats.forEach(seatId => {
+          if (websocketService.getConnectionStatus()) {
+            websocketService.sendSeatSelection(showtimeId, seatId, 'DESELECT');
+          }
+        });
+        // Clear selectedSeats khi rời trang (không phải đi đến checkout)
+        setSelectedSeats([]);
+        // Clear pendingBooking khi rời trang (không phải đi đến checkout)
+        localStorage.removeItem('pendingBooking');
+      }
+      
+      // Reset flag sau khi cleanup
+      isNavigatingToCheckoutRef.current = false;
+      
+      // Clear temporarily selected seats
+      setTemporarilySelectedSeats(new Set());
+      recentlySelectedSeatsRef.current.clear();
+      
       if (websocketSubscribedRef.current && showtimeId) {
         console.log('[BookTicket] Unsubscribing from seat updates for showtime:', showtimeId);
         websocketService.unsubscribeFromSeats(showtimeId);
@@ -553,6 +624,19 @@ export default function BookTicket() {
     
     const wasSelected = selectedSeats.includes(seatId);
     const action = wasSelected ? 'DESELECT' : 'SELECT';
+    
+    // Đánh dấu ghế này vừa được chọn/bỏ chọn bởi user này
+    // Để tránh thêm vào temporarilySelectedSeats khi nhận WebSocket message từ chính mình
+    if (action === 'SELECT') {
+      recentlySelectedSeatsRef.current.add(seatId);
+      // Xóa khỏi recentlySelectedSeats sau 1 giây (đủ thời gian để nhận WebSocket message)
+      setTimeout(() => {
+        recentlySelectedSeatsRef.current.delete(seatId);
+      }, 1000);
+    } else {
+      // Khi bỏ chọn, xóa khỏi recentlySelectedSeats ngay
+      recentlySelectedSeatsRef.current.delete(seatId);
+    }
     
     // Update local state
     setSelectedSeats(prev => {
@@ -909,6 +993,16 @@ export default function BookTicket() {
                           <button
                             className="btn btn--ghost"
                             onClick={() => {
+                              // Gửi DESELECT cho tất cả ghế đã chọn khi quay lại
+                              const currentSeats = [...selectedSeats];
+                              if (currentSeats.length > 0 && selectedShowtime?.showtimeId) {
+                                console.log('[BookTicket] Deselecting seats when going back:', currentSeats);
+                                currentSeats.forEach(seatId => {
+                                  if (websocketService.getConnectionStatus()) {
+                                    websocketService.sendSeatSelection(selectedShowtime.showtimeId, seatId, 'DESELECT');
+                                  }
+                                });
+                              }
                               setStep(1);
                               setSelectedSeats([]);
                             }}
@@ -975,6 +1069,8 @@ export default function BookTicket() {
                                 
                                 console.log('Saving bookingInfo to localStorage:', bookingInfo);
                                 localStorage.setItem('pendingBooking', JSON.stringify(bookingInfo));
+                                // Đánh dấu đang navigate đến checkout để không gửi DESELECT
+                                isNavigatingToCheckoutRef.current = true;
                                 // Navigate to food and drinks page with ticket
                                 navigate('/food-drinks-with-ticket');
                               }}
