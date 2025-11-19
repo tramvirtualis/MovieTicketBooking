@@ -20,7 +20,7 @@ public class OrderCombo {
     @JoinColumn(name = "order_id")
     private Order order;
 
-    @OneToMany(mappedBy = "orderCombo")
+    @OneToMany(mappedBy = "orderCombo", cascade = CascadeType.ALL)
     private List<FoodCombo> foodCombos;
 
     private Integer quantity;

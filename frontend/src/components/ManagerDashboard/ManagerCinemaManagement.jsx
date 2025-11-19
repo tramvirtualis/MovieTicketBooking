@@ -1178,17 +1178,20 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                       <p style={{ margin: 0 }}>Chưa có phòng chiếu. Nhấn "Thêm phòng" để tạo mới.</p>
                     </div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                       {cinema.rooms.map(room => (
                         <div key={room.roomId} className="room-card" style={{
                           background: 'rgba(10, 6, 20, 0.6)',
                           border: '1px solid rgba(123, 97, 255, 0.2)',
                           borderRadius: '16px',
                           padding: '20px',
-                          transition: 'all 0.2s ease'
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '16px'
                         }}>
-                          <div className="room-card__header">
-                            <div className="room-card__info">
+                          <div className="room-card__header" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div className="room-card__info" style={{ width: '100%' }}>
                               <h4 className="room-card__name" style={{ 
                                 fontSize: '18px', 
                                 fontWeight: 700, 
@@ -1197,7 +1200,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                               }}>
                                 {room.roomName}
                               </h4>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '0' }}>
                                 <span style={{
                                   display: 'inline-block',
                                   padding: '4px 12px',
@@ -1224,43 +1227,60 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                                 </span>
                               </div>
                             </div>
-                            <div className="room-card__actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              <button
-                                className="btn btn--ghost btn--small"
-                                onClick={() => openShowtimes(cinema, room)}
-                                style={{ flex: 1, minWidth: '120px' }}
-                              >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <rect x="3" y="4" width="18" height="18" rx="2"/>
-                                  <line x1="3" y1="10" x2="21" y2="10"/>
-                                  <line x1="8" y1="2" x2="8" y2="6"/>
-                                  <line x1="16" y1="2" x2="16" y2="6"/>
-                                </svg>
-                                Lịch chiếu
-                              </button>
-                              <button
-                                className="cinema-action-btn"
-                                onClick={() => { setSelectedRoom(room); setSelectedCinema(cinema); }}
-                                title="Xem layout ghế"
-                              >
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                                  <path d="M9 9h6v6H9z"/>
-                                </svg>
-                              </button>
-                              <button className="cinema-action-btn" onClick={() => handleEditRoom(cinema, room)} title="Chỉnh sửa">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                </svg>
-                              </button>
-                              <button className="cinema-action-btn cinema-action-btn--delete" onClick={() => handleDeleteRoom(cinema, room.roomId)} title="Xóa">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <polyline points="3 6 5 6 21 6"/>
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                                </svg>
-                              </button>
-                            </div>
+                          </div>
+                          <div className="room-card__actions" style={{ 
+                            display: 'flex', 
+                            gap: '8px', 
+                            flexWrap: 'wrap',
+                            width: '100%',
+                            marginTop: '4px'
+                          }}>
+                            <button
+                              className="btn btn--ghost btn--small"
+                              onClick={() => openShowtimes(cinema, room)}
+                              style={{ flex: '1 1 auto', minWidth: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                <line x1="3" y1="10" x2="21" y2="10"/>
+                                <line x1="8" y1="2" x2="8" y2="6"/>
+                                <line x1="16" y1="2" x2="16" y2="6"/>
+                              </svg>
+                              Lịch chiếu
+                            </button>
+                            <button
+                              className="cinema-action-btn"
+                              onClick={() => { setSelectedRoom(room); setSelectedCinema(cinema); }}
+                              title="Xem layout ghế"
+                              style={{ flexShrink: 0 }}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                <path d="M9 9h6v6H9z"/>
+                              </svg>
+                            </button>
+                            <button 
+                              className="cinema-action-btn" 
+                              onClick={() => handleEditRoom(cinema, room)} 
+                              title="Chỉnh sửa"
+                              style={{ flexShrink: 0 }}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              </svg>
+                            </button>
+                            <button 
+                              className="cinema-action-btn cinema-action-btn--delete" 
+                              onClick={() => handleDeleteRoom(cinema, room.roomId)} 
+                              title="Xóa"
+                              style={{ flexShrink: 0 }}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                              </svg>
+                            </button>
                           </div>
                         </div>
                       ))}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import { customerVoucherService } from '../services/customerVoucherService.js';
+import { paymentService } from '../services/paymentService.js';
 
 // Get saved vouchers from localStorage
 const getSavedVouchers = () => {
@@ -67,8 +68,21 @@ export default function Checkout() {
     if (savedCart) {
       setCartData(JSON.parse(savedCart));
     }
+    // Chỉ set bookingData nếu thực sự có booking (có showtimeId và seats)
     if (savedBooking) {
-      setBookingData(JSON.parse(savedBooking));
+      try {
+        const booking = JSON.parse(savedBooking);
+        // Chỉ set nếu có showtimeId và seats (tức là có đặt vé phim)
+        if (booking.showtimeId && booking.seats && booking.seats.length > 0) {
+          setBookingData(booking);
+        } else {
+          // Xóa pendingBooking nếu không hợp lệ
+          localStorage.removeItem('pendingBooking');
+        }
+      } catch (e) {
+        console.error('Failed to parse booking data:', e);
+        localStorage.removeItem('pendingBooking');
+      }
     }
     
     // Load customer info from localStorage (saved when login)
@@ -126,9 +140,79 @@ export default function Checkout() {
     }).format(price);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Here you would process the payment
+    
+    const totalAmount = getTotalAmount();
+    
+    // Nếu chọn ZaloPay, tạo payment URL
+    if (paymentMethod === 'ZALOPAY') {
+      try {
+        const orderId = `ORDER-${Date.now()}`;
+        const description = bookingData?.movieTitle 
+          ? `Vé xem phim: ${bookingData.movieTitle}` 
+          : 'Thanh toán vé xem phim';
+        
+        // Đảm bảo totalAmount là số nguyên
+        const amount = Math.round(totalAmount);
+        
+        // Chuẩn bị booking info để gửi lên server
+        // CHỈ gửi booking info nếu thực sự có đặt vé phim (có showtimeId và seats)
+        const bookingInfo = bookingData && bookingData.showtimeId && bookingData.seats && bookingData.seats.length > 0 ? {
+          showtimeId: bookingData.showtimeId,
+          seatIds: bookingData.seats,
+          foodCombos: cartData?.items?.map(item => ({
+            foodComboId: item.id?.replace('fc_', '') || item.foodComboId,
+            quantity: item.quantity || 1
+          })) || [],
+          voucherCode: selectedVoucher?.code || null
+        } : {
+          // Nếu chỉ có đồ ăn, không gửi showtimeId và seatIds
+          showtimeId: null,
+          seatIds: [],
+          foodCombos: cartData?.items?.map(item => ({
+            foodComboId: item.id?.replace('fc_', '') || item.foodComboId,
+            quantity: item.quantity || 1
+          })) || [],
+          voucherCode: selectedVoucher?.code || null
+        };
+        
+        console.log('Creating ZaloPay order:', {
+          amount,
+          description,
+          orderId,
+          bookingInfo
+        });
+        
+        const result = await paymentService.createZaloPayOrder(
+          amount,
+          description,
+          orderId,
+          bookingInfo
+        );
+        
+        console.log('ZaloPay order result:', result);
+        
+              console.log('ZaloPay result from backend:', result);
+              
+              if (result.success && result.data?.payment_url) {
+                console.log('Redirecting to ZaloPay:', result.data.payment_url);
+                // Redirect đến ZaloPay payment page
+                window.location.href = result.data.payment_url;
+              } else {
+                // Hiển thị lỗi chi tiết từ backend
+                const errorMsg = result.error || result.message || 'Không thể tạo đơn hàng thanh toán';
+                console.error('ZaloPay error:', result);
+                alert('Lỗi thanh toán ZaloPay: ' + errorMsg);
+              }
+      } catch (error) {
+        console.error('Error creating ZaloPay order:', error);
+        alert('Có lỗi xảy ra khi tạo đơn hàng thanh toán');
+      }
+      return;
+    }
+    
+    // Các phương thức thanh toán khác (VNPAY, MOMO) - xử lý sau
     alert('Đặt hàng thành công!');
     localStorage.removeItem('checkoutCart');
     localStorage.removeItem('pendingBooking');
@@ -393,6 +477,18 @@ export default function Checkout() {
                       />
                       <div className="checkout-payment-method__content">
                         <span>MoMo</span>
+                      </div>
+                    </label>
+                    <label className="checkout-payment-method">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="ZALOPAY"
+                        checked={paymentMethod === 'ZALOPAY'}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                      />
+                      <div className="checkout-payment-method__content">
+                        <span>ZaloPay</span>
                       </div>
                     </label>
                   </div>

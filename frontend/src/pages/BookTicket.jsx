@@ -969,7 +969,14 @@ export default function BookTicket() {
                                 // Navigate to food and drinks page with ticket
                                 navigate('/food-drinks-with-ticket');
                               }}
-                              style={{ padding: '14px 32px', minWidth: '200px' }}
+                              style={{ 
+                                padding: '14px 32px', 
+                                minWidth: '200px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                textAlign: 'center'
+                              }}
                             >
                               TIẾP TỤC
                             </button>
@@ -1302,7 +1309,11 @@ export default function BookTicket() {
                         fontWeight: 600,
                         opacity: ageConfirmed ? 1 : 0.5,
                         cursor: 'pointer',
-                        border: 'none'
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'center'
                       }}
                     >
                       Tiếp tục

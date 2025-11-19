@@ -125,6 +125,7 @@ public class OrderService {
         return switch (paymentMethod) {
             case VNPAY -> "VNPay";
             case MOMO -> "MoMo";
+            case ZALOPAY -> "ZaloPay";
             default -> paymentMethod.name();
         };
     }

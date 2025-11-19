@@ -1,84 +1,114 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import ReviewForm from '../components/ReviewForm.jsx';
 import { QRCodeSVG } from 'qrcode.react';
-import interstellar from '../assets/images/interstellar.jpg';
-import inception from '../assets/images/inception.jpg';
-import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
-import driveMyCar from '../assets/images/drive-my-car.jpg';
-
-// Sample booking data
-const bookings = [
-  {
-    id: '1',
-    movie: {
-      title: 'Inception',
-      poster: inception,
-    },
-    cinema: 'Cinestar Quốc Thanh (TPHCM)',
-    date: '07/11/2025',
-    time: '19:30',
-    format: 'STANDARD',
-    seats: ['A5', 'A6'],
-    price: 120000,
-    status: 'completed', // completed, upcoming, cancelled
-    bookingDate: '05/11/2025',
-  },
-  {
-    id: '2',
-    movie: {
-      title: 'Interstellar',
-      poster: interstellar,
-    },
-    cinema: 'Cinestar Hai Bà Trưng (TPHCM)',
-    date: '10/11/2025',
-    time: '21:00',
-    format: 'IMAX 2D',
-    seats: ['E8', 'E9', 'E10'],
-    price: 180000,
-    status: 'upcoming',
-    bookingDate: '06/11/2025',
-  },
-  {
-    id: '3',
-    movie: {
-      title: 'The Dark Knight Rises',
-      poster: darkKnightRises,
-    },
-    cinema: 'Cinestar Satra Quận 6 (TPHCM)',
-    date: '03/11/2025',
-    time: '20:10',
-    format: 'STANDARD',
-    seats: ['C12'],
-    price: 120000,
-    status: 'completed',
-    bookingDate: '01/11/2025',
-  },
-  {
-    id: '4',
-    movie: {
-      title: 'Drive My Car',
-      poster: driveMyCar,
-    },
-    cinema: 'Cinestar Quốc Thanh (TPHCM)',
-    date: '12/11/2025',
-    time: '18:45',
-    format: 'DELUXE',
-    seats: ['F3', 'F4'],
-    price: 150000,
-    status: 'cancelled',
-    bookingDate: '08/11/2025',
-  },
-];
+import { getMyOrders } from '../services/customer';
 
 export default function BookingHistory() {
+  const navigate = useNavigate();
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [activeTab, setActiveTab] = useState('upcoming'); // 'upcoming' hoặc 'completed'
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [selectedMovieForReview, setSelectedMovieForReview] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+
+  // Load bookings from API
+  useEffect(() => {
+    const loadBookings = async () => {
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        const ordersData = await getMyOrders();
+        
+        // Map orders to bookings format
+        const mappedBookings = [];
+        const now = new Date();
+        
+        ordersData.forEach(order => {
+          // Group tickets by showtime
+          const itemsByShowtime = {};
+          order.items.forEach(item => {
+            const showtimeStart = new Date(item.showtimeStart);
+            const key = `${item.movieId}-${item.showtimeStart}`;
+            
+            if (!itemsByShowtime[key]) {
+              itemsByShowtime[key] = {
+                id: `${order.orderId}-${key}`,
+                orderId: order.orderId,
+                movie: {
+                  movieId: item.movieId,
+                  title: item.movieTitle,
+                  poster: item.moviePoster || 'https://via.placeholder.com/300x450?text=No+Poster'
+                },
+                cinema: item.cinemaComplexName + (item.cinemaAddress ? ` (${item.cinemaAddress})` : ''),
+                date: showtimeStart.toLocaleDateString('vi-VN', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
+                }),
+                time: showtimeStart.toLocaleTimeString('vi-VN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false
+                }),
+                format: item.roomType || 'STANDARD',
+                seats: [],
+                price: 0,
+                showtimeStart: showtimeStart,
+                bookingDate: new Date(order.orderDate).toLocaleDateString('vi-VN', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
+                })
+              };
+            }
+            itemsByShowtime[key].seats.push(item.seatId);
+            itemsByShowtime[key].price += Number(item.price);
+          });
+
+          // Convert to bookings array and determine status
+          Object.values(itemsByShowtime).forEach(booking => {
+            // Determine status based on showtime
+            if (booking.showtimeStart > now) {
+              booking.status = 'upcoming';
+            } else {
+              booking.status = 'completed';
+            }
+            mappedBookings.push(booking);
+          });
+        });
+
+        // Sort by showtime (upcoming first, then by date)
+        mappedBookings.sort((a, b) => {
+          if (a.status !== b.status) {
+            return a.status === 'upcoming' ? -1 : 1;
+          }
+          return b.showtimeStart - a.showtimeStart;
+        });
+
+        setBookings(mappedBookings);
+      } catch (err) {
+        console.error('Error loading bookings:', err);
+        setError(err.message || 'Không thể tải danh sách vé');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadBookings();
+  }, [navigate]);
 
   // Filter bookings theo tab
   const filteredBookings = bookings.filter((booking) => {
@@ -157,8 +187,28 @@ export default function BookingHistory() {
               </button>
             </div>
 
+            {/* Loading State */}
+            {loading && (
+              <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#ffd159] mb-5"></div>
+                <p className="text-base m-0">Đang tải danh sách vé...</p>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !loading && (
+              <div className="text-center py-[60px] px-5 text-[#e83b41]">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-5 opacity-50">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <p className="text-base m-0">{error}</p>
+              </div>
+            )}
+
             {/* Bookings List */}
-            {filteredBookings.length === 0 ? (
+            {!loading && !error && filteredBookings.length === 0 && (
               <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-5 opacity-50">
                   <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -166,7 +216,9 @@ export default function BookingHistory() {
                 </svg>
                 <p className="text-base m-0">Chưa có vé nào trong mục này</p>
               </div>
-            ) : (
+            )}
+
+            {!loading && !error && filteredBookings.length > 0 && (
               <div className="grid gap-5">
                 {filteredBookings.map((booking) => (
                   <div key={booking.id} className="booking-card">
@@ -177,7 +229,14 @@ export default function BookingHistory() {
                       <div className="booking-card__header">
                         <div>
                           <h3 className="booking-card__title">
-                            <a href={`#movie?title=${encodeURIComponent(booking.movie.title)}`}>
+                            <a 
+                              href={`/movie/${booking.movie.movieId}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                navigate(`/movie/${booking.movie.movieId}`);
+                              }}
+                              style={{ color: '#ffd159', textDecoration: 'none' }}
+                            >
                               {booking.movie.title}
                             </a>
                           </h3>
@@ -287,7 +346,7 @@ export default function BookingHistory() {
                               setSelectedMovieForReview({
                                 title: booking.movie.title,
                                 poster: booking.movie.poster,
-                                movieId: booking.movie.movieId || 1 // You may need to adjust this based on your data structure
+                                movieId: booking.movie.movieId
                               });
                               setShowReviewForm(true);
                             }}

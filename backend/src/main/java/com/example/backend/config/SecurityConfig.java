@@ -60,6 +60,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/reviews/movie/**").permitAll() // Public access to movie reviews
                 .requestMatchers("/api/enums/**").permitAll() // Public access to enum values
                 .requestMatchers("/api/public/showtimes/**").permitAll() // Public access to showtimes
+                .requestMatchers("/api/payment/zalopay/callback").permitAll() // ZaloPay callback không cần auth
                 
                 // WebSocket endpoints - không cần authentication
                 .requestMatchers("/ws/**").permitAll()
