@@ -50,7 +50,7 @@ export default function Checkout() {
   const navigate = useNavigate();
   const [cartData, setCartData] = useState(null);
   const [bookingData, setBookingData] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('VNPAY');
+  const [paymentMethod, setPaymentMethod] = useState('MOMO');
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [availableVouchers, setAvailableVouchers] = useState([]);
   const [showVoucherList, setShowVoucherList] = useState(false);
@@ -72,12 +72,24 @@ export default function Checkout() {
     if (savedBooking) {
       try {
         const booking = JSON.parse(savedBooking);
+        console.log('Loaded booking from localStorage:', booking);
+        // Kiểm tra nếu có showtimeId (từ bookingInfo mới) hoặc showtime.showtimeId (từ bookingInfo cũ)
+        const showtimeId = booking.showtimeId || booking.showtime?.showtimeId;
         // Chỉ set nếu có showtimeId và seats (tức là có đặt vé phim)
-        if (booking.showtimeId && booking.seats && booking.seats.length > 0) {
+        if (showtimeId && booking.seats && Array.isArray(booking.seats) && booking.seats.length > 0) {
+          // Đảm bảo showtimeId được set nếu chưa có
+          if (!booking.showtimeId && booking.showtime?.showtimeId) {
+            booking.showtimeId = booking.showtime.showtimeId;
+          }
+          console.log('Setting bookingData with showtimeId:', booking.showtimeId, 'seats:', booking.seats);
           setBookingData(booking);
         } else {
-          // Xóa pendingBooking nếu không hợp lệ
-          localStorage.removeItem('pendingBooking');
+          console.warn('Booking không hợp lệ - showtimeId:', showtimeId, 'seats:', booking.seats);
+          // KHÔNG xóa pendingBooking nếu chỉ thiếu showtimeId (có thể là do format cũ)
+          // Chỉ xóa nếu thực sự không có seats
+          if (!booking.seats || !Array.isArray(booking.seats) || booking.seats.length === 0) {
+            localStorage.removeItem('pendingBooking');
+          }
         }
       } catch (e) {
         console.error('Failed to parse booking data:', e);
@@ -145,7 +157,12 @@ export default function Checkout() {
     
     const totalAmount = getTotalAmount();
     
-    // Nếu chọn ZaloPay, tạo payment URL
+    if (totalAmount <= 0) {
+      alert('Số tiền thanh toán không hợp lệ.');
+      return;
+    }
+
+    // Thanh toán qua ZaloPay
     if (paymentMethod === 'ZALOPAY') {
       try {
         const orderId = `ORDER-${Date.now()}`;
@@ -193,30 +210,55 @@ export default function Checkout() {
         
         console.log('ZaloPay order result:', result);
         
-              console.log('ZaloPay result from backend:', result);
-              
-              if (result.success && result.data?.payment_url) {
-                console.log('Redirecting to ZaloPay:', result.data.payment_url);
-                // Redirect đến ZaloPay payment page
-                window.location.href = result.data.payment_url;
-              } else {
-                // Hiển thị lỗi chi tiết từ backend
-                const errorMsg = result.error || result.message || 'Không thể tạo đơn hàng thanh toán';
-                console.error('ZaloPay error:', result);
-                alert('Lỗi thanh toán ZaloPay: ' + errorMsg);
-              }
+        if (result.success && result.data?.payment_url) {
+          console.log('Redirecting to ZaloPay:', result.data.payment_url);
+          // Redirect đến ZaloPay payment page
+          window.location.href = result.data.payment_url;
+        } else {
+          // Hiển thị lỗi chi tiết từ backend
+          const errorMsg = result.error || result.message || 'Không thể tạo đơn hàng thanh toán';
+          console.error('ZaloPay error:', result);
+          alert('Lỗi thanh toán ZaloPay: ' + errorMsg);
+        }
       } catch (error) {
         console.error('Error creating ZaloPay order:', error);
         alert('Có lỗi xảy ra khi tạo đơn hàng thanh toán');
       }
       return;
     }
-    
-    // Các phương thức thanh toán khác (VNPAY, MOMO) - xử lý sau
-    alert('Đặt hàng thành công!');
-    localStorage.removeItem('checkoutCart');
-    localStorage.removeItem('pendingBooking');
-    navigate('/orders');
+
+    // Thanh toán qua MoMo
+    if (paymentMethod === 'MOMO') {
+      try {
+        const payload = {
+          amount: totalAmount,
+          voucherId: selectedVoucher?.voucherId || null,
+          voucherCode: selectedVoucher?.code || null,
+          orderDescription: 'Thanh toán đơn hàng tại Cinesmart',
+          // Gửi bookingInfo giống ZaloPay
+          showtimeId: bookingData?.showtimeId || null,
+          seatIds: bookingData?.seats || [],
+          foodCombos: cartData?.items?.map(item => ({
+            foodComboId: item.id?.replace('fc_', '') || item.foodComboId,
+            quantity: item.quantity || 1
+          })) || []
+        };
+
+        const response = await paymentService.createMomoPayment(payload);
+        if (response.success && response.data?.paymentUrl) {
+          window.location.href = response.data.paymentUrl;
+        } else {
+          alert(response.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
+        }
+      } catch (error) {
+        console.error('Error creating MoMo payment:', error);
+        alert(error.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
+      }
+      return;
+    }
+
+    // Các phương thức thanh toán khác (chưa tích hợp)
+    alert('Chức năng thanh toán cho phương thức này chưa được hỗ trợ. Vui lòng chọn MoMo hoặc ZaloPay.');
   };
 
   const getSubtotal = () => {
@@ -459,18 +501,6 @@ export default function Checkout() {
                       <input
                         type="radio"
                         name="payment"
-                        value="VNPAY"
-                        checked={paymentMethod === 'VNPAY'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                      />
-                      <div className="checkout-payment-method__content">
-                        <span>VNPay</span>
-                      </div>
-                    </label>
-                    <label className="checkout-payment-method">
-                      <input
-                        type="radio"
-                        name="payment"
                         value="MOMO"
                         checked={paymentMethod === 'MOMO'}
                         onChange={(e) => setPaymentMethod(e.target.value)}
@@ -608,4 +638,3 @@ export default function Checkout() {
     </div>
   );
 }
-

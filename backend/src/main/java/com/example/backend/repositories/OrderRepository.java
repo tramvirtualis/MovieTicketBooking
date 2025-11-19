@@ -7,9 +7,11 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
+    // Methods from HEAD (for getting orders)
     List<Order> findByUserUserIdOrderByOrderDateDesc(Long userId);
     
     @Query("SELECT DISTINCT o FROM Order o " +
@@ -24,5 +26,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "WHERE o.user.userId = :userId " +
            "ORDER BY o.orderDate DESC")
     List<Order> findByUserUserIdWithDetails(@Param("userId") Long userId);
+    
+    // Methods from origin/nhan (for MoMo payment)
+    Optional<Order> findByVnpTxnRef(String vnpTxnRef);
 }
-

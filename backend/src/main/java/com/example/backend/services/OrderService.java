@@ -1,6 +1,7 @@
 package com.example.backend.services;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -20,11 +21,15 @@ import com.example.backend.repositories.OrderRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class OrderService {
     
     private final OrderRepository orderRepository;
+    
+    // ==================== Methods from HEAD (for getting orders) ====================
     
     @Transactional(readOnly = true)
     public List<OrderResponseDTO> getOrdersByUser(Long userId) {
@@ -129,5 +134,18 @@ public class OrderService {
             default -> paymentMethod.name();
         };
     }
-}
+    
+    // ==================== Methods from origin/nhan (for MoMo payment) ====================
+    
+    public Order save(Order order) {
+        return orderRepository.save(order);
+    }
 
+    public Optional<Order> findByTxnRef(String txnRef) {
+        return orderRepository.findByVnpTxnRef(txnRef);
+    }
+
+    public void delete(Order order) {
+        orderRepository.delete(order);
+    }
+}

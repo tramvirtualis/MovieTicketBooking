@@ -29,7 +29,29 @@ public class Order {
     private LocalDateTime orderDate;
 
     @Enumerated(EnumType.STRING)
+    @Column(length = 20)
     private PaymentMethod paymentMethod;
+    
+    @Column(length = 255)
+    private String orderInfo;
+    
+    @Column(length = 32, unique = true)
+    private String vnpTxnRef;
+    
+    @Column(length = 64)
+    private String vnpTransactionNo;
+    
+    @Column(length = 50)
+    private String vnpBankCode;
+    
+    @Column(length = 5)
+    private String vnpResponseCode;
+    
+    @Column(length = 5)
+    private String vnpTransactionStatus;
+    
+    private LocalDateTime vnpPayDate;
+    private LocalDateTime paymentExpiredAt;
 
     @ManyToOne
     @JoinColumn(name = "voucher_id")
