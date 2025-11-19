@@ -59,6 +59,76 @@ export const reviewService = {
     }
 
     return data.data || [];
+  },
+
+  async reportReview(reviewId, reason) {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      throw new Error('Bạn cần đăng nhập để báo cáo đánh giá');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/reviews/${reviewId}/report`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        reason: reason || 'Nội dung không phù hợp'
+      })
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Có lỗi xảy ra khi báo cáo đánh giá');
+    }
+
+    return data;
+  },
+
+  // Admin methods
+  async getReportedReviews() {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      throw new Error('Bạn cần đăng nhập');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/reviews/admin/reported`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Có lỗi xảy ra khi lấy danh sách đánh giá bị báo cáo');
+    }
+
+    return data.data || [];
+  },
+
+  async toggleReviewVisibility(reviewId) {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      throw new Error('Bạn cần đăng nhập');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/reviews/admin/${reviewId}/toggle-visibility`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Có lỗi xảy ra khi thay đổi trạng thái đánh giá');
+    }
+
+    return data.data;
   }
 };
 

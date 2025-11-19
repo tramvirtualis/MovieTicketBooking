@@ -27,4 +27,12 @@ public class Review {
     private String context;
     private LocalDateTime createdAt;
     private LocalDateTime createdUpdate;
+    
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean isHidden = false; // Admin can hide inappropriate reviews
+    
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer reportCount = 0; // Number of times this review has been reported
 }

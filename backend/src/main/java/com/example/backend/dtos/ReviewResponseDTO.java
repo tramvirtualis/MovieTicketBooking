@@ -21,6 +21,8 @@ public class ReviewResponseDTO {
     private String context;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Boolean isHidden; // Whether the review is hidden by admin
+    private Integer reportCount; // Number of times this review has been reported
 }
 
 

@@ -30,6 +30,7 @@ export default function MovieDetail() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [loadingFavorite, setLoadingFavorite] = useState(false);
   const [expandedReviews, setExpandedReviews] = useState(new Set());
+  const [reportingReviewId, setReportingReviewId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const reviewsPerPage = 4;
   const [showAgeConfirmModal, setShowAgeConfirmModal] = useState(false);
@@ -342,6 +343,31 @@ export default function MovieDetail() {
       alert(err.message || 'Có lỗi xảy ra');
     } finally {
       setLoadingFavorite(false);
+    }
+  };
+
+  // Handle report review
+  const handleReportReview = async (reviewId) => {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      alert('Bạn cần đăng nhập để báo cáo đánh giá');
+      navigate('/login');
+      return;
+    }
+
+    const reason = prompt('Vui lòng nhập lý do báo cáo đánh giá này:');
+    if (!reason || reason.trim() === '') {
+      return;
+    }
+
+    setReportingReviewId(reviewId);
+    try {
+      await reviewService.reportReview(reviewId, reason.trim());
+      alert('Báo cáo đánh giá thành công. Cảm ơn bạn đã góp ý!');
+    } catch (err) {
+      alert(err.message || 'Có lỗi xảy ra khi báo cáo đánh giá');
+    } finally {
+      setReportingReviewId(null);
     }
   };
 
@@ -777,8 +803,47 @@ export default function MovieDetail() {
                                 </div>
                               </div>
                             </div>
-                            <div className="movie-review-card__date">
-                              {formatShortDate(review.reviewDate)}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div className="movie-review-card__date">
+                                {formatShortDate(review.reviewDate)}
+                              </div>
+                              <button
+                                onClick={() => handleReportReview(review.id)}
+                                disabled={reportingReviewId === review.id}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: reportingReviewId === review.id ? 'wait' : 'pointer',
+                                  padding: '4px 8px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  color: 'rgba(255,255,255,0.6)',
+                                  transition: 'color 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (reportingReviewId !== review.id) {
+                                    e.target.style.color = '#e83b41';
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (reportingReviewId !== review.id) {
+                                    e.target.style.color = 'rgba(255,255,255,0.6)';
+                                  }
+                                }}
+                                title="Báo cáo đánh giá này"
+                              >
+                                <svg 
+                                  width="18" 
+                                  height="18" 
+                                  viewBox="0 0 24 24" 
+                                  fill="none" 
+                                  stroke="currentColor" 
+                                  strokeWidth="2"
+                                >
+                                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                  <line x1="4" y1="22" x2="4" y2="15"></line>
+                                </svg>
+                              </button>
                             </div>
                           </div>
                           <div className="movie-review-card__review">

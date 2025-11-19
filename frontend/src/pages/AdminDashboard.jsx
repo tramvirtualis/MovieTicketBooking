@@ -26,6 +26,7 @@ import Reports from '../components/AdminDashboard/Reports';
 import PriceManagement from '../components/AdminDashboard/PriceManagement';
 import BannerManagement from '../components/AdminDashboard/BannerManagement';
 import ActivityManagement from '../components/AdminDashboard/ActivityManagement';
+import ReviewManagement from '../components/AdminDashboard/ReviewManagement';
 import cloudinaryService from '../services/cloudinaryService';
 
 // Add CSS animation for spinner and notification
@@ -879,6 +880,17 @@ export default function AdminDashboard() {
             <span>Báo cáo</span>
           </button>
           <button
+            className={`admin-nav-item ${activeSection === 'reviews' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => setActiveSection('reviews')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              <path d="M13 8H7"/>
+              <path d="M17 12H7"/>
+            </svg>
+            <span>Quản lý đánh giá</span>
+          </button>
+          <button
             className={`admin-nav-item ${activeSection === 'activities' ? 'admin-nav-item--active' : ''}`}
             onClick={() => {
               setActiveSection('activities');
@@ -935,6 +947,7 @@ export default function AdminDashboard() {
               {activeSection === 'cinemas' && 'Quản lý rạp'}
               {activeSection === 'bookings' && 'Quản lý đặt vé'}
               {activeSection === 'users' && 'Quản lý người dùng'}
+              {activeSection === 'reviews' && 'Quản lý đánh giá'}
               {activeSection === 'vouchers' && 'Quản lý voucher'}
               {activeSection === 'foodbeverages' && 'Quản lý đồ ăn & nước uống'}
               {activeSection === 'banners' && 'Quản lý banner'}
@@ -1038,6 +1051,10 @@ export default function AdminDashboard() {
               vouchers={vouchers}
               users={users}
             />
+          )}
+
+          {activeSection === 'reviews' && (
+            <ReviewManagement />
           )}
 
           {activeSection === 'activities' && (

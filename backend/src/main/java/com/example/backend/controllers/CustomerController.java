@@ -1,11 +1,13 @@
 package com.example.backend.controllers;
 
 import com.example.backend.dtos.MovieResponseDTO;
+import com.example.backend.dtos.OrderResponseDTO;
 import com.example.backend.dtos.UpdateCustomerProfileRequestDTO;
 import com.example.backend.dtos.VoucherResponseDTO;
 import com.example.backend.entities.Customer;
 import com.example.backend.repositories.CustomerRepository;
 import com.example.backend.services.CustomerService;
+import com.example.backend.services.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -30,6 +32,7 @@ public class CustomerController {
 
     private final CustomerService customerService;
     private final CustomerRepository customerRepository;
+    private final OrderService orderService;
 
     @PutMapping("/{id}/profile")
     public ResponseEntity<?> updateProfile(
@@ -282,6 +285,27 @@ public class CustomerController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("hasFavorite", hasFavorite);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    // ============ ORDERS ENDPOINTS ============
+
+    @GetMapping("/orders")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> getMyOrders() {
+        try {
+            Long userId = getCurrentCustomerId();
+            List<OrderResponseDTO> orders = orderService.getOrdersByUser(userId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Lấy danh sách đơn hàng thành công");
+            response.put("data", orders);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));

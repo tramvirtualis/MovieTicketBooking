@@ -10,8 +10,10 @@ import java.util.Optional;
 @Repository
 public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findByMovieMovieId(Long movieId);
+    List<Review> findByMovieMovieIdAndIsHiddenFalse(Long movieId); // Only get visible reviews
     List<Review> findByUserUserId(Long userId);
     Optional<Review> findByUserUserIdAndMovieMovieId(Long userId, Long movieId);
+    List<Review> findByReportCountGreaterThanOrderByReportCountDesc(Integer reportCount); // Get reported reviews sorted by report count
 }
 
 

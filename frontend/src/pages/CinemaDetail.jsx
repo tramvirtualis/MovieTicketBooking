@@ -1,77 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
-import interstellar from '../assets/images/interstellar.jpg';
-import inception from '../assets/images/inception.jpg';
-import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
-import driveMyCar from '../assets/images/drive-my-car.jpg';
-
-const cinemaData = {
-  'Quốc Thanh': {
-    address: '271 Nguyễn Trãi, Phường Cầu Ông Lãnh, Thành Phố Hồ Chí Minh',
-    nowShowing: [
-      {
-        id: 'inception',
-        title: 'Inception',
-        rating: 'T16',
-        genre: 'Sci-Fi, Hành Động',
-        duration: 147,
-        origin: 'Mỹ',
-        audio: 'Phụ Đề',
-        poster: inception,
-        description: 'Trong tương lai gần, một tay trộm hành tinh thức lenh, nơi Predator nợ nần – kẻ bị săn đuổi có cơ hội nhận lại tự do – tìm thấy một mục tiêu không ngờ tới là một bé gái bản lĩnh.',
-        showtimes: {
-          STANDARD: ['12:00', '15:00', '18:15', '20:10'],
-          DELUXE: ['09:00']
-        }
-      },
-      {
-        id: 'interstellar',
-        title: 'Interstellar',
-        rating: 'T13',
-        genre: 'Sci-Fi, Phiêu Lưu',
-        duration: 169,
-        origin: 'Mỹ',
-        audio: 'Phụ Đề',
-        poster: interstellar,
-        description: 'Một nhóm nhà thám hiểm không gian đi qua một lỗ sâu đục để vượt qua những hạn chế về du hành không gian của con người và thực hiện một chuyến du hành xuyên thiên hà.',
-        showtimes: {
-          STANDARD: ['12:30', '23:10'],
-          DELUXE: ['15:15']
-        }
-      },
-      {
-        id: 'dark-knight',
-        title: 'The Dark Knight Rises',
-        rating: 'T16',
-        genre: 'Hành Động, Tội Phạm',
-        duration: 164,
-        origin: 'Mỹ',
-        audio: 'Phụ Đề',
-        poster: darkKnightRises,
-        description: 'Tám năm sau sự kiện của The Dark Knight, Batman bị buộc phải quay trở lại từ lưu vong để bảo vệ Gotham City khỏi Bane, một kẻ khủng bố hung bạo.',
-        showtimes: {
-          STANDARD: ['08:20', '17:20', '20:40', '22:50']
-        }
-      }
-    ],
-    comingSoon: [
-      {
-        id: 'drive',
-        title: 'Drive My Car',
-        rating: 'T13',
-        genre: 'Drama',
-        duration: 179,
-        origin: 'Nhật Bản',
-        audio: 'Phụ Đề',
-        poster: driveMyCar,
-        releaseDate: '15/11/2025',
-        description: 'Một đạo diễn sân khấu góa vợ chấp nhận một dự án ở Hiroshima, nơi anh gặp một người phụ nữ trẻ với quá khứ đầy bí ẩn.'
-      }
-    ]
-  }
-};
+import { cinemaComplexService } from '../services/cinemaComplexService';
+import scheduleService from '../services/scheduleService';
+import { movieService } from '../services/movieService';
 
 export default function CinemaDetail() {
   const { name } = useParams();
@@ -81,10 +14,222 @@ export default function CinemaDetail() {
     return Object.fromEntries(searchParams.entries());
   }, [searchParams]);
 
-  const cinemaName = name || query.name || 'Quốc Thanh';
-  const province = query.province || 'TP.HCM';
-  const cinema = cinemaData[cinemaName] || cinemaData['Quốc Thanh'];
+  const cinemaName = decodeURIComponent(name || query.name || '');
+  const province = decodeURIComponent(query.province || '');
+  
+  const [cinema, setCinema] = useState(null);
+  const [nowShowingMovies, setNowShowingMovies] = useState([]);
+  const [comingSoonMovies, setComingSoonMovies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('now-showing');
+
+  // Load cinema info and movies
+  useEffect(() => {
+    const loadData = async () => {
+      if (!cinemaName) {
+        setError('Không tìm thấy tên rạp');
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // 1. Load all cinemas to find the one matching name and province
+        const cinemasResult = await cinemaComplexService.getAllCinemaComplexes();
+        if (!cinemasResult.success || !cinemasResult.data) {
+          throw new Error('Không thể tải danh sách rạp');
+        }
+
+        console.log('All cinemas:', cinemasResult.data);
+        console.log('Looking for cinema:', cinemaName, 'in province:', province);
+
+        const foundCinema = cinemasResult.data.find(
+          c => c.name === cinemaName && 
+          (province ? c.addressProvince === province : true)
+        );
+
+        console.log('Found cinema:', foundCinema);
+
+        if (!foundCinema) {
+          // Try to find by name only if province doesn't match
+          const foundByName = cinemasResult.data.find(c => c.name === cinemaName);
+          if (foundByName) {
+            console.log('Found cinema by name only:', foundByName);
+            setCinema(foundByName);
+          } else {
+            throw new Error(`Không tìm thấy rạp "${cinemaName}"`);
+          }
+        } else {
+          setCinema(foundCinema);
+        }
+
+        // 2. Load all showtimes for this cinema complex
+        const now = new Date();
+        const nowShowingMovieIds = new Set();
+        const allMovieIds = new Set();
+
+        const currentCinema = foundCinema || cinemasResult.data.find(c => c.name === cinemaName);
+        
+        if (currentCinema && currentCinema.complexId) {
+          try {
+            // Get all showtimes for this cinema (using complexId as cinemaId)
+            console.log('Fetching showtimes for cinemaId:', currentCinema.complexId);
+            const showtimesResult = await scheduleService.getListings({
+              cinemaId: currentCinema.complexId,
+              date: undefined // Get all showtimes
+            });
+
+            console.log('Showtimes result type:', typeof showtimesResult);
+            console.log('Showtimes result:', showtimesResult);
+
+            // scheduleService.getListings returns data directly as array
+            const listings = Array.isArray(showtimesResult) ? showtimesResult : [];
+
+            console.log('Listings count:', listings.length);
+            console.log('Found cinema complexId:', currentCinema.complexId);
+
+            // Extract unique movie IDs from showtimes
+            listings.forEach(listing => {
+              console.log('Processing listing:', listing);
+              // Check if this listing belongs to our cinema
+              // cinemaId in ScheduleListingDTO is the complexId
+              if (listing.cinemaId && listing.cinemaId === currentCinema.complexId && listing.movieId) {
+                allMovieIds.add(listing.movieId);
+                
+                // Check if this showtime is in the future
+                if (listing.startTime) {
+                  const showtimeDate = new Date(listing.startTime);
+                  console.log(`Showtime ${listing.movieId}: ${listing.startTime} -> ${showtimeDate} >= ${now}? ${showtimeDate >= now}`);
+                  if (showtimeDate >= now) {
+                    nowShowingMovieIds.add(listing.movieId);
+                  }
+                }
+              }
+            });
+
+            console.log('All movie IDs from showtimes:', Array.from(allMovieIds));
+            console.log('Now showing movie IDs:', Array.from(nowShowingMovieIds));
+          } catch (err) {
+            console.error('Error loading showtimes:', err);
+            console.error('Error details:', err.message, err.stack);
+            // Continue even if showtimes fail to load
+          }
+        } else {
+          console.warn('No cinema found or no complexId');
+        }
+
+        // 3. Load all public movies
+        const moviesResult = await movieService.getPublicMovies();
+        console.log('Movies result:', moviesResult);
+        
+        if (!moviesResult.success) {
+          console.error('Failed to load movies:', moviesResult.error);
+          throw new Error(moviesResult.error || 'Không thể tải danh sách phim');
+        }
+
+        const allMovies = moviesResult.data || [];
+        console.log('All movies loaded:', allMovies.length);
+        console.log('Sample movie:', allMovies[0]);
+
+        // 4. Filter movies based on showtimes
+        // Now showing: movies with future showtimes at this cinema
+        const nowShowing = allMovies.filter(m => {
+          if (!m || !m.movieId) return false;
+          const hasFutureShowtime = nowShowingMovieIds.has(m.movieId);
+          return hasFutureShowtime;
+        });
+
+        console.log('Now showing movies count:', nowShowing.length);
+        console.log('Now showing movies:', nowShowing.map(m => ({ id: m.movieId, title: m.title })));
+
+        // Coming soon: movies that are in the cinema's movie list but don't have future showtimes
+        // OR movies with release date in the future
+        const comingSoon = allMovies.filter(m => {
+          if (!m || !m.movieId) return false;
+          
+          // Skip movies that are already in now showing
+          if (nowShowingMovieIds.has(m.movieId)) {
+            return false;
+          }
+          
+          // If movie has showtimes but all are in the past, and release date is in future
+          if (allMovieIds.has(m.movieId) && !nowShowingMovieIds.has(m.movieId)) {
+            const releaseDate = m.releaseDate ? new Date(m.releaseDate) : null;
+            return releaseDate && releaseDate > now;
+          }
+          
+          // If movie doesn't have any showtimes yet, check release date
+          if (!allMovieIds.has(m.movieId)) {
+            const releaseDate = m.releaseDate ? new Date(m.releaseDate) : null;
+            return releaseDate && releaseDate > now;
+          }
+          
+          return false;
+        });
+
+        console.log('Coming soon movies count:', comingSoon.length);
+
+        setNowShowingMovies(nowShowing);
+        setComingSoonMovies(comingSoon);
+      } catch (err) {
+        console.error('Error loading cinema data:', err);
+        setError(err.message || 'Có lỗi xảy ra khi tải dữ liệu');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [cinemaName, province]);
+
+  const formatAgeRating = (ageRating) => {
+    if (!ageRating) return 'T13';
+    const ratingStr = typeof ageRating === 'string' ? ageRating : ageRating.toString();
+    return ratingStr.replace('RATING_', 'T');
+  };
+
+  const formatGenres = (genres) => {
+    if (!genres || !Array.isArray(genres)) return 'N/A';
+    return genres.map(g => {
+      const genreStr = typeof g === 'string' ? g : g.toString();
+      return genreStr.replace('GENRE_', '');
+    }).join(', ');
+  };
+
+  const formatLanguage = (languages) => {
+    if (!languages || !Array.isArray(languages) || languages.length === 0) return 'Phụ Đề';
+    // Take first language and format it
+    const lang = languages[0];
+    const langStr = typeof lang === 'string' ? lang : lang.toString();
+    return langStr.replace('LANGUAGE_', '');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen cinema-mood">
+        <Header />
+        <div style={{ textAlign: 'center', padding: '100px 20px', color: '#c9c4c5' }}>
+          Đang tải thông tin rạp...
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error || !cinema) {
+    return (
+      <div className="min-h-screen cinema-mood">
+        <Header />
+        <div style={{ textAlign: 'center', padding: '100px 20px', color: '#e83b41' }}>
+          {error || 'Không tìm thấy rạp'}
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen cinema-mood">
@@ -92,8 +237,13 @@ export default function CinemaDetail() {
 
       <div className="cinema-header">
         <div className="container">
-          <h1 className="cinema-header__title">CINESTAR {cinemaName.toUpperCase()} ({province})</h1>
-          <p className="cinema-header__address">{cinema.address}</p>
+          <h1 className="cinema-header__title">CINESMART {cinema.name?.toUpperCase() || ''} ({cinema.addressProvince || ''})</h1>
+          <p className="cinema-header__address">
+            {cinema.fullAddress || 
+             (cinema.addressDescription && cinema.addressProvince 
+               ? `${cinema.addressDescription}, ${cinema.addressProvince}`
+               : cinema.addressDescription || cinema.addressProvince || '')}
+          </p>
         </div>
       </div>
 
@@ -123,84 +273,123 @@ export default function CinemaDetail() {
 
             {activeTab === 'now-showing' && (
               <div className="cinema-movies">
-                {cinema.nowShowing.map((movie) => (
-                  <div key={movie.id} className="cinema-movie-card">
-                    <div className="cinema-movie-card__poster">
-                      <img src={movie.poster} alt={movie.title} />
-                    </div>
-                    <div className="cinema-movie-card__content">
-                      <div className="cinema-movie-card__header">
-                        <h3 className="cinema-movie-card__title">{movie.title} ({movie.rating})</h3>
-                      </div>
-                      <div className="cinema-movie-card__meta">
-                        <span>{movie.genre}</span>
-                        <span>{movie.duration} phút</span>
-                        <span>{movie.origin}</span>
-                        <span>{movie.audio}</span>
-                      </div>
-                      <div className="cinema-movie-card__rating-desc">
-                        {movie.rating}: Phim dành cho khán giả từ đủ {movie.rating.replace('T', '')} tuổi trở lên ({movie.rating.replace('T', '')}+)
-                      </div>
-                      {movie.description && (
-                        <div className="cinema-movie-card__description" style={{ marginTop: '12px', color: '#c9c4c5', fontSize: '14px', lineHeight: '1.6' }}>
-                          {movie.description}
-                        </div>
-                      )}
-                      <div style={{ marginTop: '16px' }}>
-                        <button 
-                          onClick={() => navigate(`/movie/${movie.id || encodeURIComponent(movie.title)}`)}
-                          className="cinema-movie-card__more-link"
-                          style={{ 
-                            display: 'inline-block',
-                            padding: '10px 20px',
-                            backgroundColor: '#e83b41',
-                            color: '#fff',
-                            textDecoration: 'none',
-                            border: 'none',
-                            borderRadius: '4px',
-                            fontWeight: 600,
-                            fontSize: '14px',
-                            cursor: 'pointer',
-                            transition: 'background-color 0.3s'
-                          }}
-                          onMouseEnter={(e) => e.target.style.backgroundColor = '#c92e33'}
-                          onMouseLeave={(e) => e.target.style.backgroundColor = '#e83b41'}
-                        >
-                          Đặt vé
-                        </button>
-                      </div>
-                    </div>
+                {nowShowingMovies.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px', color: '#c9c4c5' }}>
+                    Không có phim nào đang chiếu
                   </div>
-                ))}
+                ) : (
+                  nowShowingMovies.map((movie) => (
+                    <div key={movie.movieId} className="cinema-movie-card">
+                      <div className="cinema-movie-card__poster">
+                        <img 
+                          src={movie.poster || 'https://via.placeholder.com/300x450?text=No+Poster'} 
+                          alt={movie.title}
+                          onError={(e) => {
+                            e.target.src = 'https://via.placeholder.com/300x450?text=No+Poster';
+                          }}
+                        />
+                      </div>
+                      <div className="cinema-movie-card__content">
+                        <div className="cinema-movie-card__header">
+                          <h3 className="cinema-movie-card__title">
+                            {movie.title} ({formatAgeRating(movie.ageRating)})
+                          </h3>
+                        </div>
+                        <div className="cinema-movie-card__meta">
+                          <span>{formatGenres(movie.genre)}</span>
+                          <span>{movie.duration} phút</span>
+                          <span>{movie.director || 'N/A'}</span>
+                          <span>{formatLanguage(movie.languages)}</span>
+                        </div>
+                        <div className="cinema-movie-card__rating-desc">
+                          {formatAgeRating(movie.ageRating)}: Phim dành cho khán giả từ đủ {formatAgeRating(movie.ageRating).replace('T', '')} tuổi trở lên ({formatAgeRating(movie.ageRating).replace('T', '')}+)
+                        </div>
+                        {movie.description && (
+                          <div className="cinema-movie-card__description" style={{ marginTop: '12px', color: '#c9c4c5', fontSize: '14px', lineHeight: '1.6' }}>
+                            {movie.description}
+                          </div>
+                        )}
+                        <div style={{ marginTop: '16px' }}>
+                          <button 
+                            onClick={() => navigate(`/movie/${movie.movieId}`)}
+                            className="cinema-movie-card__more-link"
+                            style={{ 
+                              display: 'inline-block',
+                              padding: '10px 20px',
+                              backgroundColor: '#e83b41',
+                              color: '#fff',
+                              textDecoration: 'none',
+                              border: 'none',
+                              borderRadius: '4px',
+                              fontWeight: 600,
+                              fontSize: '14px',
+                              cursor: 'pointer',
+                              transition: 'background-color 0.3s'
+                            }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = '#c92e33'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = '#e83b41'}
+                          >
+                            Đặt vé
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             )}
 
             {activeTab === 'coming-soon' && (
               <div className="cinema-movies">
-                {cinema.comingSoon.map((movie) => (
-                  <div key={movie.id} className="cinema-movie-card">
-                    <div className="cinema-movie-card__poster">
-                      <img src={movie.poster} alt={movie.title} />
-                    </div>
-                    <div className="cinema-movie-card__content">
-                      <div className="cinema-movie-card__header">
-                        <h3 className="cinema-movie-card__title">{movie.title} ({movie.rating})</h3>
-                      </div>
-                      <div className="cinema-movie-card__meta">
-                        <span>{movie.genre}</span>
-                        <span>{movie.duration} phút</span>
-                        <span>{movie.origin}</span>
-                        <span>{movie.audio}</span>
-                      </div>
-                      <div className="cinema-movie-card__rating-desc">
-                        {movie.rating}: Phim dành cho khán giả từ đủ {movie.rating.replace('T', '')} tuổi trở lên ({movie.rating.replace('T', '')}+)
-                      </div>
-                      <div style={{ marginTop: '12px', color: '#ffd159', fontWeight: 600 }}>
-                        Khởi chiếu: {movie.releaseDate}
-                      </div>
-                    </div>
+                {comingSoonMovies.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px', color: '#c9c4c5' }}>
+                    Không có phim nào sắp chiếu
                   </div>
-                ))}
+                ) : (
+                  comingSoonMovies.map((movie) => (
+                    <div key={movie.movieId} className="cinema-movie-card">
+                      <div className="cinema-movie-card__poster">
+                        <img 
+                          src={movie.poster || 'https://via.placeholder.com/300x450?text=No+Poster'} 
+                          alt={movie.title}
+                          onError={(e) => {
+                            e.target.src = 'https://via.placeholder.com/300x450?text=No+Poster';
+                          }}
+                        />
+                      </div>
+                      <div className="cinema-movie-card__content">
+                        <div className="cinema-movie-card__header">
+                          <h3 className="cinema-movie-card__title">
+                            {movie.title} ({formatAgeRating(movie.ageRating)})
+                          </h3>
+                        </div>
+                        <div className="cinema-movie-card__meta">
+                          <span>{formatGenres(movie.genre)}</span>
+                          <span>{movie.duration} phút</span>
+                          <span>{movie.director || 'N/A'}</span>
+                          <span>{formatLanguage(movie.languages)}</span>
+                        </div>
+                        <div className="cinema-movie-card__rating-desc">
+                          {formatAgeRating(movie.ageRating)}: Phim dành cho khán giả từ đủ {formatAgeRating(movie.ageRating).replace('T', '')} tuổi trở lên ({formatAgeRating(movie.ageRating).replace('T', '')}+)
+                        </div>
+                        {movie.releaseDate && (
+                          <div style={{ marginTop: '12px', color: '#ffd159', fontWeight: 600 }}>
+                            Khởi chiếu: {new Date(movie.releaseDate).toLocaleDateString('vi-VN', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric'
+                            })}
+                          </div>
+                        )}
+                        {movie.description && (
+                          <div className="cinema-movie-card__description" style={{ marginTop: '12px', color: '#c9c4c5', fontSize: '14px', lineHeight: '1.6' }}>
+                            {movie.description}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -211,4 +400,3 @@ export default function CinemaDetail() {
     </div>
   );
 }
-

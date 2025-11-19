@@ -13,9 +13,11 @@ import com.example.backend.dtos.CreateReviewDTO;
 import com.example.backend.dtos.ReviewResponseDTO;
 import com.example.backend.entities.Movie;
 import com.example.backend.entities.Review;
+import com.example.backend.entities.ReviewReport;
 import com.example.backend.entities.User;
 import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.ReviewRepository;
+import com.example.backend.repositories.ReviewReportRepository;
 import com.example.backend.repositories.UserRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final MovieRepository movieRepository;
     private final UserRepository userRepository;
+    private final ReviewReportRepository reviewReportRepository;
     private final NotificationService notificationService;
     
     @Transactional
@@ -82,7 +85,8 @@ public class ReviewService {
     }
     
     public List<ReviewResponseDTO> getReviewsByMovie(Long movieId) {
-        List<Review> reviews = reviewRepository.findByMovieMovieId(movieId);
+        // Only return reviews that are not hidden
+        List<Review> reviews = reviewRepository.findByMovieMovieIdAndIsHiddenFalse(movieId);
         return reviews.stream()
             .map(this::mapToDTO)
             .collect(Collectors.toList());
@@ -93,6 +97,71 @@ public class ReviewService {
         return reviews.stream()
             .map(this::mapToDTO)
             .collect(Collectors.toList());
+    }
+    
+    @Transactional
+    public void reportReview(Long reviewId, String reason) {
+        // Lấy username từ SecurityContext
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        
+        // Tìm user
+        Optional<User> userOpt = userRepository.findByUsername(username);
+        if (userOpt.isEmpty()) {
+            throw new RuntimeException("Không tìm thấy người dùng");
+        }
+        User user = userOpt.get();
+        
+        // Tìm review
+        Optional<Review> reviewOpt = reviewRepository.findById(reviewId);
+        if (reviewOpt.isEmpty()) {
+            throw new RuntimeException("Không tìm thấy đánh giá");
+        }
+        Review review = reviewOpt.get();
+        
+        // Kiểm tra xem user đã report review này chưa
+        Optional<ReviewReport> existingReport = reviewReportRepository.findByReviewReviewIdAndUserUserId(
+            reviewId, 
+            user.getUserId()
+        );
+        
+        if (existingReport.isPresent()) {
+            throw new RuntimeException("Bạn đã báo cáo đánh giá này rồi");
+        }
+        
+        // Tạo report mới
+        ReviewReport report = ReviewReport.builder()
+            .review(review)
+            .user(user)
+            .reason(reason)
+            .build();
+        
+        reviewReportRepository.save(report);
+        
+        // Tăng reportCount
+        review.setReportCount(review.getReportCount() + 1);
+        reviewRepository.save(review);
+    }
+    
+    public List<ReviewResponseDTO> getReportedReviews() {
+        // Get all reviews that have been reported (reportCount > 0)
+        List<Review> reviews = reviewRepository.findByReportCountGreaterThanOrderByReportCountDesc(0);
+        return reviews.stream()
+            .map(this::mapToDTO)
+            .collect(Collectors.toList());
+    }
+    
+    @Transactional
+    public ReviewResponseDTO toggleReviewVisibility(Long reviewId) {
+        Optional<Review> reviewOpt = reviewRepository.findById(reviewId);
+        if (reviewOpt.isEmpty()) {
+            throw new RuntimeException("Không tìm thấy đánh giá");
+        }
+        
+        Review review = reviewOpt.get();
+        review.setIsHidden(!review.getIsHidden());
+        Review savedReview = reviewRepository.save(review);
+        
+        return mapToDTO(savedReview);
     }
     
     private ReviewResponseDTO mapToDTO(Review review) {
@@ -106,6 +175,8 @@ public class ReviewService {
             .context(review.getContext())
             .createdAt(review.getCreatedAt())
             .updatedAt(review.getCreatedUpdate())
+            .isHidden(review.getIsHidden())
+            .reportCount(review.getReportCount())
             .build();
     }
 }

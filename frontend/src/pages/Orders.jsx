@@ -1,109 +1,106 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
-import interstellar from '../assets/images/interstellar.jpg';
-import inception from '../assets/images/inception.jpg';
-import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
-import driveMyCar from '../assets/images/drive-my-car.jpg';
-
-// Sample orders data
-const orders = [
-  {
-    orderId: 'ORD-2025-001',
-    orderDate: '2025-11-05',
-    totalAmount: 240000,
-    status: 'completed', // completed, pending, cancelled
-    items: [
-      {
-        id: '1',
-        movie: {
-          title: 'Inception',
-          poster: inception,
-        },
-        cinema: 'Cinestar Quốc Thanh (TPHCM)',
-        showtime: {
-          date: '07/11/2025',
-          time: '19:30',
-          format: 'STANDARD'
-        },
-        seats: ['A5', 'A6'],
-        price: 120000,
-      }
-    ],
-    paymentMethod: 'Thẻ tín dụng',
-    bookingDate: '05/11/2025 14:30'
-  },
-  {
-    orderId: 'ORD-2025-002',
-    orderDate: '2025-11-06',
-    totalAmount: 690000,
-    status: 'pending',
-    items: [
-      {
-        id: '2',
-        movie: {
-          title: 'Interstellar',
-          poster: interstellar,
-        },
-        cinema: 'Cinestar Hai Bà Trưng (TPHCM)',
-        showtime: {
-          date: '10/11/2025',
-          time: '21:00',
-          format: 'IMAX 2D'
-        },
-        seats: ['E8', 'E9', 'E10'],
-        price: 540000,
-      }
-    ],
-    foodItems: [
-      {
-        id: 'f1',
-        name: 'Bắp rang bơ',
-        quantity: 2,
-        price: 45000,
-        image: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=300&fit=crop'
-      },
-      {
-        id: 'd1',
-        name: 'Coca Cola',
-        quantity: 2,
-        price: 30000,
-        image: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&h=300&fit=crop'
-      }
-    ],
-    paymentMethod: 'Ví điện tử',
-    bookingDate: '06/11/2025 10:15'
-  },
-  {
-    orderId: 'ORD-2025-003',
-    orderDate: '2025-11-01',
-    totalAmount: 120000,
-    status: 'completed',
-    items: [
-      {
-        id: '3',
-        movie: {
-          title: 'The Dark Knight Rises',
-          poster: darkKnightRises,
-        },
-        cinema: 'Cinestar Satra Quận 6 (TPHCM)',
-        showtime: {
-          date: '03/11/2025',
-          time: '20:10',
-          format: 'STANDARD'
-        },
-        seats: ['C12'],
-        price: 120000,
-      }
-    ],
-    paymentMethod: 'Tiền mặt',
-    bookingDate: '01/11/2025 18:45'
-  },
-];
+import { getMyOrders } from '../services/customer';
+import { useNavigate } from 'react-router-dom';
 
 export default function Orders() {
+  const navigate = useNavigate();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ordersPerPage = 5;
+
+  // Load orders from API
+  useEffect(() => {
+    const loadOrders = async () => {
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        const ordersData = await getMyOrders();
+        
+        // Map backend data to frontend format
+        const mappedOrders = ordersData.map(order => {
+          // Group tickets by showtime (same movie, same showtime = same item)
+          const itemsByShowtime = {};
+          order.items.forEach(item => {
+            const key = `${item.movieId}-${item.showtimeStart}`;
+            if (!itemsByShowtime[key]) {
+              itemsByShowtime[key] = {
+                id: item.ticketId.toString(),
+                movie: {
+                  movieId: item.movieId,
+                  id: item.movieId,
+                  title: item.movieTitle,
+                  poster: item.moviePoster || 'https://via.placeholder.com/300x450?text=No+Poster'
+                },
+                cinema: item.cinemaComplexName + (item.cinemaAddress ? ` (${item.cinemaAddress})` : ''),
+                showtime: {
+                  date: new Date(item.showtimeStart).toLocaleDateString('vi-VN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                  }),
+                  time: new Date(item.showtimeStart).toLocaleTimeString('vi-VN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                  }),
+                  format: item.roomType || 'STANDARD'
+                },
+                seats: [],
+                price: 0
+              };
+            }
+            itemsByShowtime[key].seats.push(item.seatId);
+            itemsByShowtime[key].price += Number(item.price);
+          });
+
+          // Map combos to foodItems
+          const foodItems = order.combos ? order.combos.map(combo => ({
+            id: `f${combo.comboId}`,
+            name: combo.comboName,
+            quantity: combo.quantity,
+            price: Number(combo.price),
+            image: combo.comboImage || 'https://via.placeholder.com/300x300?text=Food'
+          })) : [];
+
+          return {
+            orderId: `ORD-${order.orderId}`,
+            orderDate: order.orderDate,
+            totalAmount: Number(order.totalAmount),
+            status: 'completed', // You can add status field to Order entity later
+            items: Object.values(itemsByShowtime),
+            foodItems: foodItems.length > 0 ? foodItems : undefined,
+            paymentMethod: order.paymentMethod || 'Chưa xác định',
+            bookingDate: new Date(order.orderDate).toLocaleString('vi-VN', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+          };
+        });
+
+        setOrders(mappedOrders);
+      } catch (err) {
+        console.error('Error loading orders:', err);
+        setError(err.message || 'Không thể tải danh sách đơn hàng');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadOrders();
+  }, [navigate]);
 
   // Calculate pagination
   const totalPages = Math.ceil(orders.length / ordersPerPage);
@@ -144,8 +141,22 @@ export default function Orders() {
               </h1>
             </div>
 
+            {/* Loading */}
+            {loading && (
+              <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
+                <p className="text-base m-0">Đang tải danh sách đơn hàng...</p>
+              </div>
+            )}
+
+            {/* Error */}
+            {error && !loading && (
+              <div className="text-center py-[60px] px-5 text-[#f44336]">
+                <p className="text-base m-0">{error}</p>
+              </div>
+            )}
+
             {/* Orders List */}
-            {currentOrders.length === 0 ? (
+            {!loading && !error && currentOrders.length === 0 && (
               <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-5 opacity-50">
                   <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
@@ -153,7 +164,9 @@ export default function Orders() {
                 </svg>
                 <p className="text-base m-0">Chưa có đơn hàng nào trong mục này</p>
               </div>
-            ) : (
+            )}
+
+            {!loading && !error && currentOrders.length > 0 && (
               <>
                 <div className="orders-list">
                   {currentOrders.map((order) => (
@@ -187,7 +200,14 @@ export default function Orders() {
                           </div>
                           <div className="order-item__content">
                             <h3 className="order-item__title">
-                              <a href={`#movie?title=${encodeURIComponent(item.movie.title)}`}>
+                              <a 
+                                href={`/movie/${item.movie.movieId || item.movie.id}`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  navigate(`/movie/${item.movie.movieId || item.movie.id}`);
+                                }}
+                                style={{ color: '#ffd159', textDecoration: 'none' }}
+                              >
                                 {item.movie.title}
                               </a>
                             </h3>

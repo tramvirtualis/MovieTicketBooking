@@ -52,3 +52,15 @@ export const updateCustomerProfile = async (userId, profileData) => {
     throw err;
   }
 };
+
+export const getMyOrders = async () => {
+  try {
+    const res = await axiosInstance.get('/customer/orders');
+    if (res.data.success && res.data.data) {
+      return res.data.data;
+    }
+    throw new Error(res.data.message || 'Lấy danh sách đơn hàng thất bại');
+  } catch (err) {
+    throw err;
+  }
+};

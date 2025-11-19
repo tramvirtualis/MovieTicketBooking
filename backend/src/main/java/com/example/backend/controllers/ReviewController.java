@@ -1,6 +1,7 @@
 package com.example.backend.controllers;
 
 import com.example.backend.dtos.CreateReviewDTO;
+import com.example.backend.dtos.ReportReviewDTO;
 import com.example.backend.dtos.ReviewResponseDTO;
 import com.example.backend.services.ReviewService;
 import jakarta.validation.Valid;
@@ -71,6 +72,64 @@ public class ReviewController {
             return ResponseEntity.ok(
                 createSuccessResponse("Lấy danh sách đánh giá thành công", reviews)
             );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    @PostMapping("/{reviewId}/report")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN', 'MANAGER')")
+    public ResponseEntity<?> reportReview(@PathVariable Long reviewId,
+                                          @Valid @RequestBody ReportReviewDTO reportDTO,
+                                          BindingResult bindingResult) {
+        if (bindingResult.hasErrors()) {
+            return ResponseEntity.badRequest().body(
+                createErrorResponse(bindingResult)
+            );
+        }
+        
+        try {
+            reviewService.reportReview(reviewId, reportDTO.getReason());
+            return ResponseEntity.ok(
+                createSuccessResponse("Báo cáo đánh giá thành công", null)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+    
+    // Admin endpoints
+    @GetMapping("/admin/reported")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getReportedReviews() {
+        try {
+            List<ReviewResponseDTO> reviews = reviewService.getReportedReviews();
+            return ResponseEntity.ok(
+                createSuccessResponse("Lấy danh sách đánh giá bị báo cáo thành công", reviews)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    @PutMapping("/admin/{reviewId}/toggle-visibility")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> toggleReviewVisibility(@PathVariable Long reviewId) {
+        try {
+            ReviewResponseDTO review = reviewService.toggleReviewVisibility(reviewId);
+            String message = review.getIsHidden() ? "Đã ẩn đánh giá" : "Đã hiển thị đánh giá";
+            return ResponseEntity.ok(
+                createSuccessResponse(message, review)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse(e.getMessage()));

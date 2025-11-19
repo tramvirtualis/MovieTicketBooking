@@ -41,6 +41,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         
+        // Skip OPTIONS requests (CORS preflight)
+        if ("OPTIONS".equals(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        
         // Only process JWT for API endpoints that require authentication
         if (requestPath.startsWith("/api/") && authHeader != null && authHeader.startsWith("Bearer ")) {
             try {
@@ -83,10 +89,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // Token không hợp lệ, tiếp tục filter chain mà không set authentication
                 // Spring Security sẽ xử lý việc từ chối request nếu cần authentication
             }
-        } else if (requestPath.startsWith("/api/customer/")) {
+        } else if (requestPath.startsWith("/api/customer/") || requestPath.startsWith("/api/admin/")) {
             System.out.println("JwtAuthenticationFilter: Protected path " + requestPath + " - Authorization header: " + (authHeader != null ? "present" : "missing"));
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                System.out.println("JwtAuthenticationFilter: No valid Authorization header found");
+                System.out.println("JwtAuthenticationFilter: No valid Authorization header found for path: " + requestPath);
+            } else {
+                System.out.println("JwtAuthenticationFilter: Authorization header found but path doesn't match processing condition");
             }
         }
         
