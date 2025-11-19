@@ -50,7 +50,7 @@ export default function Checkout() {
   const navigate = useNavigate();
   const [cartData, setCartData] = useState(null);
   const [bookingData, setBookingData] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('VNPAY');
+  const [paymentMethod, setPaymentMethod] = useState('MOMO');
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [availableVouchers, setAvailableVouchers] = useState([]);
   const [showVoucherList, setShowVoucherList] = useState(false);
@@ -136,8 +136,8 @@ export default function Checkout() {
       return;
     }
 
-    // Thanh toán qua VNPAY (fake gateway)
-    if (paymentMethod === 'VNPAY') {
+    // Thanh toán qua MoMo
+    if (paymentMethod === 'MOMO') {
       try {
         const payload = {
           amount: totalAmount,
@@ -145,23 +145,21 @@ export default function Checkout() {
           orderDescription: 'Thanh toán đơn hàng tại Cinesmart',
         };
 
-        const response = await paymentService.createVnPayPayment(payload);
-        if (response.success && response.data?.txnRef) {
-          const txnRef = response.data.txnRef;
-          // Điều hướng sang trang fake VNPay trong hệ thống
-          navigate(`/payment/fake-vnpay?txnRef=${encodeURIComponent(txnRef)}&amount=${encodeURIComponent(totalAmount)}`);
+        const response = await paymentService.createMomoPayment(payload);
+        if (response.success && response.data?.paymentUrl) {
+          window.location.href = response.data.paymentUrl;
         } else {
-          alert(response.message || 'Không thể khởi tạo đơn hàng thanh toán. Vui lòng thử lại.');
+          alert(response.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
         }
       } catch (error) {
-        console.error('Error creating VNPay payment:', error);
-        alert(error.message || 'Không thể khởi tạo đơn hàng thanh toán. Vui lòng thử lại.');
+        console.error('Error creating MoMo payment:', error);
+        alert(error.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
       }
       return;
     }
 
     // Các phương thức thanh toán khác (chưa tích hợp)
-    alert('Chức năng thanh toán cho phương thức này chưa được hỗ trợ. Vui lòng chọn VNPay.');
+    alert('Chức năng thanh toán cho phương thức này chưa được hỗ trợ. Vui lòng chọn MoMo.');
   };
 
   const getSubtotal = () => {
@@ -400,18 +398,6 @@ export default function Checkout() {
                     Phương thức thanh toán
                   </h2>
                   <div className="checkout-payment-methods">
-                    <label className="checkout-payment-method">
-                      <input
-                        type="radio"
-                        name="payment"
-                        value="VNPAY"
-                        checked={paymentMethod === 'VNPAY'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                      />
-                      <div className="checkout-payment-method__content">
-                        <span>VNPay</span>
-                      </div>
-                    </label>
                     <label className="checkout-payment-method">
                       <input
                         type="radio"

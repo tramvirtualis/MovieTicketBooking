@@ -1,8 +1,9 @@
 package com.example.backend.controllers;
 
-import com.example.backend.config.VnPayProperties;
-import com.example.backend.dtos.CreateVnPayPaymentRequest;
+import com.example.backend.config.MomoProperties;
+import com.example.backend.dtos.CreatePaymentRequest;
 import com.example.backend.dtos.PaymentOrderResponseDTO;
+import com.example.backend.dtos.MomoCreatePaymentResponse;
 import com.example.backend.entities.Order;
 import com.example.backend.entities.User;
 import com.example.backend.entities.Voucher;
@@ -11,8 +12,7 @@ import com.example.backend.entities.enums.PaymentMethod;
 import com.example.backend.repositories.UserRepository;
 import com.example.backend.repositories.VoucherRepository;
 import com.example.backend.services.OrderService;
-import com.example.backend.services.VnPayService;
-import jakarta.servlet.http.HttpServletRequest;
+import com.example.backend.services.MomoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,15 +24,18 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.math.RoundingMode;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -43,20 +46,16 @@ import java.util.Optional;
         allowCredentials = "true")
 public class PaymentController {
 
-    private static final DateTimeFormatter PAY_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
-            .withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
-
     private final UserRepository userRepository;
     private final VoucherRepository voucherRepository;
     private final OrderService orderService;
-    private final VnPayService vnPayService;
-    private final VnPayProperties vnPayProperties;
+    private final MomoService momoService;
+    private final MomoProperties momoProperties;
 
-    @PostMapping("/vnpay/create")
+    @PostMapping("/momo/create")
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<?> createVnPayPayment(@Valid @RequestBody CreateVnPayPaymentRequest request,
-                                                BindingResult bindingResult,
-                                                HttpServletRequest servletRequest) {
+    public ResponseEntity<?> createMomoPayment(@Valid @RequestBody CreatePaymentRequest request,
+                                               BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(createErrorResponse("Dữ liệu không hợp lệ", bindingResult));
         }
@@ -76,80 +75,105 @@ public class PaymentController {
                     .voucher(voucher)
                     .totalAmount(request.getAmount())
                     .orderDate(now)
-                    .paymentMethod(PaymentMethod.VNPAY)
+                    .paymentMethod(PaymentMethod.MOMO)
                     .status(OrderStatus.PENDING)
                     .orderInfo(buildOrderInfo(request))
                     .vnpTxnRef(generateTxnRef())
-                    .paymentExpiredAt(now.plusMinutes(vnPayProperties.getExpireMinutes()))
+                    .paymentExpiredAt(now.plusMinutes(15))
                     .build();
 
             order = orderService.save(order);
 
-            String paymentUrl = vnPayService.generatePaymentUrl(order, request.getAmount(), extractClientIp(servletRequest));
+            String requestId = UUID.randomUUID().toString();
+            MomoCreatePaymentResponse momoResponse = momoService.createPayment(
+                    order.getVnpTxnRef(),
+                    requestId,
+                    request.getAmount(),
+                    order.getOrderInfo()
+            );
+            if (momoResponse == null || momoResponse.getPayUrl() == null) {
+                throw new IllegalStateException("MoMo không trả về liên kết thanh toán");
+            }
 
             Map<String, Object> data = new HashMap<>();
-            data.put("paymentUrl", paymentUrl);
+            data.put("paymentUrl", momoResponse.getPayUrl());
             data.put("orderId", order.getOrderId());
             data.put("txnRef", order.getVnpTxnRef());
 
             return ResponseEntity.ok(createSuccessResponse("Khởi tạo thanh toán thành công", data));
         } catch (RuntimeException ex) {
-            log.error("Failed to create VNPay payment: {}", ex.getMessage());
+            log.error("Failed to create MoMo payment: {}", ex.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(createErrorResponse(ex.getMessage(), null));
         } catch (Exception ex) {
-            log.error("Unexpected error while creating VNPay payment", ex);
+            log.error("Unexpected error while creating MoMo payment", ex);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("Không thể khởi tạo thanh toán. Vui lòng thử lại.", null));
         }
     }
 
-    @GetMapping("/vnpay/ipn")
-    public ResponseEntity<Map<String, String>> handleVnPayIpn(HttpServletRequest request) {
-        Map<String, String> params = extractParams(request);
-        String receivedHash = params.get("vnp_SecureHash");
+    @PostMapping("/momo/ipn")
+    public ResponseEntity<Map<String, Object>> handleMomoIpn(@RequestBody Map<String, Object> body) {
+        Map<String, String> params = body.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> String.valueOf(e.getValue())));
 
-        if (!vnPayService.validateSignature(params, receivedHash)) {
-            return ResponseEntity.ok(createIpnResponse("97", "Invalid signature"));
+        if (!momoService.validateIpnSignature(params)) {
+            return ResponseEntity.ok(createMomoIpnResponse(1, "Invalid signature"));
         }
 
-        String txnRef = params.get("vnp_TxnRef");
-        if (txnRef == null) {
-            return ResponseEntity.ok(createIpnResponse("01", "Invalid order"));
+        String orderId = params.get("orderId");
+        if (orderId == null) {
+            return ResponseEntity.ok(createMomoIpnResponse(2, "Missing orderId"));
         }
 
-        Optional<Order> orderOpt = orderService.findByTxnRef(txnRef);
+        Optional<Order> orderOpt = orderService.findByTxnRef(orderId);
         if (orderOpt.isEmpty()) {
-            return ResponseEntity.ok(createIpnResponse("01", "Order not found"));
+            return ResponseEntity.ok(createMomoIpnResponse(3, "Order not found"));
         }
 
         Order order = orderOpt.get();
-        BigInteger amountFromVnPay = parseAmount(params.get("vnp_Amount"));
-        BigInteger orderAmount = order.getTotalAmount()
-                .multiply(BigDecimal.valueOf(100))
+        String amountParam = params.get("amount");
+        String expectedAmount = order.getTotalAmount()
                 .setScale(0, RoundingMode.HALF_UP)
-                .toBigInteger();
-
-        if (!orderAmount.equals(amountFromVnPay)) {
-            return ResponseEntity.ok(createIpnResponse("04", "Invalid amount"));
+                .toPlainString();
+        if (!expectedAmount.equals(amountParam)) {
+            return ResponseEntity.ok(createMomoIpnResponse(4, "Invalid amount"));
         }
 
-        String responseCode = params.get("vnp_ResponseCode");
-        String transactionStatus = params.get("vnp_TransactionStatus");
-        String transactionNo = params.get("vnp_TransactionNo");
-        String bankCode = params.get("vnp_BankCode");
-        String payDateRaw = params.get("vnp_PayDate");
+        String resultCode = params.get("resultCode");
+        String message = params.getOrDefault("message", "");
+        String transId = params.getOrDefault("transId", "");
+        String payType = params.getOrDefault("payType", "MOMO");
 
-        if ("00".equals(responseCode) && "00".equals(transactionStatus)) {
+        if ("0".equals(resultCode)) {
             if (order.getStatus() != OrderStatus.PAID) {
-                LocalDateTime payDate = parsePayDate(payDateRaw);
-                orderService.markAsPaid(order, transactionNo, bankCode, responseCode, transactionStatus, payDate);
+                orderService.markAsPaid(
+                        order,
+                        transId,
+                        payType,
+                        resultCode,
+                        message,
+                        LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
+                );
             }
-            return ResponseEntity.ok(createIpnResponse("00", "Confirm Success"));
+            return ResponseEntity.ok(createMomoIpnResponse(0, "Confirm Success"));
         } else {
-            orderService.markAsFailed(order, responseCode, transactionStatus);
-            return ResponseEntity.ok(createIpnResponse("00", "Confirm Success"));
+            orderService.markAsFailed(order, resultCode, message);
+            return ResponseEntity.ok(createMomoIpnResponse(0, "Confirm Success"));
         }
+    }
+
+    @GetMapping("/momo/ipn")
+    public void handleMomoRedirect(@RequestParam Map<String, String> params,
+                                   HttpServletResponse response) throws IOException {
+        String orderId = params.getOrDefault("orderId", "");
+        String redirectUrl = momoProperties.getReturnPageUrl();
+        if (orderId != null && !orderId.isEmpty()) {
+            String separator = redirectUrl.contains("?") ? "&" : "?";
+            redirectUrl = redirectUrl + separator + "orderId=" + URLEncoder.encode(orderId, StandardCharsets.UTF_8);
+        }
+        response.sendRedirect(redirectUrl);
     }
 
     @GetMapping("/orders/{txnRef}")
@@ -187,51 +211,6 @@ public class PaymentController {
         }
     }
 
-    @PostMapping("/fake/confirm")
-    @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<?> confirmFakePayment(@RequestBody Map<String, Object> body) {
-        String txnRef = (String) body.get("txnRef");
-        Boolean success = (Boolean) body.get("success");
-        String bankCode = (String) body.getOrDefault("bankCode", "FAKEBANK");
-
-        if (txnRef == null || success == null) {
-            return ResponseEntity.badRequest()
-                    .body(createErrorResponse("Thiếu thông tin giao dịch", null));
-        }
-
-        try {
-            Order order = orderService.findByTxnRef(txnRef)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng"));
-
-            // Chỉ cho phép chủ đơn hàng thao tác
-            User currentUser = getCurrentUser()
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
-
-            if (!order.getUser().getUserId().equals(currentUser.getUserId())) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(createErrorResponse("Bạn không có quyền thao tác trên đơn hàng này", null));
-            }
-
-            if (success) {
-                orderService.markAsPaid(
-                        order,
-                        "FAKE-" + System.currentTimeMillis(),
-                        bankCode,
-                        "00",
-                        "00",
-                        LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
-                );
-            } else {
-                orderService.markAsFailed(order, "99", "99");
-            }
-
-            return ResponseEntity.ok(createSuccessResponse("Cập nhật trạng thái thanh toán thành công", null));
-        } catch (RuntimeException ex) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(createErrorResponse(ex.getMessage(), null));
-        }
-    }
-
     private Map<String, Object> createSuccessResponse(String message, Object data) {
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -252,35 +231,11 @@ public class PaymentController {
         return response;
     }
 
-    private Map<String, String> createIpnResponse(String code, String message) {
-        Map<String, String> response = new HashMap<>();
-        response.put("RspCode", code);
-        response.put("Message", message);
+    private Map<String, Object> createMomoIpnResponse(int code, String message) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("resultCode", code);
+        response.put("message", message);
         return response;
-    }
-
-    private Map<String, String> extractParams(HttpServletRequest request) {
-        Map<String, String> params = new HashMap<>();
-        request.getParameterMap().forEach((key, value) -> {
-            if (value != null && value.length > 0) {
-                params.put(key, value[0]);
-            }
-        });
-        return params;
-    }
-
-    private String extractClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank()) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isBlank()) {
-            ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
     }
 
     private Optional<User> getCurrentUser() {
@@ -292,23 +247,7 @@ public class PaymentController {
         return userRepository.findByUsername(username);
     }
 
-    private BigInteger parseAmount(String amountRaw) {
-        try {
-            return new BigInteger(amountRaw);
-        } catch (Exception e) {
-            return BigInteger.ZERO;
-        }
-    }
-
-    private LocalDateTime parsePayDate(String payDateRaw) {
-        try {
-            return LocalDateTime.parse(payDateRaw, DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        } catch (Exception e) {
-            return LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
-        }
-    }
-
-    private String buildOrderInfo(CreateVnPayPaymentRequest request) {
+    private String buildOrderInfo(CreatePaymentRequest request) {
         if (request.getOrderDescription() != null && !request.getOrderDescription().isBlank()) {
             return request.getOrderDescription();
         }

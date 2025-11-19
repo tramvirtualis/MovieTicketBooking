@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
@@ -6,10 +6,10 @@ import paymentService from '../services/paymentService.js';
 
 function useQuery() {
   const { search } = useLocation();
-  return React.useMemo(() => new URLSearchParams(search), [search]);
+  return useMemo(() => new URLSearchParams(search), [search]);
 }
 
-export default function VnPayReturn() {
+export default function MomoReturn() {
   const query = useQuery();
   const navigate = useNavigate();
 
@@ -18,7 +18,7 @@ export default function VnPayReturn() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const txnRef = query.get('vnp_TxnRef') || query.get('txnRef');
+    const txnRef = query.get('orderId') || query.get('txnRef');
     if (!txnRef) {
       setError('Không tìm thấy thông tin giao dịch.');
       setLoading(false);
@@ -30,8 +30,6 @@ export default function VnPayReturn() {
         const result = await paymentService.getOrderByTxnRef(txnRef);
         if (result.success && result.data) {
           setOrderInfo(result.data);
-
-          // Nếu đơn hàng đã thanh toán thành công, dọn dẹp dữ liệu local
           if (result.data.status === 'PAID') {
             localStorage.removeItem('checkoutCart');
             localStorage.removeItem('pendingBooking');
@@ -115,7 +113,7 @@ export default function VnPayReturn() {
                     <span className="font-semibold text-white">#{orderInfo.orderId}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Phương thức thanh toán</span>
+                    <span>Phương thức</span>
                     <span className="font-semibold text-white">{orderInfo.paymentMethod}</span>
                   </div>
                   <div className="flex justify-between">
@@ -129,13 +127,13 @@ export default function VnPayReturn() {
                   </div>
                   {orderInfo.bankCode && (
                     <div className="flex justify-between">
-                      <span>Ngân hàng</span>
+                      <span>Loại thanh toán</span>
                       <span className="font-semibold text-white">{orderInfo.bankCode}</span>
                     </div>
                   )}
                   {orderInfo.payDate && (
                     <div className="flex justify-between">
-                      <span>Thời gian thanh toán</span>
+                      <span>Thời gian xử lý</span>
                       <span className="font-semibold text-white">
                         {orderInfo.payDate.replace('T', ' ')}
                       </span>

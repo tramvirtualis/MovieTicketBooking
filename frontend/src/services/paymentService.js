@@ -36,8 +36,8 @@ axiosInstance.interceptors.response.use(
 );
 
 export const paymentService = {
-  createVnPayPayment: async (payload) => {
-    const response = await axiosInstance.post('/payments/vnpay/create', payload);
+  createMomoPayment: async (payload) => {
+    const response = await axiosInstance.post('/payments/momo/create', payload);
     return {
       success: response.data?.success,
       message: response.data?.message,
@@ -46,14 +46,6 @@ export const paymentService = {
   },
   getOrderByTxnRef: async (txnRef) => {
     const response = await axiosInstance.get(`/payments/orders/${txnRef}`);
-    return {
-      success: response.data?.success,
-      message: response.data?.message,
-      data: response.data?.data,
-    };
-  },
-  confirmFakePayment: async (payload) => {
-    const response = await axiosInstance.post('/payments/fake/confirm', payload);
     return {
       success: response.data?.success,
       message: response.data?.message,
