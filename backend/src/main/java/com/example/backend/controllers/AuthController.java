@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.backend.dtos.GoogleLoginRequestDTO;
 import com.example.backend.dtos.LoginResponseDTO;
 import com.example.backend.dtos.RegisterRequestDTO;
 import com.example.backend.dtos.RegisterResponseDTO;
@@ -167,6 +168,17 @@ public class AuthController {
             return ResponseEntity.ok(loginResponseDTO);
         } catch (Exception e) {
             return ResponseEntity.status(401).body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/google-login")
+    public ResponseEntity<?> googleLogin(@RequestBody GoogleLoginRequestDTO request) {
+        try {
+            LoginResponseDTO loginResponseDTO = authService.loginWithGoogle(request.getCode());
+            return ResponseEntity.ok(loginResponseDTO);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createErrorResponse(e.getMessage()));
         }
     }
     

@@ -127,6 +127,33 @@ export const authService = {
     }
   },
 
+  /**
+   * Đăng nhập bằng Google OAuth
+   * @param {string} code - Authorization code trả về từ Google
+   * @returns {Promise<Object>} Response từ server
+   */
+  loginWithGoogle: async (code) => {
+    try {
+      const response = await axiosInstance.post('/auth/google-login', { code });
+      const userData = response.data;
+
+      if (userData?.token) {
+        localStorage.setItem('jwt', userData.token);
+      }
+      localStorage.setItem('user', JSON.stringify(userData));
+
+      return {
+        success: true,
+        data: userData,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Đăng nhập Google thất bại',
+      };
+    }
+  },
+
   // ============= FORGOT PASSWORD APIs =============
 
   /**

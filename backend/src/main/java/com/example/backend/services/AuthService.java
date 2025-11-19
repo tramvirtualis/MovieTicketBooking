@@ -1,14 +1,23 @@
 package com.example.backend.services;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeTokenRequest;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.googleapis.auth.oauth2.GoogleTokenResponse;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.jackson2.JacksonFactory;
 
 import com.example.backend.dtos.LoginResponseDTO;
 import com.example.backend.dtos.OtpSessionDTO;
@@ -41,6 +50,15 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final UserRepository userRepository;
+
+    @Value("${google.client-id}")
+    private String googleClientId;
+
+    @Value("${google.client-secret}")
+    private String googleClientSecret;
+
+    @Value("${google.redirect-uri:postmessage}")
+    private String googleRedirectUri;
     
     private static final int OTP_LENGTH = 6;
     // Đăng ký tài khoản
@@ -412,5 +430,106 @@ public class AuthService {
         System.out.println("DEBUG: LoginResponseDTO - role: " + response.getRole() + ", token: " + (response.getToken() != null ? "present" : "null"));
         
         return response;
+    }
+
+    public LoginResponseDTO loginWithGoogle(String authorizationCode) throws Exception {
+        if (authorizationCode == null || authorizationCode.isBlank()) {
+            throw new Exception("Mã xác thực Google không hợp lệ");
+        }
+
+        GoogleTokenResponse tokenResponse = new GoogleAuthorizationCodeTokenRequest(
+                new NetHttpTransport(),
+                JacksonFactory.getDefaultInstance(),
+                "https://oauth2.googleapis.com/token",
+                googleClientId,
+                googleClientSecret,
+                authorizationCode,
+                googleRedirectUri
+        ).execute();
+
+        String idTokenString = tokenResponse.getIdToken();
+        if (idTokenString == null || idTokenString.isBlank()) {
+            throw new Exception("Không thể xác thực người dùng với Google");
+        }
+
+        GoogleIdToken verifierToken = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), JacksonFactory.getDefaultInstance())
+                .setAudience(Collections.singletonList(googleClientId))
+                .build()
+                .verify(idTokenString);
+
+        if (verifierToken == null) {
+            throw new Exception("Token Google không hợp lệ");
+        }
+
+        GoogleIdToken.Payload payload = verifierToken.getPayload();
+        String email = payload.getEmail();
+        String name = (String) payload.get("name");
+
+        if (email == null || email.isBlank()) {
+            throw new Exception("Không thể lấy email từ tài khoản Google");
+        }
+
+        Customer customer = customerRepository.findByEmail(email)
+                .orElseGet(() -> createCustomerFromGoogle(email, name));
+
+        if (Boolean.FALSE.equals(customer.getStatus())) {
+            throw new Exception("Tài khoản của bạn đã bị chặn. Vui lòng liên hệ quản trị viên.");
+        }
+
+        boolean shouldUpdate = false;
+        if ((customer.getName() == null || customer.getName().isBlank()) && name != null) {
+            customer.setName(name);
+            shouldUpdate = true;
+        }
+        if (shouldUpdate) {
+            customer = customerRepository.save(customer);
+        }
+
+        return buildCustomerLoginResponse(customer);
+    }
+
+    private Customer createCustomerFromGoogle(String email, String name) {
+        String username = generateUsernameFromEmail(email);
+        Customer newCustomer = Customer.builder()
+                .email(email)
+                .username(username)
+                .name(name)
+                .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .status(true)
+                .build();
+
+        return customerRepository.save(newCustomer);
+    }
+
+    private String generateUsernameFromEmail(String email) {
+        String base = email.split("@")[0].replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+        if (base.isBlank()) {
+            base = "user";
+        }
+        String candidate = base;
+        int suffix = 1;
+
+        while (userRepository.findByUsername(candidate).isPresent()) {
+            candidate = base + suffix;
+            suffix++;
+        }
+        return candidate;
+    }
+
+    private LoginResponseDTO buildCustomerLoginResponse(Customer customer) {
+        String token = jwtUtils.generateJwtToken(customer.getUsername(), "CUSTOMER");
+
+        return LoginResponseDTO.builder()
+                .userId(customer.getUserId())
+                .username(customer.getUsername())
+                .name(customer.getName())
+                .dob(customer.getDob())
+                .email(customer.getEmail())
+                .phone(customer.getPhone())
+                .status(customer.getStatus())
+                .address(customer.getAddress())
+                .role("CUSTOMER")
+                .token(token)
+                .build();
     }
 }
