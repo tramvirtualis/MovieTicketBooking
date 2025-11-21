@@ -70,7 +70,7 @@ export const priceService = {
    */
   saveAllPrices: async (pricesList) => {
     try {
-      const response = await axiosInstance.post('/admin/prices/save', pricesList);
+      const response = await axiosInstance.put('/admin/prices', { prices: pricesList });
       return {
         success: true,
         data: response.data.data || response.data,

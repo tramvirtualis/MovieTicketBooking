@@ -75,6 +75,27 @@ export default function Profile() {
   const [vouchers, setVouchers] = useState([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
 
+  useEffect(() => {
+    const storedUser = JSON.parse(localStorage.getItem('user')) || {};
+    if (storedUser.userId) {
+      setUserData({
+        userId: storedUser.userId || "",
+        name: storedUser.name || "",
+        email: storedUser.email || "",
+        phone: storedUser.phone || "",
+        dob: storedUser.dob || "",
+        joinDate: storedUser.joinDate || "",
+        address: {
+          description: storedUser.address?.description || "",
+          province: storedUser.address?.province || ""
+        },
+        totalBookings: storedUser.totalBookings || 0,
+        totalSpent: storedUser.totalSpent || 0,
+        favoriteMovies: storedUser.favoriteMovies || 0,
+      });
+    }
+  }, []);
+
   // Read tab from URL query parameter on mount
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');

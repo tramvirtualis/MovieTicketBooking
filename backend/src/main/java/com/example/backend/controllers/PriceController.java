@@ -59,7 +59,8 @@ public class PriceController {
         }
     }
     
-    @PutMapping
+    @PutMapping("/api/admin/prices")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updatePrices(@RequestBody Map<String, Object> requestBody) {
         try {
             // Log incoming request for debugging

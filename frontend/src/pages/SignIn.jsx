@@ -59,7 +59,6 @@ export default function SignIn() {
 
   const handleLoginSuccess = (userData, source = 'PASSWORD') => {
     showMessage('success', 'Đăng nhập thành công!');
-    showToast('Đăng nhập thành công!', 'success');
 
     console.log(`=== LOGIN DEBUG (${source}) ===`);
     console.log('Full login response data:', userData);
