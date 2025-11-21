@@ -150,6 +150,20 @@ public class ReviewController {
         }
     }
     
+    @GetMapping("/admin/{reviewId}/reports")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getReviewReports(@PathVariable Long reviewId) {
+        try {
+            List<com.example.backend.dtos.ReviewReportResponseDTO> reports = reviewService.getReviewReports(reviewId);
+            return ResponseEntity.ok(
+                createSuccessResponse("Lấy danh sách báo cáo thành công", reports)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
     private Map<String, Object> createSuccessResponse(String message, Object data) {
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);

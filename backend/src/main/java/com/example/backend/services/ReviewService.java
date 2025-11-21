@@ -172,6 +172,23 @@ public class ReviewService {
         return mapToDTO(savedReview);
     }
     
+    public List<com.example.backend.dtos.ReviewReportResponseDTO> getReviewReports(Long reviewId) {
+        List<ReviewReport> reports = reviewReportRepository.findByReviewReviewIdOrderByReportedAtDesc(reviewId);
+        return reports.stream()
+            .map(this::mapReportToDTO)
+            .collect(Collectors.toList());
+    }
+    
+    private com.example.backend.dtos.ReviewReportResponseDTO mapReportToDTO(ReviewReport report) {
+        return com.example.backend.dtos.ReviewReportResponseDTO.builder()
+            .reportId(report.getReportId())
+            .userId(report.getUser().getUserId())
+            .username(report.getUser().getUsername())
+            .reason(report.getReason())
+            .reportedAt(report.getReportedAt())
+            .build();
+    }
+    
     private ReviewResponseDTO mapToDTO(Review review) {
         return ReviewResponseDTO.builder()
             .reviewId(review.getReviewId())

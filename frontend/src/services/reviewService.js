@@ -150,6 +150,27 @@ export const reviewService = {
     }
 
     return data.data;
+  },
+
+  async getReviewReports(reviewId) {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      throw new Error('Bạn cần đăng nhập');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/reviews/admin/${reviewId}/reports`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Có lỗi xảy ra khi lấy danh sách báo cáo');
+    }
+
+    return data.data || [];
   }
 };
 

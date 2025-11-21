@@ -8,6 +8,9 @@ function ReviewManagement() {
   const [notification, setNotification] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all', 'reported', 'hidden'
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedReview, setSelectedReview] = useState(null);
+  const [reportReasons, setReportReasons] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(false);
 
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
@@ -70,6 +73,21 @@ function ReviewManagement() {
       );
     } catch (err) {
       showNotification(err.message || 'Có lỗi xảy ra', 'error');
+    }
+  };
+
+  // Load report reasons for a review
+  const handleViewReports = async (review) => {
+    setSelectedReview(review);
+    setLoadingReports(true);
+    setReportReasons([]);
+    try {
+      const reports = await reviewService.getReviewReports(review.reviewId);
+      setReportReasons(reports);
+    } catch (err) {
+      showNotification(err.message || 'Không thể tải danh sách báo cáo', 'error');
+    } finally {
+      setLoadingReports(false);
     }
   };
 
@@ -263,7 +281,15 @@ function ReviewManagement() {
                   <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>
                     <span>Ngày: {formatDate(review.createdAt)}</span>
                     {review.reportCount > 0 && (
-                      <span style={{ color: '#ff9800' }}>
+                      <span 
+                        style={{ 
+                          color: '#ff9800', 
+                          cursor: 'pointer',
+                          textDecoration: 'underline'
+                        }}
+                        onClick={() => handleViewReports(review)}
+                        title="Click để xem danh sách lý do báo cáo"
+                      >
                         🚩 {review.reportCount} báo cáo
                       </span>
                     )}
@@ -295,6 +321,111 @@ function ReviewManagement() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Report Reasons Modal */}
+      {selectedReview && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+          onClick={() => {
+            setSelectedReview(null);
+            setReportReasons([]);
+          }}
+        >
+          <div 
+            style={{
+              background: '#1e1819',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '600px',
+              width: '90%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              border: '1px solid rgba(255,255,255,0.1)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>
+                Danh sách lý do báo cáo
+              </h3>
+              <button
+                onClick={() => {
+                  setSelectedReview(null);
+                  setReportReasons([]);
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '0',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(232, 59, 65, 0.15)', border: '1px solid rgba(232, 59, 65, 0.3)', borderRadius: '8px' }}>
+              <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', marginBottom: '4px' }}>Đánh giá:</div>
+              <div style={{ fontSize: '16px', fontWeight: 600 }}>{selectedReview.username} - {selectedReview.movieTitle}</div>
+              <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginTop: '4px' }}>{selectedReview.context}</div>
+            </div>
+
+            {loadingReports ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.7)' }}>
+                Đang tải...
+              </div>
+            ) : reportReasons.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.7)' }}>
+                Không có báo cáo nào
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {reportReasons.map((report, index) => (
+                  <div
+                    key={report.reportId}
+                    style={{
+                      background: 'rgba(255,255,255,0.05)',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      border: '1px solid rgba(255,255,255,0.1)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>
+                        #{index + 1} - {report.username || 'Người dùng'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>
+                        {formatDate(report.reportedAt)}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)', lineHeight: '1.5' }}>
+                      <strong>Lý do:</strong> {report.reason || 'Không có lý do cụ thể'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

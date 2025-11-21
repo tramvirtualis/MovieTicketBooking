@@ -381,8 +381,8 @@ export default function MovieDetail() {
       const mappedReviews = reviewsData.map(review => ({
         id: review.reviewId,
         userId: review.userId,
-        userName: review.userName || review.user?.name || 'Người dùng',
-        avatar: review.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(review.userName || 'User')}&background=e83b41&color=fff&size=128`,
+        userName: review.username || review.userName || review.user?.name || 'Người dùng',
+        avatar: review.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(review.username || review.userName || 'User')}&background=e83b41&color=fff&size=128`,
         rating: review.rating || 0,
         reviewText: review.context || review.reviewText || '',
         reviewDate: review.createdAt || review.createdUpdate || new Date().toISOString().split('T')[0]
@@ -512,23 +512,94 @@ export default function MovieDetail() {
     return text.substring(0, maxLength) + '...';
   };
 
-  const renderStars = (rating) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <svg
-        key={i}
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill={i < rating ? 'currentColor' : 'none'}
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ color: i < rating ? '#ffd159' : 'rgba(255, 255, 255, 0.3)' }}
-      >
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-      </svg>
-    ));
+  const renderStars = (rating, showHalfStar = false) => {
+    const numRating = parseFloat(rating);
+    const fullStars = Math.floor(numRating);
+    const hasHalfStar = numRating % 1 >= 0.5;
+    
+    return Array.from({ length: 5 }, (_, i) => {
+      const isFullStar = i < fullStars;
+      const isHalfStar = i === fullStars && hasHalfStar && showHalfStar;
+      
+      return (
+        <span key={i} style={{ position: 'relative', display: 'inline-block', width: '20px', height: '20px' }}>
+          {/* Background star (always empty outline) */}
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ 
+              color: 'rgba(255, 255, 255, 0.3)',
+              position: 'absolute',
+              top: 0,
+              left: 0
+            }}
+          >
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+          
+          {/* Foreground star (filled) */}
+          {isFullStar && (
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ 
+                color: '#ffd159',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                zIndex: 1
+              }}
+            >
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+          )}
+          
+          {/* Half star */}
+          {isHalfStar && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '10px',
+              height: '20px',
+              overflow: 'hidden',
+              zIndex: 1
+            }}>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ 
+                  color: '#ffd159',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0
+                }}
+              >
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </div>
+          )}
+        </span>
+      );
+    });
   };
 
   const formatShortDate = (dateString) => {
@@ -758,7 +829,7 @@ export default function MovieDetail() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{ display: 'flex', gap: '4px' }}>
-                      {renderStars(Math.round(parseFloat(averageRating)))}
+                      {renderStars(parseFloat(averageRating), true)}
                     </div>
                     <span style={{ fontSize: '20px', fontWeight: 800, color: '#ffd159' }}>
                       {averageRating}
