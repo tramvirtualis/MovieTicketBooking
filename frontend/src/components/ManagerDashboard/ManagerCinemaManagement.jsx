@@ -279,12 +279,12 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     }
 
     if (!roomFormData.roomName || !roomFormData.rows || !roomFormData.cols) {
-      alert('Vui lòng điền đầy đủ thông tin');
+      showNotification('Vui lòng điền đầy đủ thông tin', 'error');
       return;
     }
 
     if (!selectedCinema) {
-      alert('Vui lòng chọn cụm rạp');
+      showNotification('Vui lòng chọn cụm rạp', 'error');
       return;
     }
 
@@ -340,11 +340,11 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
               }
             }
           }
-          alert('Cập nhật phòng chiếu thành công');
+          showNotification('Cập nhật phòng chiếu thành công', 'success');
           setShowRoomModal(false);
           setEditingRoom(null);
         } else {
-          alert(result.error || 'Cập nhật phòng chiếu thất bại');
+          showNotification(result.error || 'Cập nhật phòng chiếu thất bại', 'error');
         }
       } else {
         // Create new room
@@ -381,15 +381,15 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
               }
             }
           }
-          alert('Tạo phòng chiếu thành công');
+          showNotification('Tạo phòng chiếu thành công', 'success');
           setShowRoomModal(false);
           setEditingRoom(null);
         } else {
-          alert(result.error || 'Tạo phòng chiếu thất bại');
+          showNotification(result.error || 'Tạo phòng chiếu thất bại', 'error');
         }
       }
     } catch (error) {
-      alert('Có lỗi xảy ra khi lưu phòng chiếu');
+      showNotification('Có lỗi xảy ra khi lưu phòng chiếu', 'error');
     } finally {
       setSavingRoom(false);
     }
@@ -444,12 +444,15 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
         if (selectedRoom?.roomId === roomId) {
           setSelectedRoom(null);
         }
-        alert('Xóa phòng chiếu thành công');
+        showNotification('Xóa phòng chiếu thành công', 'success');
+        setDeleteConfirm(null); // Đóng modal sau khi xóa thành công
       } else {
-        alert(result.error || 'Xóa phòng chiếu thất bại');
+        showNotification(result.error || 'Xóa phòng chiếu thất bại', 'error');
+        setDeleteConfirm(null); // Đóng modal ngay cả khi lỗi
       }
     } catch (error) {
-      alert('Có lỗi xảy ra khi xóa phòng chiếu');
+      showNotification('Có lỗi xảy ra khi xóa phòng chiếu', 'error');
+      setDeleteConfirm(null); // Đóng modal khi có lỗi
     }
   };
 
@@ -807,13 +810,15 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
         }
         
         if (editingShowtime?.showtimeId === stId) setEditingShowtime(null);
-        setDeleteConfirm(null);
+        setDeleteConfirm(null); // Đóng modal sau khi xóa thành công
         showNotification('Xóa lịch chiếu thành công', 'success');
       } else {
+        setDeleteConfirm(null); // Đóng modal ngay cả khi lỗi
         showNotification(result.error || 'Xóa lịch chiếu thất bại', 'error');
       }
     } catch (error) {
       console.error('Error deleting showtime:', error);
+      setDeleteConfirm(null); // Đóng modal khi có lỗi
       showNotification('Có lỗi xảy ra khi xóa lịch chiếu', 'error');
     }
   };
@@ -873,7 +878,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
         setCinemas(revertedCinemas);
         setSelectedRoom(revertedRoom);
         
-        alert(result.error || 'Không thể cập nhật loại ghế');
+        showNotification(result.error || 'Không thể cập nhật loại ghế', 'error');
       }
     } catch (error) {
       // Nếu có lỗi, revert lại state
@@ -890,7 +895,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
       setCinemas(revertedCinemas);
       setSelectedRoom(revertedRoom);
       
-      alert('Có lỗi xảy ra khi cập nhật loại ghế');
+      showNotification('Có lỗi xảy ra khi cập nhật loại ghế', 'error');
     }
   };
 

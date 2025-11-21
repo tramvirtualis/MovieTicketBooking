@@ -135,9 +135,8 @@ export default function ManagerShowtimeManagement({ complexId }) {
     loadMovies();
   }, []);
 
-  // Load showtimes for selected rooms and date range
-  useEffect(() => {
-    const loadShowtimes = async () => {
+  // Function to load showtimes - can be called from useEffect or after creating showtime
+  const loadShowtimes = React.useCallback(async () => {
       console.log('=== ManagerShowtimeManagement: Loading showtimes ===');
       console.log('selectedRooms:', selectedRooms);
       console.log('currentDate:', currentDate);
@@ -169,10 +168,13 @@ export default function ManagerShowtimeManagement({ complexId }) {
               const endDateTime = new Date(st.endTime);
               // Use local date format instead of UTC to avoid timezone issues
               const date = formatDateLocal(startDateTime);
+              // Create date objects at midnight for accurate comparison
               const showtimeDate = new Date(startDateTime.getFullYear(), startDateTime.getMonth(), startDateTime.getDate());
+              const startDateMidnight = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+              const endDateMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
               
-              // Include showtimes within date range
-              if (showtimeDate < startDate || showtimeDate > endDate) {
+              // Include showtimes within date range (compare dates only, ignore time)
+              if (showtimeDate < startDateMidnight || showtimeDate > endDateMidnight) {
                 return null;
               }
               
@@ -219,9 +221,12 @@ export default function ManagerShowtimeManagement({ complexId }) {
       } finally {
         setLoadingShowtimes(false);
       }
-    };
+  }, [selectedRooms, rooms, currentDate, dateRange, showNotification]);
+
+  // Load showtimes for selected rooms and date range
+  useEffect(() => {
     loadShowtimes();
-  }, [selectedRooms, rooms, currentDate, dateRange]);
+  }, [loadShowtimes]);
 
   // Helper function to compute end time
   const computeEndTime = (date, startTime, movieId) => {
@@ -1549,57 +1554,8 @@ export default function ManagerShowtimeManagement({ complexId }) {
                           });
 
                         if (result.success) {
-                    // Reload showtimes
-                    const allShowtimes = [];
-                    for (const roomId of selectedRooms) {
-                      const result = await showtimeService.getShowtimesByRoomId(roomId);
-                      if (result.success && result.data) {
-                        const mappedShowtimes = result.data.map(st => {
-                          const startDateTime = new Date(st.startTime);
-                          const endDateTime = new Date(st.endTime);
-                            const date = formatDateLocal(startDateTime);
-                            const showtimeDate = new Date(startDateTime.getFullYear(), startDateTime.getMonth(), startDateTime.getDate());
-                            const monday = getMondayOfWeek(currentDate);
-                            const startDate = new Date(monday);
-                            const endDate = new Date(monday);
-                            endDate.setDate(endDate.getDate() + 6);
-                            
-                            if (showtimeDate < startDate || showtimeDate > endDate) {
-                              return null;
-                            }
-                          
-                          const startTime = startDateTime.toTimeString().slice(0, 5);
-                          const endTime = endDateTime.toTimeString().slice(0, 5);
-                          const movieId = st.movieVersion?.movie?.movieId || st.movieId;
-                          const language = showtimeService.mapLanguageFromBackend(st.movieVersion?.language || st.language);
-                          const format = showtimeService.mapRoomTypeFromBackend(st.movieVersion?.roomType || st.format);
-                          
-                          return {
-                            showtimeId: st.showtimeId,
-                            roomId: st.cinemaRoom?.roomId || roomId,
-                            roomName: st.cinemaRoom?.roomName || rooms.find(r => r.roomId === roomId)?.roomName || 'Phòng',
-                            movieId: movieId,
-                            movieTitle: st.movieVersion?.movie?.title || st.movieTitle,
-                            date: date,
-                            startTime: startTime,
-                            endTime: endTime,
-                            startDateTime: st.startTime,
-                            endDateTime: st.endTime,
-                            startHour: parseInt(startTime.split(':')[0]),
-                            startMinute: parseInt(startTime.split(':')[1]),
-                            endHour: parseInt(endTime.split(':')[0]),
-                            endMinute: parseInt(endTime.split(':')[1]),
-                            duration: (new Date(st.endTime) - new Date(st.startTime)) / (1000 * 60),
-                            language: language,
-                            format: format,
-                            cinemaName: st.cinemaRoom?.cinemaComplex?.name || '',
-                            cinemaAddress: st.cinemaRoom?.cinemaComplex?.fullAddress || ''
-                          };
-                        }).filter(Boolean);
-                        allShowtimes.push(...mappedShowtimes);
-                      }
-                    }
-                    setShowtimes(allShowtimes);
+                    // Reload showtimes using the same function
+                    await loadShowtimes();
 
                       showNotification('Đã tạo lịch chiếu thành công', 'success');
                       setShowCreateModal(false);
