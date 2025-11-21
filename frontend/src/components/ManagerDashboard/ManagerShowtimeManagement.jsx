@@ -255,8 +255,31 @@ export default function ManagerShowtimeManagement({ complexId }) {
     if (Number.isNaN(numeric)) numeric = 0;
     numeric = Math.max(0, Math.min(59, numeric));
     const formattedMinute = String(numeric).padStart(2, '0');
-    setMinuteInput(formattedMinute);
     const hourPart = (createForm.minTime || createForm.startTime || '00:00').split(':')[0];
+    
+    // Validate không được tạo lịch trong quá khứ
+    if (hourPart && createForm.startDate) {
+      const selectedDateTime = new Date(`${createForm.startDate}T${hourPart}:${formattedMinute}:00`);
+      const now = new Date();
+      if (selectedDateTime <= now) {
+        showNotification('Không thể chọn thời gian trong quá khứ. Vui lòng chọn thời gian sau thời điểm hiện tại.', 'error');
+        // Set về phút hiện tại + 1 nếu cùng giờ, hoặc giữ nguyên nếu khác giờ
+        if (selectedDateTime.toDateString() === now.toDateString() && 
+            parseInt(hourPart) === now.getHours()) {
+          const currentMinute = now.getMinutes();
+          const nextMinute = currentMinute + 1;
+          if (nextMinute <= 59) {
+            const safeMinute = String(nextMinute).padStart(2, '0');
+            setMinuteInput(safeMinute);
+            setCreateForm(prev => ({ ...prev, startTime: `${hourPart}:${safeMinute}` }));
+            return;
+          }
+        }
+        return;
+      }
+    }
+    
+    setMinuteInput(formattedMinute);
     if (hourPart) {
       setCreateForm(prev => ({ ...prev, startTime: `${hourPart}:${formattedMinute}` }));
     }
@@ -758,7 +781,7 @@ export default function ManagerShowtimeManagement({ complexId }) {
                 title="Xuất lịch ra file Excel"
               >
                 Export Excel
-              </button>
+            </button>
             </div>
           </div>
         </div>
@@ -874,6 +897,14 @@ export default function ManagerShowtimeManagement({ complexId }) {
                           setDragOverCell(null);
                           setDragConflict(null);
                           
+                          // Validate không được tạo lịch trong quá khứ
+                          const dropDateTime = new Date(`${dateStr}T${slot.label}:00`);
+                          const now = new Date();
+                          if (dropDateTime <= now) {
+                            showNotification('Không thể tạo lịch chiếu trong quá khứ. Vui lòng chọn ngày và giờ trong tương lai.', 'error');
+                            return;
+                          }
+                          
                           // Check for conflicts before allowing drop
                           const conflicts = checkDragConflict(movieId, dateStr, slot.label);
                           if (conflicts && conflicts.length > 0) {
@@ -904,6 +935,14 @@ export default function ManagerShowtimeManagement({ complexId }) {
                           // Only trigger if clicking on empty cell (not on existing showtime)
                           if (e.target === e.currentTarget || e.target.classList.contains('showtime-timeline-date-cell')) {
                             if (selectedMovie && cellShowtimes.length === 0) {
+                              // Validate không được tạo lịch trong quá khứ
+                              const clickDateTime = new Date(`${dateStr}T${slot.label}:00`);
+                              const now = new Date();
+                              if (clickDateTime <= now) {
+                                showNotification('Không thể tạo lịch chiếu trong quá khứ. Vui lòng chọn ngày và giờ trong tương lai.', 'error');
+                                return;
+                              }
+                              
                               // Check for conflicts before opening modal
                               const endTime = computeEndTime(dateStr, slot.label, selectedMovie.movieId);
                               if (endTime) {
@@ -1296,7 +1335,19 @@ export default function ManagerShowtimeManagement({ complexId }) {
                       <input
                       type="time"
                       value={createForm.startTime}
-                      onChange={(e) => setCreateForm({ ...createForm, startTime: e.target.value })}
+                      onChange={(e) => {
+                        const newTime = e.target.value;
+                        // Validate nếu chọn ngày hôm nay thì giờ phải sau giờ hiện tại
+                        if (createForm.startDate === new Date().toISOString().split('T')[0]) {
+                          const now = new Date();
+                          const selectedDateTime = new Date(`${createForm.startDate}T${newTime}:00`);
+                          if (selectedDateTime <= now) {
+                            showNotification('Không thể chọn giờ trong quá khứ. Vui lòng chọn giờ sau giờ hiện tại.', 'error');
+                            return;
+                          }
+                        }
+                        setCreateForm({ ...createForm, startTime: newTime });
+                      }}
                         disabled={creating}
                       min="00:00"
                       max="23:59"
@@ -1410,6 +1461,14 @@ export default function ManagerShowtimeManagement({ complexId }) {
                     return;
                   }
 
+                  // Validate không được tạo lịch trong quá khứ
+                  const startDateTime = new Date(`${createForm.startDate}T${createForm.startTime}:00`);
+                  const now = new Date();
+                  if (startDateTime <= now) {
+                    showNotification('Không thể tạo lịch chiếu trong quá khứ. Vui lòng chọn ngày và giờ trong tương lai.', 'error');
+                    return;
+                  }
+
                   // Check for conflicts before creating
                   const endTime = computeEndTime(createForm.startDate, createForm.startTime, createForm.movieId);
                   if (endTime) {
@@ -1427,7 +1486,7 @@ export default function ManagerShowtimeManagement({ complexId }) {
                     
                   setCreating(true);
                   try {
-                    const startDateTime = `${createForm.startDate}T${createForm.startTime}:00`;
+                    const startDateTimeStr = `${createForm.startDate}T${createForm.startTime}:00`;
                     const endTimeObj = new Date(`${createForm.startDate}T${createForm.startTime}:00`);
                     endTimeObj.setMinutes(endTimeObj.getMinutes() + selectedMovie.duration + 15);
                     const endDateTime = endTimeObj.toISOString().slice(0, 16).replace('T', 'T').substring(0, 16) + ':00';
@@ -1437,7 +1496,7 @@ export default function ManagerShowtimeManagement({ complexId }) {
                             movieId: Number(createForm.movieId),
                             language: createForm.language,
                       roomType: roomFormat,
-                            startTime: startDateTime,
+                            startTime: startDateTimeStr,
                             endTime: endDateTime
                           });
 

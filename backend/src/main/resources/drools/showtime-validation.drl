@@ -1,6 +1,20 @@
 package com.example.backend.drools.rules;
 
 import com.example.backend.dtos.ShowtimeValidationFact;
+import java.time.LocalDateTime;
+
+// Rule 5: Kiểm tra không được tạo lịch trong quá khứ
+rule "No Past Showtime"
+    when
+        fact: ShowtimeValidationFact(
+            newStartTime != null,
+            newStartTime.isBefore(LocalDateTime.now())
+        )
+    then
+        fact.setValid(false);
+        fact.setErrorMessage("Lịch chiếu không được đặt trong quá khứ");
+        System.out.println("ERROR: Lịch chiếu không được đặt trong quá khứ");
+    end
 
 // Rule 6: Mặc định - nếu không có rule nào trigger, coi như hợp lệ
 rule "Default Valid"
