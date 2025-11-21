@@ -28,6 +28,7 @@ public class OrderItemDTO {
     private String seatId; // Format: "A1", "B2", etc.
     private String seatRow;
     private Integer seatColumn;
-    private BigDecimal price;
+    private BigDecimal price; // Adjusted price (with 30% if weekend)
+    private BigDecimal basePrice; // Base price (without 30%)
 }
 

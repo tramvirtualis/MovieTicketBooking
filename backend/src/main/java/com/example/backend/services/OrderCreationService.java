@@ -25,6 +25,7 @@ public class OrderCreationService {
     private final VoucherRepository voucherRepository;
     private final PriceRepository priceRepository;
     private final CustomerRepository customerRepository;
+    private final PriceService priceService;
     
     /**
      * Tạo đơn hàng từ booking info
@@ -219,6 +220,7 @@ public class OrderCreationService {
     
     /**
      * Tính giá vé dựa trên seat type và room type từ database
+     * Áp dụng tăng 30% nếu là weekend (thứ 7 hoặc chủ nhật)
      */
     private BigDecimal calculateTicketPrice(Seat seat, Showtime showtime) {
         // Lấy room type từ showtime
@@ -231,11 +233,14 @@ public class OrderCreationService {
             seatType = com.example.backend.entities.enums.SeatType.NORMAL; // Default
         }
         
-        // Lấy giá từ database
+        // Lấy giá gốc từ database
         Optional<Price> priceOpt = priceRepository.findByRoomTypeAndSeatType(roomType, seatType);
         
         if (priceOpt.isPresent()) {
-            return priceOpt.get().getPrice();
+            BigDecimal basePrice = priceOpt.get().getPrice();
+            // Tính giá với tăng 30% nếu là weekend
+            BigDecimal adjustedPrice = priceService.calculateWeekendPrice(basePrice, showtime.getStartTime());
+            return adjustedPrice;
         }
         
         // Fallback nếu không tìm thấy giá trong database

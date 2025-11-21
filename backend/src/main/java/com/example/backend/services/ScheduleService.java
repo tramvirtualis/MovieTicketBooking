@@ -96,12 +96,20 @@ public class ScheduleService {
     }
 
     private List<Showtime> fetchShowtimes(LocalDate date, Long movieId, Long cinemaId) {
-        LocalDateTime startTime = null;
+        LocalDateTime startTime = LocalDateTime.now();
         LocalDateTime endTime = null;
 
         if (date != null) {
-            startTime = date.atStartOfDay();
-            endTime = startTime.plusDays(1);
+            LocalDateTime dateStart = date.atStartOfDay();
+            // Nếu ngày được chọn là hôm nay hoặc sau, dùng hiện tại
+            // Nếu ngày được chọn là trong tương lai, dùng đầu ngày
+            if (dateStart.isAfter(startTime)) {
+                startTime = dateStart;
+            }
+            endTime = dateStart.plusDays(1);
+        } else {
+            // Nếu không chọn ngày, lấy showtimes từ bây giờ đến hết ngày hôm nay
+            endTime = LocalDate.now().atStartOfDay().plusDays(1);
         }
 
         return showtimeRepository.findScheduleShowtimes(startTime, endTime, movieId, cinemaId);

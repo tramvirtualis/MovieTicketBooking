@@ -40,6 +40,7 @@ public class ShowtimeService {
     private final MovieVersionRepository movieVersionRepository;
     private final KieContainer kieContainer;
     private final ActivityLogService activityLogService;
+    private final PriceService priceService;
     
     /**
      * Tìm hoặc tạo MovieVersion dựa trên movie, language và roomType
@@ -618,6 +619,26 @@ public class ShowtimeService {
                 ", movieVersion ID: " + (movieVersion != null ? movieVersion.getMovieVersionId() : "null"));
         }
         
+        // Tính giá vé: lấy giá gốc và tính giá cuối cùng sau khi áp dụng tăng 30% weekend
+        java.math.BigDecimal basePrice = null;
+        java.math.BigDecimal adjustedPrice = null;
+        
+        try {
+            // Lấy giá từ loại ghế NORMAL cho roomType này
+            com.example.backend.dtos.PriceDTO priceDTO = priceService.getPriceByRoomTypeAndSeatType(
+                roomType, 
+                com.example.backend.entities.enums.SeatType.NORMAL
+            );
+            
+            if (priceDTO != null) {
+                basePrice = priceDTO.getPrice();
+                // Tính giá sau khi tăng 30% nếu là weekend
+                adjustedPrice = priceService.calculateWeekendPrice(basePrice, showtime.getStartTime());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to calculate price for showtime {}: {}", showtime.getShowtimeId(), e.getMessage());
+        }
+        
         return ShowtimeResponseDTO.builder()
             .showtimeId(showtime.getShowtimeId())
             .movieId(movie != null ? movie.getMovieId() : null)
@@ -632,6 +653,8 @@ public class ShowtimeService {
             .province(address != null ? address.getProvince() : null)
             .startTime(showtime.getStartTime())
             .endTime(showtime.getEndTime())
+            .basePrice(basePrice)
+            .adjustedPrice(adjustedPrice)
             .build();
     }
 

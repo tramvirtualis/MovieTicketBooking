@@ -257,7 +257,9 @@ export default function BookTicket() {
               movieId: st.movieId || Number(movieIdFromUrl),
               roomId: st.cinemaRoomId,
               startTime: st.startTime,
-              endTime: st.endTime
+              endTime: st.endTime,
+              basePrice: st.basePrice,
+              adjustedPrice: st.adjustedPrice
             };
             console.log('[BookTicket] Loaded showtime:', mockShowtime);
             setSelectedShowtime(mockShowtime);
@@ -309,7 +311,9 @@ export default function BookTicket() {
                 movieId: Number(movieIdFromUrl),
                 roomId: matchingShowtime.cinemaRoomId,
                 startTime: matchingShowtime.startTime,
-                endTime: matchingShowtime.endTime
+                endTime: matchingShowtime.endTime,
+                basePrice: matchingShowtime.basePrice,
+                adjustedPrice: matchingShowtime.adjustedPrice
               };
               setSelectedShowtime(mockShowtime);
               setSelectedCinema(String(matchingShowtime.cinemaComplexId));
@@ -582,19 +586,34 @@ export default function BookTicket() {
     );
   }, [selectedShowtime, bookedSeatIds]);
 
-  // Calculate total price - use prices from database
+  // Calculate total price - calculate price for each seat based on pricesData
   const totalPrice = useMemo(() => {
-    if (!selectedRoom || selectedSeats.length === 0) return 0;
-    const pricesToUse = pricesData.length > 0 ? pricesData : prices; // Use database prices if available
+    if (!selectedRoom || !selectedShowtime || selectedSeats.length === 0 || pricesData.length === 0) return 0;
+    
+    // Check if showtime is weekend (Saturday = 6, Sunday = 7)
+    const showtimeDate = new Date(selectedShowtime.startTime);
+    const dayOfWeek = showtimeDate.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    
     return selectedSeats.reduce((total, seatId) => {
       const seat = selectedRoom.seats.find(s => s.seatId === seatId);
       if (!seat) return total;
-      const priceEntry = pricesToUse.find(
-        p => p.roomType === selectedRoom.roomType && p.seatType === seat.type
+      
+      // Find price from pricesData for this roomType + seatType combination
+      const priceRecord = pricesData.find(p => 
+        p.roomType === selectedRoom.roomType && p.seatType === seat.type
       );
-      return total + (priceEntry?.price || 0);
+      
+      if (priceRecord) {
+        // Apply 30% increase for weekend
+        const basePrice = priceRecord.price;
+        const adjustedPrice = isWeekend ? basePrice * 1.3 : basePrice;
+        return total + adjustedPrice;
+      }
+      
+      return total;
     }, 0);
-  }, [selectedRoom, selectedSeats, pricesData]);
+  }, [selectedRoom, selectedSeats, selectedShowtime, pricesData]);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -1023,15 +1042,39 @@ export default function BookTicket() {
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                               {selectedSeats.map(seatId => {
                                 const seat = selectedRoom.seats.find(s => s.seatId === seatId);
-                                const pricesToUse = pricesData.length > 0 ? pricesData : prices; // Use database prices if available
-                                const priceEntry = pricesToUse.find(
-                                  p => p.roomType === selectedRoom.roomType && p.seatType === seat?.type
-                                );
+                                
+                                // Lấy giá từ pricesData dựa trên roomType + seatType
+                                let seatPrice = 0;
+                                let baseSeatPrice = 0;
+                                let isWeekend = false;
+                                
+                                if (pricesData.length > 0 && selectedRoom) {
+                                  // Check if showtime is weekend
+                                  const showtimeDate = new Date(selectedShowtime.startTime);
+                                  const dayOfWeek = showtimeDate.getDay();
+                                  isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                                  
+                                  // Find price from pricesData
+                                  const priceRecord = pricesData.find(p => 
+                                    p.roomType === selectedRoom.roomType && p.seatType === seat?.type
+                                  );
+                                  
+                                  if (priceRecord) {
+                                    baseSeatPrice = priceRecord.price;
+                                    seatPrice = isWeekend ? baseSeatPrice * 1.3 : baseSeatPrice;
+                                  }
+                                }
+                                
                                 return (
                                   <div key={seatId} className="book-ticket-seat-badge">
                                     <span>{seatId}</span>
                                     <span style={{ marginLeft: '8px', color: '#ffd159' }}>
-                                      {formatPrice(priceEntry?.price || 0)}
+                                      {isWeekend && baseSeatPrice > 0 && (
+                                        <span style={{ textDecoration: 'line-through', fontSize: '12px', color: '#c9c4c5', marginRight: '4px' }}>
+                                          {formatPrice(baseSeatPrice)}
+                                        </span>
+                                      )}
+                                      {formatPrice(seatPrice)}
                                     </span>
                                   </div>
                                 );
@@ -1040,9 +1083,48 @@ export default function BookTicket() {
                           </div>
                           <div className="book-ticket-seat-selection__total">
                             <span>Tổng cộng:</span>
-                            <span style={{ fontSize: '24px', fontWeight: 800, color: '#ffd159' }}>
-                              {formatPrice(totalPrice)}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
+                              {selectedShowtime && selectedSeats.length > 0 && (() => {
+                                // Check if showtime is weekend
+                                const showtimeDate = new Date(selectedShowtime.startTime);
+                                const dayOfWeek = showtimeDate.getDay();
+                                const isWeekendShowtime = dayOfWeek === 0 || dayOfWeek === 6;
+                                
+                                if (isWeekendShowtime && pricesData.length > 0) {
+                                  // Tính tổng giá gốc
+                                  const totalBasePrice = selectedSeats.reduce((total, seatId) => {
+                                    const seat = selectedRoom.seats.find(s => s.seatId === seatId);
+                                    const priceRecord = pricesData.find(p => 
+                                      p.roomType === selectedRoom.roomType && p.seatType === seat?.type
+                                    );
+                                    return total + (priceRecord?.price || 0);
+                                  }, 0);
+                                  
+                                  return (
+                                    <>
+                                      <span style={{ fontSize: '14px', color: '#c9c4c5', textDecoration: 'line-through' }}>
+                                        {formatPrice(totalBasePrice)}
+                                      </span>
+                                    </>
+                                  );
+                                }
+                              })()}
+                              <span style={{ fontSize: '24px', fontWeight: 800, color: '#ffd159' }}>
+                                {formatPrice(totalPrice)}
+                              </span>
+                              {selectedShowtime && selectedSeats.length > 0 && (() => {
+                                // Check if showtime is weekend
+                                const showtimeDate = new Date(selectedShowtime.startTime);
+                                const dayOfWeek = showtimeDate.getDay();
+                                const isWeekendShowtime = dayOfWeek === 0 || dayOfWeek === 6;
+                                
+                                return isWeekendShowtime && (
+                                  <span style={{ fontSize: '12px', color: '#4caf50', fontWeight: 600 }}>
+                                    +30% Weekend
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           </div>
                           <div className="book-ticket-seat-selection__continue">
                             <button
@@ -1394,14 +1476,39 @@ export default function BookTicket() {
                     </button>
                     <button
                       className="btn btn--primary"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         if (!ageConfirmed || !pendingShowtime) {
                           alert('Vui lòng xác nhận độ tuổi để tiếp tục');
                           return;
                         }
-                        setSelectedShowtime(pendingShowtime);
+                        
+                        // Load full showtime data from API to get basePrice and adjustedPrice
+                        try {
+                          const showtimeResult = await showtimeService.getShowtimeById(Number(pendingShowtime.showtimeId));
+                          if (showtimeResult.success && showtimeResult.data) {
+                            const st = showtimeResult.data;
+                            const fullShowtime = {
+                              showtimeId: st.showtimeId,
+                              movieId: st.movieId || selectedMovie,
+                              roomId: st.cinemaRoomId,
+                              startTime: st.startTime,
+                              endTime: st.endTime,
+                              basePrice: st.basePrice,
+                              adjustedPrice: st.adjustedPrice
+                            };
+                            setSelectedShowtime(fullShowtime);
+                          } else {
+                            // Fallback: use pendingShowtime as is
+                            setSelectedShowtime(pendingShowtime);
+                          }
+                        } catch (error) {
+                          console.error('Error loading full showtime data:', error);
+                          // Fallback: use pendingShowtime as is
+                          setSelectedShowtime(pendingShowtime);
+                        }
+                        
                         setSelectedSeats([]);
                         setStep(2);
                         setShowAgeConfirmModal(false);

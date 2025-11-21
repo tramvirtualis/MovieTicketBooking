@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -27,5 +28,7 @@ public class ShowtimeResponseDTO {
     private String province;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
+    private BigDecimal basePrice;
+    private BigDecimal adjustedPrice;
 }
 
