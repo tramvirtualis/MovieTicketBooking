@@ -6,6 +6,7 @@ import ManagerPriceView from '../components/ManagerDashboard/ManagerPriceView';
 import ManagerBookingManagement from '../components/ManagerDashboard/ManagerBookingManagement';
 import ManagerReports from '../components/ManagerDashboard/ManagerReports';
 import ManagerMenuManagement from '../components/ManagerDashboard/ManagerMenuManagement';
+import ManagerShowtimeManagement from '../components/ManagerDashboard/ManagerShowtimeManagement';
 import { SAMPLE_CINEMAS, initialMovies, initialBookingOrders, initialPrices } from '../components/ManagerDashboard/sampleData';
 
 // Manager Dashboard focuses on cinemas within the manager's complexes only.
@@ -265,6 +266,18 @@ export default function ManagerDashboard() {
             <span>Quản lý menu</span>
           </button>
           <button
+            className={`admin-nav-item ${activeSection === 'showtimes' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => setActiveSection('showtimes')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span>Quản lý lịch chiếu</span>
+          </button>
+          <button
             className={`admin-nav-item ${activeSection === 'reports' ? 'admin-nav-item--active' : ''}`}
             onClick={() => setActiveSection('reports')}
           >
@@ -297,6 +310,7 @@ export default function ManagerDashboard() {
               {activeSection === 'cinemas' && 'Quản lý cụm rạp'}
               {activeSection === 'bookings' && 'Quản lý đặt vé'}
               {activeSection === 'menu' && 'Quản lý menu'}
+              {activeSection === 'showtimes' && 'Quản lý lịch chiếu'}
               {activeSection === 'reports' && 'Báo cáo'}
             </h1>
           </div>
@@ -404,6 +418,12 @@ export default function ManagerDashboard() {
           {activeSection === 'menu' && (
             <ManagerMenuManagement 
               complexId={currentComplexId} 
+            />
+          )}
+
+          {activeSection === 'showtimes' && (
+            <ManagerShowtimeManagement 
+              complexId={currentComplexId || cinemaComplexId}
             />
           )}
 

@@ -134,6 +134,27 @@ const showtimeService = {
   },
 
   /**
+   * Lấy danh sách lịch chiếu theo roomId (Admin)
+   * @param {number} roomId - ID của phòng chiếu
+   * @returns {Promise<Object>} Response từ server
+   */
+  getShowtimesByRoomIdAdmin: async (roomId) => {
+    try {
+      const response = await axiosInstance.get(`/admin/showtimes/room/${roomId}`);
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        message: response.data.message || 'Lấy danh sách lịch chiếu thành công',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể lấy danh sách lịch chiếu',
+      };
+    }
+  },
+
+  /**
    * Tạo lịch chiếu mới (Manager)
    * @param {Object} showtimeData - Dữ liệu lịch chiếu { cinemaRoomId, movieId, language, roomType, startTime, endTime }
    * @returns {Promise<Object>} Response từ server

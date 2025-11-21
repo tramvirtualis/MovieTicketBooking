@@ -530,6 +530,7 @@ export default function Checkout() {
                         onChange={(e) => setPaymentMethod(e.target.value)}
                       />
                       <div className="checkout-payment-method__content">
+                        <img src="/momo.png" alt="MoMo" style={{ width: '32px', height: '32px', marginRight: '12px', flexShrink: 0, objectFit: 'contain' }} />
                         <span>MoMo</span>
                       </div>
                     </label>
@@ -542,6 +543,7 @@ export default function Checkout() {
                         onChange={(e) => setPaymentMethod(e.target.value)}
                       />
                       <div className="checkout-payment-method__content">
+                        <img src="/zalopay.png" alt="ZaloPay" style={{ width: '32px', height: '32px', marginRight: '12px', flexShrink: 0, objectFit: 'contain' }} />
                         <span>ZaloPay</span>
                       </div>
                     </label>

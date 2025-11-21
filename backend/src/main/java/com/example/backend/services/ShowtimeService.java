@@ -2,6 +2,7 @@ package com.example.backend.services;
 
 import com.example.backend.dtos.CreateShowtimeDTO;
 import com.example.backend.dtos.ShowtimeResponseDTO;
+import com.example.backend.dtos.ShowtimeValidationFact;
 import com.example.backend.entities.CinemaRoom;
 import com.example.backend.entities.Movie;
 import com.example.backend.entities.MovieVersion;
@@ -12,9 +13,12 @@ import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.MovieVersionRepository;
 import com.example.backend.repositories.ShowtimeRepository;
 import lombok.RequiredArgsConstructor;
+import org.kie.api.runtime.KieContainer;
+import org.kie.api.runtime.KieSession;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -28,6 +32,7 @@ public class ShowtimeService {
     private final CinemaRoomRepository cinemaRoomRepository;
     private final MovieRepository movieRepository;
     private final MovieVersionRepository movieVersionRepository;
+    private final KieContainer kieContainer;
     
     /**
      * Tìm hoặc tạo MovieVersion dựa trên movie, language và roomType
@@ -68,6 +73,12 @@ public class ShowtimeService {
         CinemaRoom cinemaRoom = cinemaRoomRepository.findById(createDTO.getCinemaRoomId())
             .orElseThrow(() -> new RuntimeException("Không tìm thấy phòng chiếu với ID: " + createDTO.getCinemaRoomId()));
         
+        // Kiểm tra roomType của phòng có khớp với roomType của phim không
+        if (cinemaRoom.getRoomType() != createDTO.getRoomType()) {
+            throw new RuntimeException("Phòng chiếu " + cinemaRoom.getRoomName() + " là phòng " + 
+                cinemaRoom.getRoomType() + ", không thể chiếu phim " + createDTO.getRoomType());
+        }
+        
         // Tìm hoặc tạo MovieVersion
         MovieVersion movieVersion = findOrCreateMovieVersion(
             createDTO.getMovieId(),
@@ -75,14 +86,9 @@ public class ShowtimeService {
             createDTO.getRoomType()
         );
         
-        // Kiểm tra xung đột thời gian
-        List<Showtime> existingShowtimes = showtimeRepository.findByCinemaRoom_RoomId(createDTO.getCinemaRoomId());
-        for (Showtime existing : existingShowtimes) {
-            if (hasTimeConflict(existing.getStartTime(), existing.getEndTime(), 
-                               createDTO.getStartTime(), createDTO.getEndTime())) {
-                throw new RuntimeException("Khung giờ này trùng với lịch chiếu khác trong phòng");
-            }
-        }
+        // Kiểm tra xung đột thời gian sử dụng Drools với ràng buộc ngày
+        validateShowtimeWithDrools(null, createDTO.getCinemaRoomId(), 
+                                   createDTO.getStartTime(), createDTO.getEndTime());
         
         // Tạo Showtime
         Showtime showtime = Showtime.builder()
@@ -138,6 +144,12 @@ public class ShowtimeService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy phòng chiếu với ID: " + newRoomId));
         }
         
+        // Kiểm tra roomType của phòng có khớp với roomType của phim không
+        if (cinemaRoom.getRoomType() != updateDTO.getRoomType()) {
+            throw new RuntimeException("Phòng chiếu " + cinemaRoom.getRoomName() + " là phòng " + 
+                cinemaRoom.getRoomType() + ", không thể chiếu phim " + updateDTO.getRoomType());
+        }
+        
         // Sử dụng roomId mới nếu có, không thì dùng roomId hiện tại
         Long roomIdToCheck = (newRoomId != null) ? newRoomId : currentRoomId;
         
@@ -148,15 +160,9 @@ public class ShowtimeService {
             updateDTO.getRoomType()
         );
         
-        // Kiểm tra xung đột thời gian (loại trừ chính nó)
-        List<Showtime> existingShowtimes = showtimeRepository.findByCinemaRoom_RoomId(roomIdToCheck);
-        for (Showtime existing : existingShowtimes) {
-            if (!existing.getShowtimeId().equals(showtimeId) &&
-                hasTimeConflict(existing.getStartTime(), existing.getEndTime(), 
-                               updateDTO.getStartTime(), updateDTO.getEndTime())) {
-                throw new RuntimeException("Khung giờ này trùng với lịch chiếu khác trong phòng");
-            }
-        }
+        // Kiểm tra xung đột thời gian sử dụng Drools với ràng buộc ngày (loại trừ chính nó)
+        validateShowtimeWithDrools(showtimeId, roomIdToCheck, 
+                                   updateDTO.getStartTime(), updateDTO.getEndTime());
         
         // Cập nhật thông tin
         showtime.setMovieVersion(movieVersion);
@@ -186,8 +192,98 @@ public class ShowtimeService {
     }
     
     /**
-     * Kiểm tra xung đột thời gian
+     * Kiểm tra xung đột thời gian sử dụng Drools với ràng buộc ngày
+     * Chỉ kiểm tra showtimes trong cùng ngày để tối ưu hiệu suất
      */
+    private void validateShowtimeWithDrools(Long excludeShowtimeId, Long cinemaRoomId,
+                                            java.time.LocalDateTime newStartTime, 
+                                            java.time.LocalDateTime newEndTime) {
+        // Kiểm tra cơ bản trước khi dùng Drools
+        if (newStartTime == null || newEndTime == null) {
+            throw new RuntimeException("Thời gian bắt đầu và kết thúc không được để trống");
+        }
+        
+        if (!newStartTime.isBefore(newEndTime)) {
+            throw new RuntimeException("Thời gian bắt đầu phải trước thời gian kết thúc");
+        }
+        
+        if (newStartTime.isBefore(java.time.LocalDateTime.now())) {
+            throw new RuntimeException("Lịch chiếu không được đặt trong quá khứ");
+        }
+        
+        // Lấy ngày của showtime mới
+        LocalDate newDate = newStartTime.toLocalDate();
+        java.time.LocalDateTime startOfDay = newDate.atStartOfDay();
+        java.time.LocalDateTime endOfDay = newDate.plusDays(1).atStartOfDay();
+        
+        // Chỉ lấy showtimes trong cùng ngày để kiểm tra xung đột (tối ưu)
+        List<Showtime> existingShowtimes = showtimeRepository
+            .findByCinemaRoom_RoomIdAndDate(cinemaRoomId, startOfDay, endOfDay);
+        
+        // Tạo KieSession từ KieContainer
+        KieSession kieSession = kieContainer.newKieSession();
+        
+        try {
+            // Validate với từng showtime hiện có trong cùng ngày
+            for (Showtime existing : existingShowtimes) {
+                // Bỏ qua showtime đang được update
+                if (excludeShowtimeId != null && existing.getShowtimeId().equals(excludeShowtimeId)) {
+                    continue;
+                }
+                
+                // Tạo fact cho Drools
+                ShowtimeValidationFact fact = ShowtimeValidationFact.builder()
+                    .newShowtimeId(excludeShowtimeId)
+                    .cinemaRoomId(cinemaRoomId)
+                    .newStartTime(newStartTime)
+                    .newEndTime(newEndTime)
+                    .newDate(newDate)
+                    .existingShowtimeId(existing.getShowtimeId())
+                    .existingStartTime(existing.getStartTime())
+                    .existingEndTime(existing.getEndTime())
+                    .existingDate(existing.getStartTime().toLocalDate())
+                    .valid(true) // Mặc định là hợp lệ
+                    .build();
+                
+                // Insert fact vào KieSession
+                kieSession.insert(fact);
+                
+                // Fire rules
+                kieSession.fireAllRules();
+                
+                // Kiểm tra kết quả
+                if (!fact.isValid() && fact.getErrorMessage() != null) {
+                    throw new RuntimeException(fact.getErrorMessage());
+                }
+            }
+            
+            // Validate các ràng buộc chung (thời gian hợp lệ, không trong quá khứ, etc.)
+            ShowtimeValidationFact generalFact = ShowtimeValidationFact.builder()
+                .newShowtimeId(excludeShowtimeId)
+                .cinemaRoomId(cinemaRoomId)
+                .newStartTime(newStartTime)
+                .newEndTime(newEndTime)
+                .newDate(newDate)
+                .valid(true)
+                .build();
+            
+            kieSession.insert(generalFact);
+            kieSession.fireAllRules();
+            
+            if (!generalFact.isValid() && generalFact.getErrorMessage() != null) {
+                throw new RuntimeException(generalFact.getErrorMessage());
+            }
+            
+        } finally {
+            kieSession.dispose();
+        }
+    }
+    
+    /**
+     * Kiểm tra xung đột thời gian (deprecated - sử dụng Drools thay thế)
+     * Giữ lại để tương thích ngược nếu cần
+     */
+    @Deprecated
     private boolean hasTimeConflict(java.time.LocalDateTime start1, java.time.LocalDateTime end1,
                                    java.time.LocalDateTime start2, java.time.LocalDateTime end2) {
         return start1.isBefore(end2) && start2.isBefore(end1);
@@ -290,15 +386,34 @@ public class ShowtimeService {
         }
         
         // Filter by province in Java code for more flexible matching
+        // Và đảm bảo roomType của MovieVersion khớp với roomType của CinemaRoom
         List<Showtime> showtimes;
         if (province == null || province.trim().isEmpty()) {
-            showtimes = allShowtimes;
-            System.out.println("No province filter, using all " + showtimes.size() + " showtimes");
+            // Filter chỉ lấy showtimes có roomType khớp
+            showtimes = allShowtimes.stream()
+                .filter(st -> {
+                    if (st.getMovieVersion() != null && st.getCinemaRoom() != null) {
+                        return st.getMovieVersion().getRoomType() == st.getCinemaRoom().getRoomType();
+                    }
+                    return false;
+                })
+                .collect(Collectors.toList());
+            System.out.println("No province filter, using all " + showtimes.size() + " showtimes (after roomType filter)");
         } else {
             String provinceLower = province.trim().toLowerCase();
             System.out.println("Filtering by province: " + provinceLower);
             showtimes = allShowtimes.stream()
                 .filter(st -> {
+                    // Kiểm tra roomType khớp trước
+                    if (st.getMovieVersion() != null && st.getCinemaRoom() != null) {
+                        if (st.getMovieVersion().getRoomType() != st.getCinemaRoom().getRoomType()) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                    
+                    // Sau đó kiểm tra province
                     if (st.getCinemaRoom() != null && 
                         st.getCinemaRoom().getCinemaComplex() != null &&
                         st.getCinemaRoom().getCinemaComplex().getAddress() != null) {
@@ -317,7 +432,7 @@ public class ShowtimeService {
                     return false;
                 })
                 .collect(Collectors.toList());
-            System.out.println("After province filter: " + showtimes.size() + " showtimes");
+            System.out.println("After province and roomType filter: " + showtimes.size() + " showtimes");
         }
         
         // Map to DTO and handle any mapping errors

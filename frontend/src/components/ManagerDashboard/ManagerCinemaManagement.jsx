@@ -45,6 +45,20 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
     }, 3000);
   };
 
+  // Helper function to truncate movie title
+  const truncateTitle = (title, maxLength = 19) => {
+    if (!title) return '';
+    const trimmed = title.trim();
+    console.log('Truncating:', trimmed, 'Length:', trimmed.length, 'MaxLength:', maxLength);
+    if (trimmed.length <= maxLength) {
+      console.log('No truncation needed, returning:', trimmed);
+      return trimmed;
+    }
+    const result = trimmed.substring(0, maxLength).trim() + '...';
+    console.log('Truncated to:', result);
+    return result;
+  };
+
   // Use ref to track if we've already loaded rooms to prevent infinite loop
   const hasLoadedRoomsRef = React.useRef(false);
   const lastInitialCinemasListRef = React.useRef(null);
@@ -1076,27 +1090,27 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
           <div className="cinema-list">
             {cinemas.map(cinema => (
               <div key={cinema.complexId} className="cinema-card" style={{
-                background: 'linear-gradient(135deg, rgba(25, 18, 45, 0.8) 0%, rgba(12, 8, 24, 0.9) 100%)',
-                border: '1px solid rgba(123, 97, 255, 0.3)',
+                background: 'var(--panel-dark, #1e1718)',
+                border: '1px solid rgba(232, 59, 65, 0.2)',
                 borderRadius: '20px',
                 padding: '32px',
                 boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
                 transition: 'all 0.3s ease'
               }}>
-                <div className="cinema-card__header" style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid rgba(123, 97, 255, 0.2)' }}>
+                <div className="cinema-card__header" style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid rgba(232, 59, 65, 0.2)' }}>
                   <div className="cinema-card__info" style={{ width: '100%' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                       <div style={{
                         width: '56px',
                         height: '56px',
                         borderRadius: '16px',
-                        background: 'linear-gradient(135deg, rgba(123, 97, 255, 0.3) 0%, rgba(232, 59, 65, 0.3) 100%)',
+                        background: 'rgba(232, 59, 65, 0.2)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        border: '1px solid rgba(123, 97, 255, 0.4)'
+                        border: '1px solid rgba(232, 59, 65, 0.3)'
                       }}>
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: '#7b61ff' }}>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: '#e83b41' }}>
                           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
                           <circle cx="12" cy="10" r="3"/>
                         </svg>
@@ -1128,12 +1142,12 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                         alignItems: 'center',
                         gap: '8px',
                         padding: '8px 16px',
-                        background: 'rgba(123, 97, 255, 0.2)',
-                        border: '1px solid rgba(123, 97, 255, 0.3)',
+                        background: 'rgba(232, 59, 65, 0.2)',
+                        border: '1px solid rgba(232, 59, 65, 0.3)',
                         borderRadius: '12px',
                         fontSize: '13px',
                         fontWeight: 600,
-                        color: '#7b61ff'
+                        color: '#e83b41'
                       }}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <rect x="3" y="4" width="18" height="18" rx="2"/>
@@ -1169,7 +1183,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                       fontSize: '14px',
                       background: 'rgba(10, 6, 20, 0.4)',
                       borderRadius: '12px',
-                      border: '1px dashed rgba(123, 97, 255, 0.2)'
+                      border: '1px dashed rgba(232, 59, 65, 0.2)'
                     }}>
                       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: '12px', opacity: 0.4, margin: '0 auto 12px' }}>
                         <rect x="3" y="4" width="18" height="18" rx="2"/>
@@ -1181,8 +1195,8 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                       {cinema.rooms.map(room => (
                         <div key={room.roomId} className="room-card" style={{
-                          background: 'rgba(10, 6, 20, 0.6)',
-                          border: '1px solid rgba(123, 97, 255, 0.2)',
+                          background: 'var(--panel-dark, #1e1718)',
+                          border: '1px solid rgba(232, 59, 65, 0.2)',
                           borderRadius: '16px',
                           padding: '20px',
                           transition: 'all 0.2s ease',
@@ -1204,12 +1218,12 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                                 <span style={{
                                   display: 'inline-block',
                                   padding: '4px 12px',
-                                  background: 'rgba(123, 97, 255, 0.2)',
-                                  border: '1px solid rgba(123, 97, 255, 0.3)',
+                                  background: 'rgba(232, 59, 65, 0.2)',
+                                  border: '1px solid rgba(232, 59, 65, 0.3)',
                                   borderRadius: '8px',
                                   fontSize: '12px',
                                   fontWeight: 600,
-                                  color: '#7b61ff'
+                                  color: '#e83b41'
                                 }}>
                                   {room.roomType}
                                 </span>
@@ -1343,193 +1357,6 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
             </div>
             
             <div className="movie-modal__content" style={{ overflowY: 'auto', flex: 1 }}>
-              {/* Form Section */}
-              <div className="showtime-form-container" style={{ 
-                background: 'rgba(255, 255, 255, 0.02)', 
-                borderRadius: '12px', 
-                padding: '24px',
-                marginBottom: '24px',
-                border: editingShowtime ? '2px solid #ffd159' : '1px solid rgba(255, 255, 255, 0.1)'
-              }}>
-                {editingShowtime && (
-                  <div style={{ 
-                    background: 'rgba(255, 209, 89, 0.1)', 
-                    border: '1px solid #ffd159',
-                    borderRadius: '8px',
-                    padding: '12px',
-                    marginBottom: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px'
-                  }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffd159" strokeWidth="2">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                    </svg>
-                    <span style={{ color: '#ffd159', fontWeight: 600 }}>Đang chỉnh sửa lịch chiếu</span>
-                    <button 
-                      className="btn btn--ghost" 
-                      onClick={() => { 
-                        setEditingShowtime(null); 
-                        setShowtimeForm({
-                          movieId: '',
-                          date: new Date().toISOString().slice(0,10),
-                          startTime: '',
-                          language: 'Phụ đề',
-                          format: selectedRoom.roomType || '2D'
-                        });
-                        setShowtimeConflict(null);
-                      }}
-                      style={{ marginLeft: 'auto', padding: '6px 12px', fontSize: '14px' }}
-                    >
-                      Hủy
-                    </button>
-                  </div>
-                )}
-
-              <div className="movie-form">
-                <div className="movie-form__row">
-                    <div className="movie-form__group" style={{ flex: 2 }}>
-                    <label>Phim <span className="required">*</span></label>
-                      {loadingMovies ? (
-                        <div style={{ padding: '12px', textAlign: 'center', color: '#c9c4c5' }}>Đang tải danh sách phim...</div>
-                      ) : (
-                    <select
-                      value={showtimeForm.movieId}
-                      onChange={(e) => setShowtimeForm({ ...showtimeForm, movieId: e.target.value })}
-                          style={{ borderColor: showtimeForm.movieId ? '#4a3f41' : '#e83b41' }}
-                    >
-                      <option value="">Chọn phim</option>
-                          {movies.map(m => (
-                        <option key={m.movieId} value={m.movieId}>
-                          {m.title} • {m.duration} phút
-                        </option>
-                      ))}
-                    </select>
-                      )}
-                  </div>
-                  <div className="movie-form__group">
-                    <label>Ngày <span className="required">*</span></label>
-                    <input
-                      type="date"
-                      value={showtimeForm.date}
-                      onChange={(e) => setShowtimeForm({ ...showtimeForm, date: e.target.value })}
-                        min={new Date().toISOString().split('T')[0]}
-                    />
-                  </div>
-                  <div className="movie-form__group">
-                    <label>Giờ bắt đầu <span className="required">*</span></label>
-                    <input
-                      type="time"
-                      value={showtimeForm.startTime}
-                      onChange={(e) => setShowtimeForm({ ...showtimeForm, startTime: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                  {showtimeForm.movieId && showtimeForm.date && showtimeForm.startTime && (
-                    <div style={{ 
-                      marginTop: '12px',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      background: showtimeConflict ? 'rgba(232, 59, 65, 0.1)' : 'rgba(76, 175, 80, 0.1)',
-                      border: `1px solid ${showtimeConflict ? '#e83b41' : '#4caf50'}`,
-                      color: showtimeConflict ? '#e83b41' : '#4caf50',
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      {showtimeConflict ? (
-                        <>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="12" y1="8" x2="12" y2="12"/>
-                            <line x1="12" y1="16" x2="12.01" y2="16"/>
-                          </svg>
-                          <span>{showtimeConflict.message}</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                          <span>
-                            Giờ kết thúc dự kiến: <strong>{computeEndTime(showtimeForm.date, showtimeForm.startTime, showtimeForm.movieId)}</strong>
-                            {(() => {
-                              const movie = movies.find(m => m.movieId === Number(showtimeForm.movieId));
-                              return movie ? ` (${movie.duration} phút + 15 phút buffer)` : '';
-                            })()}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="movie-form__row" style={{ marginTop: '16px' }}>
-                  <div className="movie-form__group">
-                    <label>Ngôn ngữ</label>
-                    <select
-                      value={showtimeForm.language}
-                      onChange={(e) => setShowtimeForm({ ...showtimeForm, language: e.target.value })}
-                    >
-                      {(() => {
-                          const mv = movies.find(m => String(m.movieId) === String(showtimeForm.movieId));
-                          // MovieResponseDTO có formats và languages
-                          // Backend enum: VIETSUB, VIETNAMESE, VIETDUB
-                          const langs = mv?.languages || ['VIETSUB', 'VIETNAMESE', 'VIETDUB'];
-                          // Map backend enum to display format
-                          const langDisplayMap = {
-                            'VIETSUB': 'Phụ đề',
-                            'VIETNAMESE': 'Tiếng Việt',
-                            'VIETDUB': 'Lồng tiếng'
-                          };
-                          return langs.length > 0 ? langs.map(l => (
-                            <option key={l} value={langDisplayMap[l] || l}>
-                              {langDisplayMap[l] || l}
-                            </option>
-                          )) : <option value="Phụ đề">Phụ đề</option>;
-                      })()}
-                    </select>
-                  </div>
-                  <div className="movie-form__group">
-                    <label>Định dạng</label>
-                    <select
-                      value={showtimeForm.format}
-                      onChange={(e) => setShowtimeForm({ ...showtimeForm, format: e.target.value })}
-                    >
-                      {(() => {
-                          const mv = movies.find(m => String(m.movieId) === String(showtimeForm.movieId));
-                          // MovieResponseDTO có formats (RoomType enum array)
-                          const fmts = mv?.formats || [];
-                          // Map RoomType enum to display strings using enumService
-                          const displayFormats = fmts.length > 0 
-                            ? fmts.map(f => enumService.mapRoomTypeToDisplay(f))
-                            : ['2D', '3D', 'DELUXE'];
-                          return displayFormats.length > 0 ? displayFormats.map(f => (
-                            <option key={f} value={f}>{f}</option>
-                          )) : <option value={selectedRoom?.roomType || '2D'}>{selectedRoom?.roomType || '2D'}</option>;
-                      })()}
-                    </select>
-                  </div>
-                </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-                    <button 
-                      className="btn btn--primary" 
-                      onClick={handleSaveShowtime}
-                      disabled={savingShowtime || !showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict}
-                      style={{ 
-                        opacity: (savingShowtime || !showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict) ? 0.5 : 1,
-                        cursor: (savingShowtime || !showtimeForm.movieId || !showtimeForm.date || !showtimeForm.startTime || !!showtimeConflict) ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                    {savingShowtime ? 'Đang xử lý...' : (editingShowtime ? 'Lưu thay đổi' : 'Thêm lịch chiếu')}
-                  </button>
-                  </div>
-                </div>
-              </div>
-
               {/* Timeline View Section */}
               <div style={{ marginTop: '24px' }}>
                 <h3 style={{ 
@@ -1591,7 +1418,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                           paddingBottom: '12px',
                           borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
                         }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: '#ffd159' }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: '#e83b41' }}>
                             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                             <line x1="16" y1="2" x2="16" y2="6"/>
                             <line x1="8" y1="2" x2="8" y2="6"/>
@@ -1614,29 +1441,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                         </div>
 
                         {/* Timeline bars */}
-                        <div style={{ position: 'relative', paddingLeft: '60px', minHeight: '80px' }}>
-                          {/* Time labels */}
-                          <div style={{ 
-                            position: 'absolute', 
-                            left: 0, 
-                            top: 0, 
-                            bottom: 0, 
-                            width: '60px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'space-between',
-                            fontSize: '12px',
-                            color: '#999',
-                            paddingTop: '8px',
-                            paddingBottom: '8px'
-                          }}>
-                            <span>08:00</span>
-                            <span>12:00</span>
-                            <span>16:00</span>
-                            <span>20:00</span>
-                            <span>24:00</span>
-                          </div>
-
+                        <div style={{ position: 'relative', minHeight: '80px' }}>
                           {/* Timeline track */}
                           <div style={{
                             position: 'relative',
@@ -1664,24 +1469,24 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                                     position: 'absolute',
                                     left: `${Math.max(0, left)}%`,
                                     width: `${Math.min(100, width)}%`,
-                                    height: '52px',
+                                    minWidth: '120px',
+                                    maxWidth: '200px',
+                                    minHeight: '52px',
+                                    height: 'auto',
                                     marginTop: '4px',
                                     marginLeft: '4px',
-                                    background: isConflict || (editingShowtime && editingShowtime.showtimeId === st.showtimeId)
-                                      ? 'linear-gradient(135deg, #ffd159 0%, #ffa726 100%)'
-                                      : 'linear-gradient(135deg, #e83b41 0%, #c62828 100%)',
+                                    background: 'linear-gradient(135deg, #e83b41 0%, #c62828 100%)',
                                     borderRadius: '6px',
                                     display: 'flex',
-                                    alignItems: 'center',
+                                    alignItems: 'flex-start',
                                     padding: '8px 12px',
-                                    cursor: 'pointer',
+                                    cursor: 'default',
                                     transition: 'all 0.2s',
                                     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                                    border: editingShowtime && editingShowtime.showtimeId === st.showtimeId ? '2px solid #ffd159' : 'none'
+                                    boxSizing: 'border-box'
                                   }}
-                                  onClick={() => handleEditShowtime(st)}
                                   onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                    e.currentTarget.style.transform = 'scale(1.02)';
                                     e.currentTarget.style.zIndex = '10';
                                   }}
                                   onMouseLeave={(e) => {
@@ -1691,17 +1496,19 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                                 >
                                   <div style={{ 
                                     minWidth: 0,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap'
+                                    width: '100%'
                                   }}>
                                     <div style={{ 
                                       fontSize: '13px', 
                                       fontWeight: 600, 
                                       color: '#fff',
-                                      marginBottom: '2px'
+                                      marginBottom: '2px',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      lineHeight: '1.4'
                                     }}>
-                                      {movie?.title || `Phim #${st.movieId}`}
+                                      {truncateTitle(movie?.title || `Phim #${st.movieId}`, 10)}
                                     </div>
                                     <div style={{ 
                                       fontSize: '11px', 
@@ -1734,13 +1541,9 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                                   alignItems: 'center',
                                   gap: '16px',
                                   padding: '12px',
-                                  background: editingShowtime && editingShowtime.showtimeId === st.showtimeId
-                                    ? 'rgba(255, 209, 89, 0.1)'
-                                    : 'rgba(255, 255, 255, 0.03)',
+                                  background: 'rgba(255, 255, 255, 0.03)',
                                   borderRadius: '8px',
-                                  border: editingShowtime && editingShowtime.showtimeId === st.showtimeId
-                                    ? '1px solid #ffd159'
-                                    : '1px solid transparent',
+                                  border: '1px solid rgba(255, 255, 255, 0.1)',
                                   transition: 'all 0.2s'
                                 }}
                               >
@@ -1749,9 +1552,12 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                                     fontSize: '14px', 
                                     fontWeight: 600, 
                                     color: '#fff',
-                                    marginBottom: '4px'
+                                    marginBottom: '4px',
+                                    wordWrap: 'break-word',
+                                    whiteSpace: 'normal',
+                                    lineHeight: '1.4'
                                   }}>
-                                    {movie?.title || `Phim #${st.movieId}`}
+                                    {truncateTitle(movie?.title || `Phim #${st.movieId}`, 25)}
                                   </div>
                                   <div style={{ 
                                     fontSize: '12px', 
@@ -1764,36 +1570,6 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
                                     <span>🎬 {st.format}</span>
                                     <span>🗣️ {st.language}</span>
                                   </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                  <button 
-                                    className="movie-action-btn" 
-                                    onClick={() => handleEditShowtime(st)} 
-                                    title="Sửa"
-                                    style={{
-                                      background: editingShowtime && editingShowtime.showtimeId === st.showtimeId
-                                        ? '#ffd159'
-                                        : 'rgba(255, 255, 255, 0.1)',
-                                      color: editingShowtime && editingShowtime.showtimeId === st.showtimeId
-                                        ? '#2d2627'
-                                        : '#fff'
-                                    }}
-                                  >
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                    </svg>
-                                  </button>
-                                  <button 
-                                    className="movie-action-btn movie-action-btn--delete" 
-                                    onClick={() => handleDeleteShowtime(st.showtimeId)} 
-                                    title="Xóa"
-                                  >
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <polyline points="3 6 5 6 21 6"/>
-                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                                    </svg>
-                                  </button>
                                 </div>
                               </div>
                             );

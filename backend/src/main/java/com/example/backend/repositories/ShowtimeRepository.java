@@ -35,6 +35,7 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Long> {
     /**
      * Lấy showtimes theo movieId, province và date (public API)
      * Query trực tiếp qua MovieVersion để đảm bảo lấy được đúng
+     * CHỈ lấy showtimes khi roomType của MovieVersion khớp với roomType của CinemaRoom
      */
     @Query("SELECT DISTINCT s FROM Showtime s " +
            "INNER JOIN FETCH s.movieVersion mv " +
@@ -43,6 +44,7 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Long> {
            "INNER JOIN FETCH cr.cinemaComplex cc " +
            "INNER JOIN FETCH cc.address a " +
            "WHERE m.movieId = :movieId " +
+           "AND mv.roomType = cr.roomType " +
            "AND (:province IS NULL OR a.province = :province) " +
            "AND s.startTime >= :startOfDay " +
            "AND s.startTime < :endOfDay " +
@@ -56,6 +58,7 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Long> {
     /**
      * Lấy tất cả showtimes theo movieId và date (không filter province)
      * Query đi từ Movie -> MovieVersion -> Showtime để đảm bảo lấy được đúng
+     * CHỈ lấy showtimes khi roomType của MovieVersion khớp với roomType của CinemaRoom
      * Chỉ lấy showtimes trong tương lai (startTime >= CURRENT_TIMESTAMP)
      */
     @Query("SELECT DISTINCT s FROM Showtime s " +
@@ -65,6 +68,7 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Long> {
            "INNER JOIN FETCH cr.cinemaComplex cc " +
            "INNER JOIN FETCH cc.address a " +
            "WHERE m.movieId = :movieId " +
+           "AND mv.roomType = cr.roomType " +
            "AND s.startTime >= :startOfDay " +
            "AND s.startTime < :endOfDay " +
            "AND s.startTime >= CURRENT_TIMESTAMP " +
@@ -107,5 +111,21 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Long> {
                                          @Param("endTime") LocalDateTime endTime,
                                          @Param("movieId") Long movieId,
                                          @Param("cinemaId") Long cinemaId);
+    
+    /**
+     * Lấy showtimes theo roomId và ngày cụ thể (tối ưu cho validation)
+     * Chỉ lấy các showtimes trong cùng ngày để kiểm tra xung đột
+     */
+    @Query("SELECT s FROM Showtime s " +
+           "LEFT JOIN FETCH s.movieVersion mv " +
+           "LEFT JOIN FETCH mv.movie m " +
+           "LEFT JOIN FETCH s.cinemaRoom cr " +
+           "WHERE cr.roomId = :roomId " +
+           "AND s.startTime >= :startOfDay " +
+           "AND s.startTime < :endOfDay " +
+           "ORDER BY s.startTime ASC")
+    List<Showtime> findByCinemaRoom_RoomIdAndDate(@Param("roomId") Long roomId, 
+                                                   @Param("startOfDay") java.time.LocalDateTime startOfDay,
+                                                   @Param("endOfDay") java.time.LocalDateTime endOfDay);
 }
 
