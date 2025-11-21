@@ -250,9 +250,10 @@ public class CinemaRoomController {
     @PutMapping("/api/admin/seats/{seatId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateSeatType(@PathVariable Long seatId,
-                                             @RequestBody Map<String, String> request) {
+                                             @RequestBody Map<String, String> seatRequest,
+                                             HttpServletRequest httpRequest) {
         try {
-            String seatTypeStr = request.get("type");
+            String seatTypeStr = seatRequest.get("type");
             if (seatTypeStr == null) {
                 return ResponseEntity.badRequest()
                         .body(createErrorResponse("Thiếu thông tin loại ghế"));
@@ -266,7 +267,8 @@ public class CinemaRoomController {
                         .body(createErrorResponse("Loại ghế không hợp lệ: " + seatTypeStr));
             }
             
-            SeatResponseDTO seatResponse = cinemaRoomService.updateSeatType(seatId, seatType);
+            String username = getUsernameFromRequest(httpRequest);
+            SeatResponseDTO seatResponse = cinemaRoomService.updateSeatType(seatId, seatType, username);
             return ResponseEntity.ok(
                     createSuccessResponse("Cập nhật loại ghế thành công", seatResponse)
             );
@@ -282,9 +284,10 @@ public class CinemaRoomController {
     @PutMapping("/api/manager/seats/{seatId}")
     @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<?> updateSeatTypeManager(@PathVariable Long seatId,
-                                                    @RequestBody Map<String, String> request) {
+                                                    @RequestBody Map<String, String> seatRequest,
+                                                    HttpServletRequest httpRequest) {
         try {
-            String seatTypeStr = request.get("type");
+            String seatTypeStr = seatRequest.get("type");
             if (seatTypeStr == null) {
                 return ResponseEntity.badRequest()
                         .body(createErrorResponse("Thiếu thông tin loại ghế"));
@@ -298,7 +301,8 @@ public class CinemaRoomController {
                         .body(createErrorResponse("Loại ghế không hợp lệ: " + seatTypeStr));
             }
             
-            SeatResponseDTO seatResponse = cinemaRoomService.updateSeatType(seatId, seatType);
+            String username = getUsernameFromRequest(httpRequest);
+            SeatResponseDTO seatResponse = cinemaRoomService.updateSeatType(seatId, seatType, username);
             return ResponseEntity.ok(
                     createSuccessResponse("Cập nhật loại ghế thành công", seatResponse)
             );

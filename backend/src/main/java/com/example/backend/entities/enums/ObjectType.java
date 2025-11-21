@@ -8,6 +8,7 @@ public enum ObjectType {
     USER,
     VOUCHER,
     BANNER,
-    FOOD
+    FOOD,
+    SEAT
 }
 

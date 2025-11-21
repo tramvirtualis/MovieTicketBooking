@@ -6,11 +6,14 @@ import com.example.backend.dtos.SeatResponseDTO;
 import com.example.backend.entities.CinemaComplex;
 import com.example.backend.entities.CinemaRoom;
 import com.example.backend.entities.Seat;
+import com.example.backend.entities.enums.Action;
+import com.example.backend.entities.enums.ObjectType;
 import com.example.backend.entities.enums.SeatType;
 import com.example.backend.repositories.CinemaComplexRepository;
 import com.example.backend.repositories.CinemaRoomRepository;
 import com.example.backend.repositories.SeatRepository;
 import com.example.backend.repositories.TicketRepository;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CinemaRoomService {
@@ -27,6 +31,7 @@ public class CinemaRoomService {
     private final CinemaComplexRepository cinemaComplexRepository;
     private final SeatRepository seatRepository;
     private final TicketRepository ticketRepository;
+    private final ActivityLogService activityLogService;
     
     @Transactional
     public CinemaRoomResponseDTO createCinemaRoom(CreateCinemaRoomDTO createDTO, String username) {
@@ -52,7 +57,9 @@ public class CinemaRoomService {
         // Lưu lại với ghế (cascade sẽ tự động lưu seats)
         savedRoom = cinemaRoomRepository.save(savedRoom);
         
-        return mapToDTO(savedRoom);
+        CinemaRoomResponseDTO responseDTO = mapToDTO(savedRoom);
+        logRoomActivity(username, Action.CREATE, savedRoom, "Tạo phòng chiếu " + responseDTO.getRoomName());
+        return responseDTO;
     }
     
     private List<Seat> generateSeats(Integer rows, Integer cols, CinemaRoom cinemaRoom) {
@@ -139,7 +146,9 @@ public class CinemaRoomService {
         
         CinemaRoom savedRoom = cinemaRoomRepository.save(room);
         
-        return mapToDTO(savedRoom);
+        CinemaRoomResponseDTO responseDTO = mapToDTO(savedRoom);
+        logRoomActivity(username, Action.UPDATE, savedRoom, "Cập nhật phòng chiếu " + responseDTO.getRoomName());
+        return responseDTO;
     }
     
     /**
@@ -157,22 +166,26 @@ public class CinemaRoomService {
             .orElseThrow(() -> new RuntimeException("Không tìm thấy phòng chiếu với ID: " + roomId));
         
         cinemaRoomRepository.delete(room);
+        logRoomActivity(username, Action.DELETE, room, "Xóa phòng chiếu " + room.getRoomName());
     }
     
     @Transactional
-    public SeatResponseDTO updateSeatType(Long seatId, SeatType newType) {
+    public SeatResponseDTO updateSeatType(Long seatId, SeatType newType, String username) {
         Seat seat = seatRepository.findById(seatId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy ghế với ID: " + seatId));
         
         seat.setType(newType);
         Seat savedSeat = seatRepository.save(seat);
         
-        return SeatResponseDTO.builder()
+        SeatResponseDTO responseDTO = SeatResponseDTO.builder()
             .seatId(savedSeat.getSeatId())
             .type(savedSeat.getType())
             .seatRow(savedSeat.getSeatRow())
             .seatColumn(savedSeat.getSeatColumn())
             .build();
+
+        logSeatActivity(username, savedSeat, "Cập nhật loại ghế thành " + newType);
+        return responseDTO;
     }
     
     private CinemaRoomResponseDTO mapToDTO(CinemaRoom room) {
@@ -219,6 +232,45 @@ public class CinemaRoomService {
             .cols(cols)
             .seats(seatDTOs)
             .build();
+    }
+
+    private void logRoomActivity(String username, Action action, CinemaRoom room, String description) {
+        if (username == null || username.isBlank() || room == null || room.getRoomId() == null) {
+            return;
+        }
+
+        try {
+            activityLogService.logActivity(
+                username,
+                action,
+                ObjectType.ROOM,
+                room.getRoomId(),
+                room.getRoomName(),
+                description
+            );
+        } catch (Exception e) {
+            log.error("Failed to log room activity: {}", e.getMessage(), e);
+        }
+    }
+
+    private void logSeatActivity(String username, Seat seat, String description) {
+        if (username == null || username.isBlank() || seat == null || seat.getSeatId() == null) {
+            return;
+        }
+
+        try {
+            String seatLabel = seat.getSeatRow() + seat.getSeatColumn();
+            activityLogService.logActivity(
+                username,
+                Action.UPDATE,
+                ObjectType.SEAT,
+                seat.getSeatId(),
+                seatLabel,
+                description
+            );
+        } catch (Exception e) {
+            log.error("Failed to log seat activity: {}", e.getMessage(), e);
+        }
     }
 }
 

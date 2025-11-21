@@ -87,13 +87,19 @@ class WebSocketService {
       return null;
     }
 
-    // Chỉ hỗ trợ ADMIN
-    if (role !== 'ADMIN') {
-      console.error('Invalid role for activities subscription. Only ADMIN is supported.');
+    let destination = null;
+    if (role === 'ADMIN') {
+      destination = '/topic/activities/admin';
+    } else if (role === 'MANAGER') {
+      if (!username) {
+        console.error('Username is required to subscribe to manager activities');
+        return null;
+      }
+      destination = `/topic/activities/manager/${username}`;
+    } else {
+      console.error('Invalid role for activities subscription.');
       return null;
     }
-
-    const destination = '/topic/activities/admin';
 
     const subscription = this.client.subscribe(destination, (message) => {
       try {

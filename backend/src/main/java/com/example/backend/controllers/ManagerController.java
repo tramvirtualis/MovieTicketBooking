@@ -174,7 +174,7 @@ public class ManagerController {
                     .body(createErrorResponse("Bạn không có quyền truy cập cụm rạp này"));
             }
             
-            cinemaComplexService.addMovieToComplex(complexId, movieId);
+            cinemaComplexService.addMovieToComplex(complexId, movieId, username);
             
             return ResponseEntity.ok(createSuccessResponse("Thêm phim vào cụm rạp thành công", null));
         } catch (RuntimeException e) {
@@ -201,7 +201,7 @@ public class ManagerController {
                     .body(createErrorResponse("Bạn không có quyền truy cập cụm rạp này"));
             }
             
-            cinemaComplexService.removeMovieFromComplex(complexId, movieId);
+            cinemaComplexService.removeMovieFromComplex(complexId, movieId, username);
             
             return ResponseEntity.ok(createSuccessResponse("Xóa phim khỏi cụm rạp thành công", null));
         } catch (RuntimeException e) {

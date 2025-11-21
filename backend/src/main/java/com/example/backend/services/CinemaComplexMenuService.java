@@ -4,6 +4,8 @@ import com.example.backend.dtos.FoodComboResponseDTO;
 import com.example.backend.entities.CinemaComplex;
 import com.example.backend.entities.FoodCombo;
 import com.example.backend.entities.Manager;
+import com.example.backend.entities.enums.Action;
+import com.example.backend.entities.enums.ObjectType;
 import com.example.backend.repositories.CinemaComplexRepository;
 import com.example.backend.repositories.FoodComboRepository;
 import com.example.backend.repositories.ManagerRepository;
@@ -21,6 +23,7 @@ public class CinemaComplexMenuService {
     private final CinemaComplexRepository cinemaComplexRepository;
     private final FoodComboRepository foodComboRepository;
     private final ManagerRepository managerRepository;
+    private final ActivityLogService activityLogService;
     
     public List<FoodComboResponseDTO> getMenuByComplexId(Long complexId, String username) {
         // Lấy manager hiện tại
@@ -90,6 +93,14 @@ public class CinemaComplexMenuService {
         complex.getFoodCombos().add(foodCombo);
         cinemaComplexRepository.save(complex);
         
+        logMenuActivity(
+            username,
+            Action.CREATE,
+            complex,
+            foodCombo,
+            "Thêm sản phẩm " + foodCombo.getName() + " vào menu " + complex.getName()
+        );
+        
         return mapToDTO(foodCombo);
     }
     
@@ -117,6 +128,14 @@ public class CinemaComplexMenuService {
         
         complex.getFoodCombos().remove(foodCombo);
         cinemaComplexRepository.save(complex);
+
+        logMenuActivity(
+            username,
+            Action.DELETE,
+            complex,
+            foodCombo,
+            "Xóa sản phẩm " + foodCombo.getName() + " khỏi menu " + complex.getName()
+        );
     }
     
     private FoodComboResponseDTO mapToDTO(FoodCombo foodCombo) {
@@ -127,6 +146,30 @@ public class CinemaComplexMenuService {
             .description(foodCombo.getDescription())
             .image(foodCombo.getImage())
             .build();
+    }
+
+    private void logMenuActivity(String username,
+                                 Action action,
+                                 CinemaComplex complex,
+                                 FoodCombo foodCombo,
+                                 String description) {
+        if (username == null || username.isBlank() || complex == null || complex.getComplexId() == null) {
+            return;
+        }
+
+        try {
+            String objectName = String.format("%s - %s", foodCombo != null ? foodCombo.getName() : "Sản phẩm", complex.getName());
+            activityLogService.logActivity(
+                username,
+                action,
+                ObjectType.FOOD,
+                foodCombo != null ? foodCombo.getFoodComboId() : null,
+                objectName,
+                description
+            );
+        } catch (Exception e) {
+            System.err.println("ERROR logging menu activity: " + e.getMessage());
+        }
     }
 }
 
