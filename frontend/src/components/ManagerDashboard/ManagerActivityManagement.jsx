@@ -22,11 +22,8 @@ function ManagerActivityManagement({ managerUsername, onNewActivity }) {
 
   // Load activities from API
   useEffect(() => {
-    if (!managerUsername) {
-      setActivities([]);
-      setLoading(false);
-      return;
-    }
+    // API backend tự lấy username từ token nên không cần check managerUsername ở đây
+    // Tuy nhiên, nếu không có token (chưa login) thì activityService sẽ handle lỗi
 
     const loadActivities = async () => {
       setLoading(true);
@@ -388,7 +385,7 @@ function ManagerActivityManagement({ managerUsername, onNewActivity }) {
                   <tr>
                     <th style={{ width: '160px' }}>Thời gian</th>
                     <th style={{ width: '120px' }}>Hành động</th>
-                    <th style={{ width: '120px' }}>Đối tượng</th>
+                    <th style={{ width: '180px' }}>Đối tượng</th>
                     <th style={{ width: '200px' }}>Tên đối tượng</th>
                     <th>Mô tả</th>
                     <th style={{ width: '100px' }}>Thao tác</th>

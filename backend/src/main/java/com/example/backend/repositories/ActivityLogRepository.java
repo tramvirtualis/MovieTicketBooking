@@ -13,6 +13,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long> {
@@ -59,7 +60,9 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long> 
     );
     
     // Tìm hoạt động với filter đầy đủ
-    @Query("SELECT a FROM ActivityLog a WHERE " +
+    @Query("SELECT a FROM ActivityLog a " +
+           "LEFT JOIN FETCH a.actor " +
+           "WHERE " +
            "(:username IS NULL OR a.actor.username = :username) AND " +
            "(:action IS NULL OR a.action = :action) AND " +
            "(:objectType IS NULL OR a.objectType = :objectType) AND " +
@@ -90,5 +93,9 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long> 
         @Param("endDate") LocalDateTime endDate,
         Pageable pageable
     );
+    
+    // Tìm activity log với actor được eager fetch
+    @Query("SELECT a FROM ActivityLog a LEFT JOIN FETCH a.actor WHERE a.activityId = :activityId")
+    Optional<ActivityLog> findByIdWithActor(@Param("activityId") Long activityId);
 }
 
