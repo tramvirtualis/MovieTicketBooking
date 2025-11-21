@@ -104,8 +104,16 @@ export default function Schedule() {
 
   const cards = useMemo(() => {
     const movieGroups = new Map();
+    const now = new Date();
+    const minTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 phút từ bây giờ
 
     listings.forEach((item) => {
+      // Filter: chỉ hiển thị showtime chưa chiếu và còn hơn 30 phút nữa
+      const showtimeDate = new Date(item.startTime);
+      if (showtimeDate <= minTime) {
+        return; // Bỏ qua showtime đã qua hoặc còn ít hơn 30 phút
+      }
+
       const movieKey = item.movieId ?? `movie-${item.showtimeId}`;
 
       if (!movieGroups.has(movieKey)) {
@@ -143,15 +151,20 @@ export default function Schedule() {
     });
 
     // Convert to array and sort showtimes
-    return Array.from(movieGroups.values()).map((group) => ({
-      ...group,
-      cinemas: Array.from(group.cinemas.values()).map((cinema) => ({
-        ...cinema,
-        showtimes: cinema.showtimes.sort(
-          (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-        ),
-      })),
-    }));
+    // Filter out cinemas with no valid showtimes
+    return Array.from(movieGroups.values())
+      .map((group) => ({
+        ...group,
+        cinemas: Array.from(group.cinemas.values())
+          .map((cinema) => ({
+            ...cinema,
+            showtimes: cinema.showtimes.sort(
+              (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+            ),
+          }))
+          .filter((cinema) => cinema.showtimes.length > 0), // Chỉ giữ cinemas có showtimes hợp lệ
+      }))
+      .filter((group) => group.cinemas.length > 0); // Chỉ giữ movies có ít nhất 1 cinema với showtimes hợp lệ
   }, [listings]);
 
   const movieOptions = options.movies || [];
@@ -328,13 +341,20 @@ export default function Schedule() {
                             {cinema.showtimes.length > 0 && (
                               <div className="flex flex-wrap gap-2">
                                 {cinema.showtimes.map((showtime) => (
-                                  <button
+                                  <Link
                                     key={showtime.id}
-                                    className="px-4 py-2 bg-gradient-to-r from-[#ffd159] to-[#ffc107] text-[#1a1415] rounded-lg text-sm font-bold shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200"
+                                    to={card.movie.id ? `/movie/${card.movie.id}` : '#'}
+                                    className="schedule-showtime-btn"
                                     title={showtime.room ? `Phòng: ${showtime.room}` : undefined}
+                                    onClick={(e) => {
+                                      if (!card.movie.id) {
+                                        e.preventDefault();
+                                      }
+                                    }}
                                   >
-                                    {showtime.label} - {showtime.format}
-                                  </button>
+                                    <span className="schedule-showtime-btn__time">{showtime.label}</span>
+                                    <span className="schedule-showtime-btn__format">• {showtime.format}</span>
+                                  </Link>
                                 ))}
                               </div>
                             )}

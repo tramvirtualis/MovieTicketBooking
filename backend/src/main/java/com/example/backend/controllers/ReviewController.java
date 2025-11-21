@@ -104,6 +104,20 @@ public class ReviewController {
     }
     
     // Admin endpoints
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getAllReviews() {
+        try {
+            List<ReviewResponseDTO> reviews = reviewService.getAllReviews();
+            return ResponseEntity.ok(
+                createSuccessResponse("Lấy danh sách đánh giá thành công", reviews)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
     @GetMapping("/admin/reported")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getReportedReviews() {

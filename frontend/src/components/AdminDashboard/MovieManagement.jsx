@@ -30,7 +30,7 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     trailerURL: '',
     poster: '',
     posterFile: null,
-    status: 'COMING_SOON',
+    status: '', // Chỉ dùng để đánh dấu ENDED thủ công, COMING_SOON và NOW_SHOWING tự động tính
     languages: [],
     formats: []
   });
@@ -215,7 +215,7 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
       trailerURL: movie.trailerURL,
       poster: movie.poster,
       posterFile: null,
-      status: movie.status,
+      status: movie.status || '', // Lưu status hiện tại để có thể đánh dấu ENDED
       languages: languages,
       formats: formats
     });
@@ -273,7 +273,8 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
         description: formData.description || '',
         trailerURL: formData.trailerURL || '',
         poster: posterValue, // Có thể là URL dài hoặc base64
-        status: formData.status,
+        // Chỉ gửi status nếu là ENDED (đánh dấu thủ công), còn lại để backend tự tính
+        status: formData.status === 'ENDED' ? 'ENDED' : undefined,
         formats: formData.formats,
         languages: formData.languages // Languages đã đúng format (VIETSUB, VIETNAMESE, VIETDUB)
       });
@@ -1105,28 +1106,26 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                     )}
                   </div>
                   <div className="movie-form__group">
-                    <label>Trạng thái <span className="required">*</span></label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => {
-                        setFormData({ ...formData, status: e.target.value });
-                        if (validationErrors.status) {
-                          setValidationErrors({ ...validationErrors, status: null });
-                        }
-                      }}
-                      style={{
-                        borderColor: validationErrors.status ? '#ff5757' : undefined
-                      }}
-                    >
-                      {enums.movieStatuses && enums.movieStatuses.length > 0 ? enums.movieStatuses.map(status => (
-                        <option key={status} value={status}>{formatStatus(status)}</option>
-                      )) : (
-                        <option value="" disabled>Đang tải...</option>
-                      )}
-                    </select>
-                    {validationErrors.status && (
-                      <div style={{ color: '#ff5757', fontSize: '12px', marginTop: '4px' }}>
-                        {validationErrors.status}
+                    <label>Đánh dấu kết thúc</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
+                        <input
+                          type="checkbox"
+                          checked={formData.status === 'ENDED'}
+                          onChange={(e) => {
+                            setFormData({ 
+                              ...formData, 
+                              status: e.target.checked ? 'ENDED' : '' 
+                            });
+                          }}
+                          style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent, #e11b22)' }}
+                        />
+                        <span>Đánh dấu phim đã kết thúc</span>
+                      </label>
+                    </div>
+                    {formData.status === 'ENDED' && (
+                      <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                        Phim sẽ được đánh dấu là đã kết thúc
                       </div>
                     )}
                   </div>

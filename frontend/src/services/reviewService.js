@@ -88,6 +88,27 @@ export const reviewService = {
   },
 
   // Admin methods
+  async getAllReviews() {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      throw new Error('Bạn cần đăng nhập');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/reviews/admin/all`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Có lỗi xảy ra khi lấy danh sách đánh giá');
+    }
+
+    return data.data || [];
+  },
+
   async getReportedReviews() {
     const token = localStorage.getItem('jwt');
     if (!token) {

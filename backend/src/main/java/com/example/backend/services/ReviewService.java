@@ -142,6 +142,14 @@ public class ReviewService {
         reviewRepository.save(review);
     }
     
+    public List<ReviewResponseDTO> getAllReviews() {
+        // Get all reviews for admin management
+        List<Review> reviews = reviewRepository.findAllByOrderByCreatedAtDesc();
+        return reviews.stream()
+            .map(this::mapToDTO)
+            .collect(Collectors.toList());
+    }
+    
     public List<ReviewResponseDTO> getReportedReviews() {
         // Get all reviews that have been reported (reportCount > 0)
         List<Review> reviews = reviewRepository.findByReportCountGreaterThanOrderByReportCountDesc(0);

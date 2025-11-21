@@ -14,6 +14,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findByUserUserId(Long userId);
     Optional<Review> findByUserUserIdAndMovieMovieId(Long userId, Long movieId);
     List<Review> findByReportCountGreaterThanOrderByReportCountDesc(Integer reportCount); // Get reported reviews sorted by report count
+    List<Review> findAllByOrderByCreatedAtDesc(); // Get all reviews sorted by creation date descending
 }
 
 

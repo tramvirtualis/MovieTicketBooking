@@ -773,6 +773,47 @@ export default function ManagerShowtimeManagement({ complexId }) {
           </div>
 
           <div className="showtime-timeline-topbar-right">
+            <div className="showtime-timeline-movie-filter-topbar" style={{ marginRight: '16px' }}>
+              <select
+                value={filterMovie}
+                onChange={(e) => {
+                  setFilterMovie(e.target.value);
+                  if (e.target.value) {
+                    const movie = movies.find(m => String(m.movieId) === e.target.value);
+                    setSelectedMovie(movie || null);
+                  } else {
+                    setSelectedMovie(null);
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  background: 'rgba(30, 24, 25, 0.8)',
+                  color: '#fff',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  minWidth: '200px',
+                  transition: 'all 200ms ease'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = 'rgba(232, 59, 65, 0.5)';
+                  e.target.style.background = 'rgba(30, 24, 25, 0.95)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                  e.target.style.background = 'rgba(30, 24, 25, 0.8)';
+                }}
+              >
+                <option value="" style={{ background: '#1e1819', color: '#c9c4c5' }}>Tất cả phim</option>
+                {movies.map(movie => (
+                  <option key={movie.movieId} value={String(movie.movieId)} style={{ background: '#1e1819', color: '#fff' }}>
+                    {movie.title}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="showtime-timeline-export-group">
               <button
                 className="showtime-timeline-export-btn"
@@ -1335,7 +1376,7 @@ export default function ManagerShowtimeManagement({ complexId }) {
                       <input
                       type="time"
                       value={createForm.startTime}
-                      onChange={(e) => {
+                        onChange={(e) => {
                         const newTime = e.target.value;
                         // Validate nếu chọn ngày hôm nay thì giờ phải sau giờ hiện tại
                         if (createForm.startDate === new Date().toISOString().split('T')[0]) {
@@ -1347,7 +1388,7 @@ export default function ManagerShowtimeManagement({ complexId }) {
                           }
                         }
                         setCreateForm({ ...createForm, startTime: newTime });
-                      }}
+                        }}
                         disabled={creating}
                       min="00:00"
                       max="23:59"
@@ -1489,7 +1530,14 @@ export default function ManagerShowtimeManagement({ complexId }) {
                     const startDateTimeStr = `${createForm.startDate}T${createForm.startTime}:00`;
                     const endTimeObj = new Date(`${createForm.startDate}T${createForm.startTime}:00`);
                     endTimeObj.setMinutes(endTimeObj.getMinutes() + selectedMovie.duration + 15);
-                    const endDateTime = endTimeObj.toISOString().slice(0, 16).replace('T', 'T').substring(0, 16) + ':00';
+                    // Format as local datetime string (YYYY-MM-DDTHH:mm:ss)
+                    const year = endTimeObj.getFullYear();
+                    const month = String(endTimeObj.getMonth() + 1).padStart(2, '0');
+                    const day = String(endTimeObj.getDate()).padStart(2, '0');
+                    const hours = String(endTimeObj.getHours()).padStart(2, '0');
+                    const minutes = String(endTimeObj.getMinutes()).padStart(2, '0');
+                    const seconds = String(endTimeObj.getSeconds()).padStart(2, '0');
+                    const endDateTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
                     
                     const result = await showtimeService.createShowtime({
                       cinemaRoomId: createForm.roomId,

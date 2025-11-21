@@ -76,3 +76,15 @@ export const getAllOrdersAdmin = async () => {
     throw err;
   }
 };
+
+export const getAllOrdersManager = async () => {
+  try {
+    const res = await axiosInstance.get('/manager/orders');
+    if (res.data.success && res.data.data) {
+      return res.data.data;
+    }
+    throw new Error(res.data.message || 'Lấy danh sách đơn hàng thất bại');
+  } catch (err) {
+    throw err;
+  }
+};

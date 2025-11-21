@@ -46,6 +46,8 @@ public class UpdateMovieDTO {
     // Không giới hạn độ dài URL poster để hỗ trợ base64 hoặc URL dài
     private String poster;
 
+    // Status có thể được admin cập nhật thủ công (đặc biệt là ENDED)
+    // Nếu không truyền vào, sẽ tự động tính từ showtime (COMING_SOON hoặc NOW_SHOWING)
     private MovieStatus status;
 
     private List<RoomType> formats;

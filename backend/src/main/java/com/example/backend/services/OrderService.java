@@ -47,6 +47,14 @@ public class OrderService {
             .collect(Collectors.toList());
     }
     
+    @Transactional(readOnly = true)
+    public List<OrderResponseDTO> getOrdersByComplexId(Long complexId) {
+        List<Order> orders = orderRepository.findByCinemaComplexIdWithDetails(complexId);
+        return orders.stream()
+            .map(this::mapToDTO)
+            .collect(Collectors.toList());
+    }
+    
     private OrderResponseDTO mapToDTO(Order order) {
         // Map tickets to items
         List<OrderItemDTO> items = order.getTickets().stream()

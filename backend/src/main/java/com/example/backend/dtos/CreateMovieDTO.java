@@ -51,8 +51,7 @@ public class CreateMovieDTO {
     // Không giới hạn độ dài URL poster để hỗ trợ base64 hoặc URL dài
     private String poster;
 
-    @NotNull(message = "Trạng thái phim không được để trống")
-    private MovieStatus status;
+    // Status sẽ được tự động tính từ showtime sớm nhất, không cần truyền vào
 
     @NotEmpty(message = "Vui lòng chọn ít nhất 1 định dạng")
     private List<RoomType> formats;

@@ -16,6 +16,21 @@ function ReviewManagement() {
     }, 3000);
   };
 
+  // Load all reviews
+  const loadAllReviews = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const reviewsData = await reviewService.getAllReviews();
+      setReviews(reviewsData);
+    } catch (err) {
+      setError(err.message || 'Không thể tải danh sách đánh giá');
+      showNotification(err.message || 'Không thể tải danh sách đánh giá', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Load reported reviews
   const loadReportedReviews = async () => {
     setLoading(true);
@@ -35,9 +50,8 @@ function ReviewManagement() {
     if (filter === 'reported') {
       loadReportedReviews();
     } else {
-      // For 'all' and 'hidden', we would need a different API endpoint
-      // For now, just load reported reviews
-      loadReportedReviews();
+      // For 'all' and 'hidden', load all reviews and filter client-side
+      loadAllReviews();
     }
   }, [filter]);
 

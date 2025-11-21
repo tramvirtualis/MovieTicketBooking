@@ -1,8 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { getAllOrdersManager } from '../../services/customer';
 
 // Manager Booking Management Component (filtered by managerComplexIds)
 function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, managerComplexIds }) {
-  const [orders] = useState(initialOrders);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCinema, setFilterCinema] = useState('');
   const [filterMovie, setFilterMovie] = useState('');
@@ -12,6 +15,79 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
   const [sortField, setSortField] = useState('bookingId');
   const [sortOrder, setSortOrder] = useState('asc');
   const [selected, setSelected] = useState(null);
+  
+  // Load orders from backend
+  useEffect(() => {
+    const loadOrders = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const ordersData = await getAllOrdersManager();
+        console.log('Loaded orders from backend:', ordersData);
+        
+        // Map backend format to frontend format
+        // Backend returns OrderResponseDTO with items (tickets) array
+        // Frontend expects one booking per ticket
+        const mappedOrders = [];
+        ordersData.forEach(order => {
+          if (order.items && order.items.length > 0) {
+            // Group tickets by showtime to create booking records
+            const ticketsByShowtime = {};
+            order.items.forEach(item => {
+              const key = `${item.showtimeStart}_${item.cinemaComplexId}_${item.roomId}`;
+              if (!ticketsByShowtime[key]) {
+                ticketsByShowtime[key] = [];
+              }
+              ticketsByShowtime[key].push(item);
+            });
+            
+            // Create a booking record for each showtime group
+            Object.values(ticketsByShowtime).forEach(ticketGroup => {
+              const firstTicket = ticketGroup[0];
+              const seats = ticketGroup.map(t => t.seatId);
+              const totalTicketPrice = ticketGroup.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
+              
+              // Calculate total including combos
+              const comboTotal = order.combos ? order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0) : 0;
+              const totalAmount = totalTicketPrice + comboTotal;
+              
+              mappedOrders.push({
+                bookingId: order.orderId,
+                user: {
+                  name: order.userName || 'N/A',
+                  email: order.userEmail || '',
+                  phone: order.userPhone || ''
+                },
+                movieId: firstTicket.movieId,
+                movieTitle: firstTicket.movieTitle,
+                cinemaComplexId: firstTicket.cinemaComplexId,
+                cinemaName: firstTicket.cinemaComplexName,
+                roomId: firstTicket.roomId,
+                roomName: firstTicket.roomName,
+                showtime: firstTicket.showtimeStart,
+                seats: seats,
+                pricePerSeat: ticketGroup.length > 0 ? parseFloat(ticketGroup[0].price) || 0 : 0,
+                totalAmount: parseFloat(order.totalAmount) || totalAmount,
+                status: 'PAID', // All orders in DB are successful
+                paymentMethod: order.paymentMethod || 'UNKNOWN'
+              });
+            });
+          }
+        });
+        
+        console.log('Mapped orders:', mappedOrders);
+        setOrders(mappedOrders);
+      } catch (err) {
+        console.error('Error loading orders:', err);
+        setError(err.message || 'Không thể tải danh sách đơn hàng');
+        setOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadOrders();
+  }, []);
 
   const scopedCinemas = useMemo(() => {
     return (cinemas || []).filter(c => managerComplexIds.includes(c.complexId));
@@ -128,7 +204,31 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
       </div>
 
       <div className="admin-card__content">
-        {sorted.length === 0 ? (
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px', color: '#fff' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                border: '4px solid rgba(232, 59, 65, 0.3)',
+                borderTop: '4px solid #e83b41',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+                margin: '0 auto 16px'
+              }}></div>
+              <p>Đang tải dữ liệu...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="movie-empty">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <p style={{ color: '#ff5757' }}>{error}</p>
+          </div>
+        ) : sorted.length === 0 ? (
           <div className="movie-empty">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             <p>Không có đơn đặt vé</p>

@@ -8,6 +8,7 @@ import com.example.backend.entities.Movie;
 import com.example.backend.entities.MovieVersion;
 import com.example.backend.entities.Seat;
 import com.example.backend.entities.Showtime;
+import com.example.backend.entities.enums.MovieStatus;
 import com.example.backend.repositories.CinemaRoomRepository;
 import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.MovieVersionRepository;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -100,6 +102,9 @@ public class ShowtimeService {
         
         Showtime savedShowtime = showtimeRepository.save(showtime);
         
+        // Cập nhật status của phim dựa trên showtime sớm nhất
+        updateMovieStatus(movieVersion.getMovie());
+        
         return mapToDTO(savedShowtime);
     }
     
@@ -172,6 +177,9 @@ public class ShowtimeService {
         
         Showtime updatedShowtime = showtimeRepository.save(showtime);
         
+        // Cập nhật status của phim dựa trên showtime sớm nhất
+        updateMovieStatus(movieVersion.getMovie());
+        
         return mapToDTO(updatedShowtime);
     }
     
@@ -188,7 +196,62 @@ public class ShowtimeService {
             throw new RuntimeException("Không thể xóa lịch chiếu đã có vé được đặt");
         }
         
+        Movie movie = showtime.getMovieVersion().getMovie();
         showtimeRepository.delete(showtime);
+        
+        // Cập nhật status của phim sau khi xóa showtime
+        updateMovieStatus(movie);
+    }
+    
+    /**
+     * Cập nhật status của phim dựa trên showtime sớm nhất
+     * KHÔNG tự động set ENDED - chỉ admin mới có thể đánh dấu ENDED
+     */
+    private void updateMovieStatus(Movie movie) {
+        if (movie == null || movie.getMovieId() == null) {
+            return;
+        }
+        
+        // Nếu status hiện tại là ENDED, giữ nguyên (chỉ admin mới có thể set ENDED)
+        if (movie.getStatus() == MovieStatus.ENDED) {
+            return;
+        }
+        
+        // Lấy tất cả showtimes của phim
+        List<Showtime> showtimes = showtimeRepository.findAllByMovieId(movie.getMovieId());
+        
+        MovieStatus newStatus;
+        if (showtimes.isEmpty()) {
+            // Chưa có showtime, mặc định là COMING_SOON
+            newStatus = MovieStatus.COMING_SOON;
+        } else {
+            LocalDateTime now = LocalDateTime.now();
+            
+            // Tìm showtime sớm nhất và muộn nhất
+            Optional<Showtime> earliestShowtime = showtimes.stream()
+                    .min((s1, s2) -> s1.getStartTime().compareTo(s2.getStartTime()));
+            Optional<Showtime> latestShowtime = showtimes.stream()
+                    .max((s1, s2) -> s1.getEndTime().compareTo(s2.getEndTime()));
+            
+            if (earliestShowtime.isPresent() && latestShowtime.isPresent()) {
+                LocalDateTime earliestStart = earliestShowtime.get().getStartTime();
+                
+                if (now.isBefore(earliestStart)) {
+                    // Tất cả showtime đều trong tương lai
+                    newStatus = MovieStatus.COMING_SOON;
+                } else {
+                    // Có showtime đã bắt đầu hoặc đang diễn ra -> NOW_SHOWING
+                    // KHÔNG tự động set ENDED ngay cả khi tất cả showtime đã kết thúc
+                    newStatus = MovieStatus.NOW_SHOWING;
+                }
+            } else {
+                newStatus = MovieStatus.COMING_SOON;
+            }
+        }
+        
+        // Cập nhật status trong database
+        movie.setStatus(newStatus);
+        movieRepository.save(movie);
     }
     
     /**

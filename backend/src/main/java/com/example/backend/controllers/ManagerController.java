@@ -19,11 +19,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.backend.dtos.CinemaComplexResponseDTO;
 import com.example.backend.dtos.MovieResponseDTO;
+import com.example.backend.dtos.OrderResponseDTO;
 import com.example.backend.entities.Manager;
 import com.example.backend.entities.Movie;
 import com.example.backend.repositories.ManagerRepository;
 import com.example.backend.services.CinemaComplexService;
 import com.example.backend.services.MovieService;
+import com.example.backend.services.OrderService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,6 +41,7 @@ public class ManagerController {
     private final CinemaComplexService cinemaComplexService;
     private final ManagerRepository managerRepository;
     private final MovieService movieService;
+    private final OrderService orderService;
     
     @GetMapping("/cinema-complex")
     public ResponseEntity<?> getManagerCinemaComplex() {
@@ -207,6 +210,32 @@ public class ManagerController {
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(createErrorResponse("Có lỗi xảy ra: " + e.getMessage()));
+        }
+    }
+    
+    // ============ ORDER MANAGEMENT ENDPOINTS ============
+    
+    /**
+     * Lấy danh sách đơn hàng của cụm rạp (Manager)
+     */
+    @GetMapping("/orders")
+    public ResponseEntity<?> getManagerOrders() {
+        try {
+            String username = SecurityContextHolder.getContext().getAuthentication().getName();
+            Optional<Long> complexIdOpt = managerRepository.findCinemaComplexIdByUsername(username);
+            
+            if (!complexIdOpt.isPresent() || complexIdOpt.get() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse("Manager chưa được gán cụm rạp"));
+            }
+            
+            Long complexId = complexIdOpt.get();
+            List<OrderResponseDTO> orders = orderService.getOrdersByComplexId(complexId);
+            
+            return ResponseEntity.ok(createSuccessResponse("Lấy danh sách đơn hàng thành công", orders));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(createErrorResponse("Có lỗi xảy ra: " + e.getMessage()));

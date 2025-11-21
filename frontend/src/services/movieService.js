@@ -418,13 +418,21 @@ export const movieService = {
    * @returns {Object} Movie data in backend format
    */
   mapMovieToBackend: (movieData) => {
-    return {
+    // Chỉ gửi status nếu là ENDED (đánh dấu thủ công), còn lại để backend tự tính
+    const result = {
       ...movieData,
       ageRating: movieService.mapAgeRatingToBackend(movieData.ageRating),
       formats: movieService.mapFormatsToBackend(movieData.formats),
       // languages are already in correct format (VIETSUB, VIETNAMESE, VIETDUB)
       languages: movieData.languages || []
     };
+    
+    // Chỉ gửi status nếu được set (thường là ENDED)
+    if (!movieData.status || movieData.status === '') {
+      delete result.status;
+    }
+    
+    return result;
   },
 };
 

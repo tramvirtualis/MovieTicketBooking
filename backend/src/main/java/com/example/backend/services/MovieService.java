@@ -18,8 +18,11 @@ import com.example.backend.entities.enums.MovieStatus;
 import com.example.backend.entities.enums.RoomType;
 import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.MovieVersionRepository;
+import com.example.backend.repositories.ShowtimeRepository;
+import com.example.backend.entities.Showtime;
 
 import lombok.RequiredArgsConstructor;
+import java.time.LocalDateTime;
 import com.example.backend.entities.enums.Action;
 import com.example.backend.entities.enums.ObjectType;
 import com.example.backend.utils.SecurityUtils;
@@ -30,11 +33,15 @@ public class MovieService {
     
     private final MovieRepository movieRepository;
     private final MovieVersionRepository movieVersionRepository;
+    private final ShowtimeRepository showtimeRepository;
     private final ActivityLogService activityLogService;
     
     
     @Transactional
     public MovieResponseDTO createMovie(CreateMovieDTO createMovieDTO, String username) {
+        // Tính status tự động từ showtime sớm nhất (mặc định là COMING_SOON nếu chưa có showtime)
+        MovieStatus calculatedStatus = calculateMovieStatus(null);
+        
         Movie movie = Movie.builder()
                 .title(createMovieDTO.getTitle())
                 .genre(createMovieDTO.getGenre())
@@ -46,7 +53,7 @@ public class MovieService {
                 .description(createMovieDTO.getDescription())
                 .trailerURL(createMovieDTO.getTrailerURL())
                 .poster(createMovieDTO.getPoster())
-                .status(createMovieDTO.getStatus())
+                .status(calculatedStatus)
                 .build();
         
         Movie savedMovie = movieRepository.save(movie);
@@ -122,8 +129,13 @@ public class MovieService {
         if (updateMovieDTO.getPoster() != null) {
             movie.setPoster(updateMovieDTO.getPoster());
         }
+        // Cho phép admin cập nhật status thủ công (đặc biệt là ENDED)
         if (updateMovieDTO.getStatus() != null) {
             movie.setStatus(updateMovieDTO.getStatus());
+        } else {
+            // Nếu không có status trong DTO, tự động tính (nhưng không bao giờ tự động set ENDED)
+            MovieStatus calculatedStatus = calculateMovieStatus(movie);
+            movie.setStatus(calculatedStatus);
         }
         
         Movie updatedMovie = movieRepository.save(movie);
@@ -258,6 +270,57 @@ public class MovieService {
     }
     
     
+    /**
+     * Tính status của phim dựa trên showtime sớm nhất
+     * - COMING_SOON: Nếu chưa có showtime hoặc showtime sớm nhất trong tương lai
+     * - NOW_SHOWING: Nếu có showtime đã bắt đầu hoặc đang diễn ra
+     * - ENDED: CHỈ được set thủ công bởi admin, KHÔNG tự động tính
+     */
+    private MovieStatus calculateMovieStatus(Movie movie) {
+        if (movie == null || movie.getMovieId() == null) {
+            // Phim mới chưa có ID, mặc định là COMING_SOON
+            return MovieStatus.COMING_SOON;
+        }
+        
+        // Nếu status hiện tại là ENDED, giữ nguyên (chỉ admin mới có thể set ENDED)
+        if (movie.getStatus() == MovieStatus.ENDED) {
+            return MovieStatus.ENDED;
+        }
+        
+        // Lấy tất cả showtimes của phim
+        List<Showtime> showtimes = showtimeRepository.findAllByMovieId(movie.getMovieId());
+        
+        if (showtimes.isEmpty()) {
+            // Chưa có showtime, mặc định là COMING_SOON
+            return MovieStatus.COMING_SOON;
+        }
+        
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Tìm showtime sớm nhất và muộn nhất
+        Optional<Showtime> earliestShowtime = showtimes.stream()
+                .min((s1, s2) -> s1.getStartTime().compareTo(s2.getStartTime()));
+        Optional<Showtime> latestShowtime = showtimes.stream()
+                .max((s1, s2) -> s1.getEndTime().compareTo(s2.getEndTime()));
+        
+        if (earliestShowtime.isPresent() && latestShowtime.isPresent()) {
+            LocalDateTime earliestStart = earliestShowtime.get().getStartTime();
+            LocalDateTime latestEnd = latestShowtime.get().getEndTime();
+            
+            if (now.isBefore(earliestStart)) {
+                // Tất cả showtime đều trong tương lai
+                return MovieStatus.COMING_SOON;
+            } else {
+                // Có showtime đã bắt đầu hoặc đang diễn ra -> NOW_SHOWING
+                // KHÔNG tự động set ENDED ngay cả khi tất cả showtime đã kết thúc
+                return MovieStatus.NOW_SHOWING;
+            }
+        }
+        
+        // Fallback
+        return MovieStatus.COMING_SOON;
+    }
+    
     private MovieResponseDTO convertToDTO(Movie movie) {
         List<MovieVersion> versions = movieVersionRepository.findByMovie(movie);
         
@@ -271,6 +334,9 @@ public class MovieService {
                 .distinct()
                 .collect(Collectors.toList());
         
+        // Tính lại status từ showtime sớm nhất, nhưng giữ nguyên ENDED nếu đã được set thủ công
+        MovieStatus calculatedStatus = calculateMovieStatus(movie);
+        
         return MovieResponseDTO.builder()
                 .movieId(movie.getMovieId())
                 .title(movie.getTitle())
@@ -283,7 +349,7 @@ public class MovieService {
                 .description(movie.getDescription())
                 .trailerURL(movie.getTrailerURL())
                 .poster(movie.getPoster())
-                .status(movie.getStatus())
+                .status(calculatedStatus)
                 .formats(formats)
                 .languages(languages)
                 .build();
