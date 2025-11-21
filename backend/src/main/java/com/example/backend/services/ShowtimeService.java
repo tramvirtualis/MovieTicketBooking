@@ -13,7 +13,10 @@ import com.example.backend.repositories.CinemaRoomRepository;
 import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.MovieVersionRepository;
 import com.example.backend.repositories.ShowtimeRepository;
+import com.example.backend.entities.enums.Action;
+import com.example.backend.entities.enums.ObjectType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.kie.api.runtime.KieContainer;
 import org.kie.api.runtime.KieSession;
 import org.springframework.stereotype.Service;
@@ -26,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShowtimeService {
@@ -35,6 +39,7 @@ public class ShowtimeService {
     private final MovieRepository movieRepository;
     private final MovieVersionRepository movieVersionRepository;
     private final KieContainer kieContainer;
+    private final ActivityLogService activityLogService;
     
     /**
      * Tìm hoặc tạo MovieVersion dựa trên movie, language và roomType
@@ -105,7 +110,18 @@ public class ShowtimeService {
         // Cập nhật status của phim dựa trên showtime sớm nhất
         updateMovieStatus(movieVersion.getMovie());
         
-        return mapToDTO(savedShowtime);
+        ShowtimeResponseDTO responseDTO = mapToDTO(savedShowtime);
+        logShowtimeActivity(
+            username,
+            Action.CREATE,
+            savedShowtime,
+            String.format(
+                "Tạo lịch chiếu mới cho phim %s tại phòng %s",
+                responseDTO.getMovieTitle(),
+                responseDTO.getCinemaRoomName()
+            )
+        );
+        return responseDTO;
     }
     
     /**
@@ -180,7 +196,18 @@ public class ShowtimeService {
         // Cập nhật status của phim dựa trên showtime sớm nhất
         updateMovieStatus(movieVersion.getMovie());
         
-        return mapToDTO(updatedShowtime);
+        ShowtimeResponseDTO responseDTO = mapToDTO(updatedShowtime);
+        logShowtimeActivity(
+            username,
+            Action.UPDATE,
+            updatedShowtime,
+            String.format(
+                "Cập nhật lịch chiếu của phim %s tại phòng %s",
+                responseDTO.getMovieTitle(),
+                responseDTO.getCinemaRoomName()
+            )
+        );
+        return responseDTO;
     }
     
     /**
@@ -201,6 +228,19 @@ public class ShowtimeService {
         
         // Cập nhật status của phim sau khi xóa showtime
         updateMovieStatus(movie);
+        
+        logShowtimeActivity(
+            username,
+            Action.DELETE,
+            showtime,
+            String.format(
+                "Xóa lịch chiếu của phim %s tại phòng %s",
+                showtime.getMovieVersion() != null && showtime.getMovieVersion().getMovie() != null
+                    ? showtime.getMovieVersion().getMovie().getTitle()
+                    : "Chưa xác định",
+                showtime.getCinemaRoom() != null ? showtime.getCinemaRoom().getRoomName() : "Chưa xác định"
+            )
+        );
     }
     
     /**
@@ -593,6 +633,43 @@ public class ShowtimeService {
             .startTime(showtime.getStartTime())
             .endTime(showtime.getEndTime())
             .build();
+    }
+
+    private void logShowtimeActivity(String username, Action action, Showtime showtime, String description) {
+        if (username == null || username.isBlank()) {
+            return;
+        }
+        if (showtime == null || showtime.getShowtimeId() == null) {
+            return;
+        }
+
+        try {
+            MovieVersion movieVersion = showtime.getMovieVersion();
+            Movie movie = movieVersion != null ? movieVersion.getMovie() : null;
+            CinemaRoom cinemaRoom = showtime.getCinemaRoom();
+
+            String movieTitle = movie != null ? movie.getTitle() : "Lịch chiếu";
+            String roomName = cinemaRoom != null ? cinemaRoom.getRoomName() : "Phòng chiếu";
+            java.time.LocalDateTime startTime = showtime.getStartTime();
+
+            String objectName = String.format(
+                "%s - %s tại %s",
+                movieTitle,
+                startTime != null ? startTime.toString() : "Thời gian chưa xác định",
+                roomName
+            );
+
+            activityLogService.logActivity(
+                username,
+                action,
+                ObjectType.SHOWTIME,
+                showtime.getShowtimeId(),
+                objectName,
+                description
+            );
+        } catch (Exception e) {
+            log.error("Failed to log showtime activity: {}", e.getMessage(), e);
+        }
     }
 }
 

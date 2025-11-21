@@ -7,6 +7,7 @@ import ManagerBookingManagement from '../components/ManagerDashboard/ManagerBook
 import ManagerReports from '../components/ManagerDashboard/ManagerReports';
 import ManagerMenuManagement from '../components/ManagerDashboard/ManagerMenuManagement';
 import ManagerShowtimeManagement from '../components/ManagerDashboard/ManagerShowtimeManagement';
+import ManagerActivityManagement from '../components/ManagerDashboard/ManagerActivityManagement';
 import { SAMPLE_CINEMAS, initialMovies, initialBookingOrders, initialPrices } from '../components/ManagerDashboard/sampleData';
 
 // Manager Dashboard focuses on cinemas within the manager's complexes only.
@@ -37,6 +38,7 @@ export default function ManagerDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [cinemas, setCinemas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasNewActivity, setHasNewActivity] = useState(false);
   
   // Lấy complexId từ cinemas state nếu có (sau khi load từ API)
   const currentComplexId = cinemas.length > 0 ? cinemas[0].complexId : cinemaComplexId;
@@ -290,6 +292,41 @@ export default function ManagerDashboard() {
             </svg>
             <span>Báo cáo</span>
           </button>
+          <button
+            className={`admin-nav-item ${activeSection === 'activities' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => {
+              setActiveSection('activities');
+              setHasNewActivity(false);
+            }}
+            style={{ position: 'relative' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <line x1="10" y1="9" x2="8" y2="9"/>
+              <line x1="10" y1="5" x2="8" y2="5"/>
+            </svg>
+            <span>Hoạt động</span>
+            {hasNewActivity && activeSection !== 'activities' && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '8px',
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  background: '#4CAF50',
+                  border: '2px solid #1a1415',
+                  boxShadow: '0 0 0 2px rgba(76, 175, 80, 0.3)',
+                  animation: 'pulse 2s infinite',
+                }}
+                title="Có hoạt động mới"
+              />
+            )}
+          </button>
         </nav>
         <div className="admin-sidebar__footer">
           <a href="#home" className="admin-nav-item">
@@ -312,6 +349,7 @@ export default function ManagerDashboard() {
               {activeSection === 'menu' && 'Quản lý menu'}
               {activeSection === 'showtimes' && 'Quản lý lịch chiếu'}
               {activeSection === 'reports' && 'Báo cáo'}
+              {activeSection === 'activities' && 'Quản lý hoạt động'}
             </h1>
           </div>
           <div className="admin-header__right">
@@ -433,6 +471,17 @@ export default function ManagerDashboard() {
               movies={movies}
               cinemas={cinemas}
               managerComplexIds={managerComplexIds}
+            />
+          )}
+
+          {activeSection === 'activities' && (
+            <ManagerActivityManagement
+              managerUsername={userData?.username}
+              onNewActivity={() => {
+                if (activeSection !== 'activities') {
+                  setHasNewActivity(true);
+                }
+              }}
             />
           )}
 

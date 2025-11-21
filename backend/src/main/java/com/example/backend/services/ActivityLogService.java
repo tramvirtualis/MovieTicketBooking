@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.backend.entities.Manager;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -84,7 +85,7 @@ public class ActivityLogService {
             activityLogRepository.flush();
             log.info("Database flush completed");
             
-            // Broadcast activity to WebSocket - chỉ broadcast nếu actor là Admin
+            // Broadcast activity to WebSocket - chỉ broadcast nếu actor là Admin hoặc Manager
             try {
                 if (actor instanceof Admin) {
                     ActivityLogResponseDTO activityDTO = convertToDTO(savedLog);
@@ -92,6 +93,11 @@ public class ActivityLogService {
                     messagingTemplate.convertAndSend("/topic/activities/admin", activityDTO);
                     log.info("Broadcasted to /topic/activities/admin");
                     log.info("Activity broadcasted via WebSocket: {} {} {}", action, objectType, objectName);
+                } else if (actor instanceof Manager) {
+                    ActivityLogResponseDTO activityDTO = convertToDTO(savedLog);
+                    String destination = "/topic/activities/manager/" + actor.getUsername();
+                    messagingTemplate.convertAndSend(destination, activityDTO);
+                    log.info("Broadcasted to {}", destination);
                 } else {
                     log.info("Activity not broadcasted - actor is not Admin (actor type: {})", actor.getClass().getName());
                 }
@@ -137,6 +143,29 @@ public class ActivityLogService {
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
+
+    /**
+     * Lấy hoạt động dành cho Manager hiện tại
+     */
+    public List<ActivityLogResponseDTO> getManagerActivities(String username,
+                                                             Action action,
+                                                             ObjectType objectType,
+                                                             LocalDateTime startDate,
+                                                             LocalDateTime endDate) {
+        if (username == null || username.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<ActivityLog> activities = activityLogRepository.findWithFilters(
+                username, action, objectType, startDate, endDate
+        );
+
+        return activities.stream()
+                .filter(activity -> activity.getActor() instanceof Manager
+                        && username.equals(activity.getActor().getUsername()))
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
     
     /**
      * Xóa một hoạt động theo ID
@@ -169,6 +198,42 @@ public class ActivityLogService {
             return true;
         } catch (Exception e) {
             log.error("Error deleting activity: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Xóa hoạt động thuộc về Manager hiện tại
+     */
+    @Transactional
+    public boolean deleteManagerActivity(Long activityId, String username) {
+        if (activityId == null || username == null || username.isEmpty()) {
+            log.error("Cannot delete manager activity: invalid input. activityId={}, username={}", activityId, username);
+            return false;
+        }
+
+        try {
+            ActivityLog activity = activityLogRepository.findById(activityId).orElse(null);
+            if (activity == null) {
+                log.error("Cannot delete manager activity: not found {}", activityId);
+                return false;
+            }
+
+            if (!(activity.getActor() instanceof Manager)) {
+                log.error("Cannot delete manager activity: actor is not Manager");
+                return false;
+            }
+
+            if (!username.equals(activity.getActor().getUsername())) {
+                log.error("Cannot delete manager activity: username mismatch");
+                return false;
+            }
+
+            activityLogRepository.delete(activity);
+            log.info("Manager activity deleted successfully - activityId: {}", activityId);
+            return true;
+        } catch (Exception e) {
+            log.error("Error deleting manager activity: {}", e.getMessage(), e);
             return false;
         }
     }

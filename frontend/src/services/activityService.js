@@ -40,6 +40,64 @@ axiosInstance.interceptors.response.use(
   }
 );
 
+const extractActivities = (response) => {
+  let activities = [];
+  if (response?.data) {
+    if (response.data.success && Array.isArray(response.data.data)) {
+      activities = response.data.data;
+    } else if (Array.isArray(response.data)) {
+      activities = response.data;
+    } else if (Array.isArray(response.data.data)) {
+      activities = response.data.data;
+    }
+  }
+  return activities;
+};
+
+const ensureToken = () => {
+  const token = localStorage.getItem('jwt');
+  if (!token) {
+    return {
+      success: false,
+      error: 'Vui lòng đăng nhập để tiếp tục',
+    };
+  }
+  return null;
+};
+
+const buildQueryParams = (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.username) params.append('username', filters.username);
+  if (filters.action) params.append('action', filters.action);
+  if (filters.objectType) params.append('objectType', filters.objectType);
+  if (filters.startDate) params.append('startDate', filters.startDate);
+  if (filters.endDate) params.append('endDate', filters.endDate);
+  if (filters.days) params.append('days', filters.days);
+
+  const queryString = params.toString();
+  return queryString ? `?${queryString}` : '';
+};
+
+const handleError = (error, defaultMessage) => {
+  let errorMessage = defaultMessage;
+
+  if (error.response) {
+    if (error.response.status === 401 || error.response.status === 403) {
+      errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+      localStorage.removeItem('jwt');
+    } else if (error.response.data?.message) {
+      errorMessage = error.response.data.message;
+    }
+  } else if (error.message) {
+    errorMessage = error.message;
+  }
+
+  return {
+    success: false,
+    error: errorMessage,
+  };
+};
+
 export const activityService = {
   /**
    * Admin: Lấy tất cả hoạt động của admin và manager
@@ -48,59 +106,35 @@ export const activityService = {
    */
   getAllActivities: async (filters = {}) => {
     try {
-      const token = localStorage.getItem('jwt');
-      if (!token) {
-        return {
-          success: false,
-          error: 'Vui lòng đăng nhập để tiếp tục',
-        };
-      }
+      const tokenError = ensureToken();
+      if (tokenError) return tokenError;
 
-      // Xây dựng query params
-      const params = new URLSearchParams();
-      if (filters.username) params.append('username', filters.username);
-      if (filters.action) params.append('action', filters.action);
-      if (filters.objectType) params.append('objectType', filters.objectType);
-      if (filters.startDate) params.append('startDate', filters.startDate);
-      if (filters.endDate) params.append('endDate', filters.endDate);
-      if (filters.days) params.append('days', filters.days);
-
-      const response = await axiosInstance.get(`/admin/activities?${params.toString()}`);
-      
-      // Xử lý response data
-      let activities = [];
-      if (response.data) {
-        if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
-          activities = response.data.data;
-        } else if (Array.isArray(response.data)) {
-          activities = response.data;
-        } else if (response.data.data && Array.isArray(response.data.data)) {
-          activities = response.data.data;
-        }
-      }
+      const response = await axiosInstance.get(`/admin/activities${buildQueryParams(filters)}`);
 
       return {
         success: true,
-        data: activities,
+        data: extractActivities(response),
       };
     } catch (error) {
-      let errorMessage = 'Không thể lấy danh sách hoạt động';
-      
-      if (error.response) {
-        if (error.response.status === 401 || error.response.status === 403) {
-          errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
-          localStorage.removeItem('jwt');
-        } else if (error.response.data?.message) {
-          errorMessage = error.response.data.message;
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
+      return handleError(error, 'Không thể lấy danh sách hoạt động');
+    }
+  },
 
+  /**
+   * Manager: Lấy hoạt động của chính manager
+   */
+  getManagerActivities: async (filters = {}) => {
+    try {
+      const tokenError = ensureToken();
+      if (tokenError) return tokenError;
+
+      const response = await axiosInstance.get(`/manager/activities${buildQueryParams(filters)}`);
       return {
-        success: false,
-        error: errorMessage,
+        success: true,
+        data: extractActivities(response),
       };
+    } catch (error) {
+      return handleError(error, 'Không thể lấy danh sách hoạt động');
     }
   },
 
@@ -111,13 +145,8 @@ export const activityService = {
    */
   deleteActivity: async (activityId) => {
     try {
-      const token = localStorage.getItem('jwt');
-      if (!token) {
-        return {
-          success: false,
-          error: 'Vui lòng đăng nhập để tiếp tục',
-        };
-      }
+      const tokenError = ensureToken();
+      if (tokenError) return tokenError;
 
       const response = await axiosInstance.delete(`/admin/activities/${activityId}`);
       
@@ -133,23 +162,32 @@ export const activityService = {
         error: response.data?.message || 'Không thể xóa hoạt động',
       };
     } catch (error) {
-      let errorMessage = 'Không thể xóa hoạt động';
-      
-      if (error.response) {
-        if (error.response.status === 401 || error.response.status === 403) {
-          errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
-          localStorage.removeItem('jwt');
-        } else if (error.response.data?.message) {
-          errorMessage = error.response.data.message;
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
+      return handleError(error, 'Không thể xóa hoạt động');
+    }
+  },
+
+  /**
+   * Manager: Xóa hoạt động của chính mình
+   */
+  deleteManagerActivity: async (activityId) => {
+    try {
+      const tokenError = ensureToken();
+      if (tokenError) return tokenError;
+
+      const response = await axiosInstance.delete(`/manager/activities/${activityId}`);
+      if (response.data && response.data.success) {
+        return {
+          success: true,
+          message: response.data.message || 'Xóa hoạt động thành công',
+        };
       }
 
       return {
         success: false,
-        error: errorMessage,
+        error: response.data?.message || 'Không thể xóa hoạt động',
       };
+    } catch (error) {
+      return handleError(error, 'Không thể xóa hoạt động');
     }
   },
 

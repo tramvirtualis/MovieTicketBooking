@@ -186,7 +186,7 @@ public class CinemaComplexService {
      * Thêm phim vào cụm rạp
      */
     @Transactional
-    public void addMovieToComplex(Long complexId, Long movieId) {
+    public void addMovieToComplex(Long complexId, Long movieId, String username) {
         CinemaComplex complex = cinemaComplexRepository.findByIdWithMovies(complexId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + complexId));
         
@@ -209,13 +209,21 @@ public class CinemaComplexService {
         // Add movie to complex
         complex.getMovies().add(movie);
         cinemaComplexRepository.save(complex);
+
+        logMovieAssignmentActivity(
+            username,
+            Action.CREATE,
+            complex,
+            movie,
+            "Thêm phim " + movie.getTitle() + " vào cụm rạp " + complex.getName()
+        );
     }
 
     /**
      * Xóa phim khỏi cụm rạp
      */
     @Transactional
-    public void removeMovieFromComplex(Long complexId, Long movieId) {
+    public void removeMovieFromComplex(Long complexId, Long movieId, String username) {
         CinemaComplex complex = cinemaComplexRepository.findByIdWithMovies(complexId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + complexId));
         
@@ -239,6 +247,47 @@ public class CinemaComplexService {
                 .collect(Collectors.toList())
         );
         cinemaComplexRepository.save(complex);
+
+        Movie movie = movieRepository.findById(movieId)
+            .orElse(null);
+
+        logMovieAssignmentActivity(
+            username,
+            Action.DELETE,
+            complex,
+            movie,
+            "Xóa phim " + (movie != null ? movie.getTitle() : ("ID " + movieId)) + " khỏi cụm rạp " + complex.getName()
+        );
+    }
+
+    private void logMovieAssignmentActivity(String username,
+                                            Action action,
+                                            CinemaComplex complex,
+                                            Movie movie,
+                                            String description) {
+        if (username == null || username.isBlank()) {
+            return;
+        }
+        if (complex == null) {
+            return;
+        }
+
+        try {
+            Long objectId = complex.getComplexId();
+            String movieTitle = movie != null ? movie.getTitle() : "Phim chưa xác định";
+            String objectName = String.format("%s - %s", movieTitle, complex.getName());
+
+            activityLogService.logActivity(
+                username,
+                action,
+                ObjectType.CINEMA,
+                objectId,
+                objectName,
+                description
+            );
+        } catch (Exception e) {
+            System.err.println("ERROR logging movie assignment activity: " + e.getMessage());
+        }
     }
     
     private CinemaComplexResponseDTO mapToDTO(CinemaComplex complex) {

@@ -12,6 +12,8 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -81,6 +83,67 @@ public class ActivityLogController {
                     .body(createErrorResponse("Lỗi khi xóa hoạt động: " + e.getMessage()));
         }
     }
+
+    /**
+     * Manager endpoint: Lấy hoạt động của chính manager
+     */
+    @GetMapping("/api/manager/activities")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<?> getManagerActivities(
+            @RequestParam(required = false) Action action,
+            @RequestParam(required = false) ObjectType objectType,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(required = false) Integer days
+    ) {
+        try {
+            String username = getCurrentUsername();
+            if (username == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createErrorResponse("Không xác định được người dùng"));
+            }
+
+            if (days != null && days > 0) {
+                startDate = LocalDateTime.now().minusDays(days);
+                endDate = LocalDateTime.now();
+            }
+
+            List<ActivityLogResponseDTO> activities = activityLogService.getManagerActivities(
+                    username, action, objectType, startDate, endDate
+            );
+
+            return ResponseEntity.ok(createSuccessResponse("Lấy danh sách hoạt động thành công", activities));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    /**
+     * Manager endpoint: Xóa hoạt động thuộc về manager
+     */
+    @DeleteMapping("/api/manager/activities/{activityId}")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<?> deleteManagerActivity(@PathVariable Long activityId) {
+        try {
+            String username = getCurrentUsername();
+            if (username == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(createErrorResponse("Không xác định được người dùng"));
+            }
+
+            boolean deleted = activityLogService.deleteManagerActivity(activityId, username);
+            if (deleted) {
+                return ResponseEntity.ok(createSuccessResponse("Xóa hoạt động thành công", null));
+            }
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse("Không thể xóa hoạt động. Vui lòng kiểm tra lại."));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse("Lỗi khi xóa hoạt động: " + e.getMessage()));
+        }
+    }
     
     /**
      * Test endpoint: Tạo activity log thủ công để test
@@ -139,6 +202,19 @@ public class ActivityLogController {
         response.put("success", false);
         response.put("message", message);
         return response;
+    }
+
+    private String getCurrentUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+
+        String username = authentication.getName();
+        if (username == null || "anonymousUser".equalsIgnoreCase(username)) {
+            return null;
+        }
+        return username;
     }
 }
 
