@@ -302,6 +302,44 @@ public class CustomerController {
 
     // ============ ORDERS ENDPOINTS ============
 
+    @GetMapping("/profile")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> getCurrentProfile() {
+        try {
+            Long userId = getCurrentCustomerId();
+            Customer customer = customerRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
+            
+            Map<String, Object> customerData = new HashMap<>();
+            customerData.put("userId", customer.getUserId());
+            customerData.put("username", customer.getUsername());
+            customerData.put("name", customer.getName());
+            customerData.put("email", customer.getEmail());
+            customerData.put("phone", customer.getPhone());
+            customerData.put("dob", customer.getDob());
+            customerData.put("avatar", customer.getAvatar());
+            
+            // Map address if exists
+            if (customer.getAddress() != null) {
+                Map<String, Object> addressData = new HashMap<>();
+                addressData.put("description", customer.getAddress().getDescription());
+                addressData.put("province", customer.getAddress().getProvince());
+                customerData.put("address", addressData);
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Lấy thông tin profile thành công");
+            response.put("data", customerData);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
     @GetMapping("/orders")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<?> getMyOrders() {
@@ -312,6 +350,44 @@ public class CustomerController {
             response.put("success", true);
             response.put("message", "Lấy danh sách đơn hàng thành công");
             response.put("data", orders);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    /**
+     * Utility endpoint: Update vnpPayDate cho các orders cũ
+     * Tạm thời cho phép CUSTOMER gọi, sau này có thể chuyển thành ADMIN only
+     */
+    @PostMapping("/update-old-orders")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> updateOldOrders() {
+        try {
+            Map<String, Object> result = orderService.updateOldOrdersPayDate();
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", result);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/expense-statistics")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> getExpenseStatistics() {
+        try {
+            Long userId = getCurrentCustomerId();
+            Map<String, Object> statistics = orderService.getExpenseStatistics(userId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Lấy thống kê chi tiêu thành công");
+            response.put("data", statistics);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));

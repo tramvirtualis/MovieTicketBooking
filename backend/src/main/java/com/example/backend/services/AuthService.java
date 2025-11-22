@@ -425,6 +425,7 @@ public class AuthService {
                 .role(role)
                 .token(token)
                 .cinemaComplexId(cinemaComplexId)
+                .avatar(user.getAvatar()) // Thêm avatar vào response
                 .build();
         
         System.out.println("DEBUG: LoginResponseDTO - role: " + response.getRole() + ", token: " + (response.getToken() != null ? "present" : "null"));
@@ -530,6 +531,7 @@ public class AuthService {
                 .address(customer.getAddress())
                 .role("CUSTOMER")
                 .token(token)
+                .avatar(customer.getAvatar()) // Thêm avatar vào response
                 .build();
     }
 }

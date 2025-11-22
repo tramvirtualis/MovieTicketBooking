@@ -75,10 +75,16 @@ export default function Orders() {
             image: combo.comboImage || 'https://via.placeholder.com/300x300?text=Food'
           })) : [];
 
+          // Tính tổng tiền gốc (trước khi áp voucher)
+          const originalTotal = Object.values(itemsByShowtime).reduce((sum, item) => sum + item.price, 0) +
+                                foodItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
           return {
             orderId: `ORD-${order.orderId}`,
             orderDate: order.orderDate,
             totalAmount: Number(order.totalAmount),
+            originalTotal: originalTotal, // Tổng tiền gốc (trước voucher)
+            voucherCode: order.voucherCode || null, // Mã voucher nếu có
             status: 'completed', // You can add status field to Order entity later
             items: Object.values(itemsByShowtime),
             foodItems: foodItems.length > 0 ? foodItems : undefined,
@@ -188,8 +194,34 @@ export default function Orders() {
                         </div>
                       </div>
                       <div className="order-card__header-right">
-                        <div className="order-card__total">
-                          {formatPrice(order.totalAmount)}
+                        <div className="order-card__total" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                          {order.voucherCode && order.originalTotal && order.originalTotal > order.totalAmount ? (
+                            <>
+                              <span style={{ 
+                                textDecoration: 'line-through', 
+                                fontSize: '14px', 
+                                color: '#c9c4c5',
+                                fontWeight: 500
+                              }}>
+                                {formatPrice(order.originalTotal)}
+                              </span>
+                              <span style={{ 
+                                color: '#ffd159', 
+                                fontSize: '20px',
+                                fontWeight: 700
+                              }}>
+                                {formatPrice(order.totalAmount)}
+                              </span>
+                            </>
+                          ) : (
+                            <span style={{ 
+                              color: '#ffd159', 
+                              fontSize: '20px',
+                              fontWeight: 700
+                            }}>
+                              {formatPrice(order.totalAmount)}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

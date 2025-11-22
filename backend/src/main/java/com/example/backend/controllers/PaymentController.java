@@ -267,6 +267,8 @@ public class PaymentController {
             order.setVnpTxnRef(txnRef);
             order.setOrderInfo(description);
             order.setPaymentExpiredAt(now.plusMinutes(15));
+            // Set vnpPayDate ngay lập tức để đánh dấu đơn đã được tạo thành công
+            order.setVnpPayDate(now);
             order = orderService.save(order);
             
             System.out.println("Created Order ID: " + order.getOrderId() + ", TxnRef: " + txnRef);
@@ -371,20 +373,25 @@ public class PaymentController {
                             boolean alreadyProcessed = order.getVnpPayDate() != null;
                             
                             if (alreadyProcessed) {
-                                System.out.println("Order ID: " + order.getOrderId() + " already processed (vnpPayDate exists), skipping callback");
-                            } else {
-                                // Chưa xử lý hoàn toàn, cập nhật thông tin transaction
-                                Object zpTransToken = dataMap.get("zp_trans_token");
-                                if (zpTransToken != null) {
-                                    order.setVnpTransactionNo(zpTransToken.toString());
-                                }
-                                // Set vnpPayDate để đánh dấu đã xử lý
-                                order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+                                System.out.println("Order ID: " + order.getOrderId() + " already processed (vnpPayDate exists), just update transaction info if needed");
+                            }
+                            
+                            // Cập nhật thông tin transaction từ callback (nếu chưa có)
+                            boolean needUpdate = false;
+                            Object zpTransToken = dataMap.get("zp_trans_token");
+                            if (zpTransToken != null && order.getVnpTransactionNo() == null) {
+                                order.setVnpTransactionNo(zpTransToken.toString());
+                                needUpdate = true;
+                            }
+                            
+                            if (needUpdate) {
                                 orderService.save(order);
                                 System.out.println("Updated transaction info for Order ID: " + order.getOrderId());
-                                
-                                // Gửi thông báo đặt hàng thành công
-                                // notifyBookingSuccess đã có check duplicate, nên an toàn
+                            }
+                            
+                            // Gửi thông báo đặt hàng thành công (chỉ gửi nếu callback lần đầu)
+                            // notifyBookingSuccess đã có check duplicate, nên an toàn
+                            if (!alreadyProcessed) {
                                 try {
                                     String totalAmountStr = order.getTotalAmount()
                                         .setScale(0, RoundingMode.HALF_UP)
@@ -590,6 +597,8 @@ public class PaymentController {
             order.setVnpTxnRef(txnRef);
             order.setOrderInfo(buildOrderInfo(request));
             order.setPaymentExpiredAt(now.plusMinutes(15));
+            // Set vnpPayDate ngay lập tức để đánh dấu đơn đã được tạo thành công
+            order.setVnpPayDate(now);
             order = orderService.save(order);
 
             String requestId = UUID.randomUUID().toString();
@@ -664,20 +673,36 @@ public class PaymentController {
             boolean alreadyProcessed = order.getVnpPayDate() != null;
             
             if (alreadyProcessed) {
-                System.out.println("Order ID: " + order.getOrderId() + " already processed (vnpPayDate exists), skipping IPN");
-            } else {
-                // Chưa xử lý hoàn toàn, cập nhật thông tin transaction
-                // Set vnpPayDate để đánh dấu đã xử lý
-                order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+                System.out.println("Order ID: " + order.getOrderId() + " already processed (vnpPayDate exists), just update transaction info if needed");
+            }
+            
+            // Cập nhật thông tin transaction từ IPN (nếu chưa có)
+            boolean needUpdate = false;
+            if (order.getVnpTransactionNo() == null && transId != null && !transId.isEmpty()) {
                 order.setVnpTransactionNo(transId);
+                needUpdate = true;
+            }
+            if (order.getVnpBankCode() == null && payType != null && !payType.isEmpty()) {
                 order.setVnpBankCode(payType);
+                needUpdate = true;
+            }
+            if (order.getVnpResponseCode() == null && resultCode != null && !resultCode.isEmpty()) {
                 order.setVnpResponseCode(resultCode);
+                needUpdate = true;
+            }
+            if (order.getVnpTransactionStatus() == null && message != null && !message.isEmpty()) {
                 order.setVnpTransactionStatus(message);
+                needUpdate = true;
+            }
+            
+            if (needUpdate) {
                 orderService.save(order);
                 System.out.println("Updated transaction info for Order ID: " + order.getOrderId());
-                
-                // Gửi thông báo đặt hàng thành công
-                // notifyBookingSuccess đã có check duplicate, nên an toàn
+            }
+            
+            // Gửi thông báo đặt hàng thành công (chỉ gửi nếu IPN lần đầu)
+            // notifyBookingSuccess đã có check duplicate, nên an toàn
+            if (!alreadyProcessed) {
                 try {
                     String totalAmountStr = order.getTotalAmount()
                         .setScale(0, RoundingMode.HALF_UP)

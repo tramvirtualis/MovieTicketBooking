@@ -24,4 +24,5 @@ public class LoginResponseDTO {
     private String role;
     private String token;
     private Long cinemaComplexId;
+    private String avatar; // URL của avatar từ Cloudinary
 }

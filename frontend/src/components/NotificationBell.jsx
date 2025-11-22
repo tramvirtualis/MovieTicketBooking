@@ -214,8 +214,10 @@ const NotificationBell = () => {
     };
   }, [isOpen]);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-  const displayedNotifications = showAll ? notifications : notifications.slice(0, 3);
+  // Chỉ lấy những thông báo chưa đọc
+  const unreadNotifications = notifications.filter(n => !n.isRead);
+  const unreadCount = unreadNotifications.length;
+  const displayedNotifications = showAll ? unreadNotifications : unreadNotifications.slice(0, 3);
 
   const markAsRead = async (notificationId) => {
     try {
@@ -321,7 +323,7 @@ const NotificationBell = () => {
         >
           <div className="p-4 border-b border-[#4a3f41] flex items-center justify-between">
             <h3 className="text-white font-semibold">Thông báo</h3>
-            {notifications.length > 0 && (
+            {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
                 className="text-xs text-[#ffd159] hover:text-[#ffeb9e] transition-colors"
@@ -345,7 +347,7 @@ const NotificationBell = () => {
                 }}></div>
                 <p style={{ marginTop: '12px' }}>Đang tải...</p>
               </div>
-            ) : notifications.length === 0 ? (
+            ) : unreadNotifications.length === 0 ? (
               <div className="p-8 text-center text-[#c9c4c5]">
                 <svg className="mx-auto mb-3 w-12 h-12 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -399,13 +401,13 @@ const NotificationBell = () => {
             )}
           </div>
 
-          {notifications.length > 3 && (
+          {unreadNotifications.length > 3 && (
             <div className="p-3 border-t border-[#4a3f41]">
               <button
                 onClick={() => setShowAll(!showAll)}
                 className="w-full text-center text-sm text-[#ffd159] hover:text-[#ffeb9e] transition-colors"
               >
-                {showAll ? 'Thu gọn' : `Xem thêm (${notifications.length - 3})`}
+                {showAll ? 'Thu gọn' : `Xem thêm (${unreadNotifications.length - 3})`}
               </button>
             </div>
           )}

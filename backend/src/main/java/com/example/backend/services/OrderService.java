@@ -22,9 +22,17 @@ import com.example.backend.repositories.OrderRepository;
 import com.example.backend.entities.enums.SeatType;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
@@ -199,5 +207,163 @@ public class OrderService {
 
     public void delete(Order order) {
         orderRepository.delete(order);
+    }
+    
+    /**
+     * Lấy thống kê chi tiêu của user
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getExpenseStatistics(Long userId) {
+        List<Order> orders = orderRepository.findByUserUserIdWithDetails(userId);
+        
+        System.out.println("DEBUG: Total orders found for user " + userId + ": " + orders.size());
+        
+        // Chỉ tính các orders đã thanh toán thành công (có vnpPayDate)
+        List<Order> paidOrders = orders.stream()
+            .filter(order -> {
+                boolean isPaid = order.getVnpPayDate() != null;
+                if (!isPaid) {
+                    System.out.println("DEBUG: Order " + order.getOrderId() + " not paid (vnpPayDate is null)");
+                }
+                return isPaid;
+            })
+            .collect(Collectors.toList());
+        
+        System.out.println("DEBUG: Paid orders count: " + paidOrders.size());
+        
+        // Tính tổng chi tiêu
+        BigDecimal totalSpent = paidOrders.stream()
+            .map(order -> {
+                BigDecimal amount = order.getTotalAmount();
+                System.out.println("DEBUG: Order " + order.getOrderId() + " amount: " + amount);
+                return amount;
+            })
+            .filter(amount -> amount != null)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        System.out.println("DEBUG: Total spent: " + totalSpent);
+        
+        // Đếm tổng số vé (tổng số tickets)
+        long totalTickets = paidOrders.stream()
+            .mapToLong(order -> {
+                long ticketCount = order.getTickets() != null ? order.getTickets().size() : 0;
+                System.out.println("DEBUG: Order " + order.getOrderId() + " ticket count: " + ticketCount);
+                return ticketCount;
+            })
+            .sum();
+        
+        System.out.println("DEBUG: Total tickets: " + totalTickets);
+        
+        // Tính chi tiêu trung bình/vé
+        BigDecimal averagePerTicket = totalTickets > 0 
+            ? totalSpent.divide(BigDecimal.valueOf(totalTickets), 2, java.math.RoundingMode.HALF_UP)
+            : BigDecimal.ZERO;
+        
+        // Tính chi tiêu theo tháng
+        LocalDate now = LocalDate.now();
+        YearMonth currentMonth = YearMonth.from(now);
+        YearMonth lastMonth = currentMonth.minusMonths(1);
+        YearMonth threeMonthsAgo = currentMonth.minusMonths(3);
+        
+        LocalDate currentMonthStart = currentMonth.atDay(1);
+        LocalDate currentMonthEnd = currentMonth.atEndOfMonth();
+        LocalDate lastMonthStart = lastMonth.atDay(1);
+        LocalDate lastMonthEnd = lastMonth.atEndOfMonth();
+        LocalDate threeMonthsAgoStart = threeMonthsAgo.atDay(1);
+        
+        BigDecimal thisMonthSpent = paidOrders.stream()
+            .filter(order -> {
+                if (order.getOrderDate() == null) return false;
+                LocalDate orderDate = order.getOrderDate().toLocalDate();
+                return !orderDate.isBefore(currentMonthStart) && !orderDate.isAfter(currentMonthEnd);
+            })
+            .map(Order::getTotalAmount)
+            .filter(amount -> amount != null)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        BigDecimal lastMonthSpent = paidOrders.stream()
+            .filter(order -> {
+                if (order.getOrderDate() == null) return false;
+                LocalDate orderDate = order.getOrderDate().toLocalDate();
+                return !orderDate.isBefore(lastMonthStart) && !orderDate.isAfter(lastMonthEnd);
+            })
+            .map(Order::getTotalAmount)
+            .filter(amount -> amount != null)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        BigDecimal lastThreeMonthsSpent = paidOrders.stream()
+            .filter(order -> {
+                if (order.getOrderDate() == null) return false;
+                LocalDate orderDate = order.getOrderDate().toLocalDate();
+                return !orderDate.isBefore(threeMonthsAgoStart);
+            })
+            .map(Order::getTotalAmount)
+            .filter(amount -> amount != null)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        // Đếm tổng số đơn hàng đã thanh toán
+        long totalOrders = paidOrders.size();
+        
+        System.out.println("DEBUG: Total orders: " + totalOrders);
+        System.out.println("DEBUG: This month spent: " + thisMonthSpent);
+        System.out.println("DEBUG: Last month spent: " + lastMonthSpent);
+        System.out.println("DEBUG: Last 3 months spent: " + lastThreeMonthsSpent);
+        
+        Map<String, Object> statistics = new HashMap<>();
+        statistics.put("totalSpent", totalSpent);
+        statistics.put("totalTickets", totalTickets);
+        statistics.put("totalOrders", totalOrders);
+        statistics.put("thisMonthSpent", thisMonthSpent);
+        statistics.put("lastMonthSpent", lastMonthSpent);
+        statistics.put("lastThreeMonthsSpent", lastThreeMonthsSpent);
+        
+        System.out.println("DEBUG: Returning statistics map: " + statistics);
+        System.out.println("DEBUG: Statistics values - totalSpent: " + totalSpent + " (type: " + totalSpent.getClass().getName() + ")");
+        
+        return statistics;
+    }
+    
+    /**
+     * Update vnpPayDate cho các orders cũ (những orders đã có data nhưng chưa có vnpPayDate)
+     * Chỉ update các orders thực sự đã hoàn thành (có tickets hoặc orderCombos)
+     */
+    @Transactional
+    public Map<String, Object> updateOldOrdersPayDate() {
+        log.info("Starting to update vnpPayDate for old orders...");
+        
+        // Lấy tất cả orders chưa có vnpPayDate
+        List<Order> ordersWithoutPayDate = orderRepository.findAll().stream()
+            .filter(order -> order.getVnpPayDate() == null)
+            .filter(order -> {
+                // Chỉ update các orders có tickets hoặc orderCombos (tức là orders thực sự đã hoàn thành)
+                boolean hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
+                boolean hasCombos = order.getOrderCombos() != null && !order.getOrderCombos().isEmpty();
+                return hasTickets || hasCombos;
+            })
+            .collect(Collectors.toList());
+        
+        log.info("Found {} orders without vnpPayDate (but have tickets/combos)", ordersWithoutPayDate.size());
+        
+        int updatedCount = 0;
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+        
+        for (Order order : ordersWithoutPayDate) {
+            // Set vnpPayDate = orderDate (thời điểm order được tạo)
+            // Hoặc nếu orderDate null thì dùng thời điểm hiện tại
+            LocalDateTime payDate = order.getOrderDate() != null ? order.getOrderDate() : now;
+            order.setVnpPayDate(payDate);
+            orderRepository.save(order);
+            updatedCount++;
+            log.info("Updated Order ID: {} - set vnpPayDate to {}", order.getOrderId(), payDate);
+        }
+        
+        log.info("Successfully updated {} orders", updatedCount);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalFound", ordersWithoutPayDate.size());
+        result.put("updated", updatedCount);
+        result.put("message", "Đã cập nhật " + updatedCount + " đơn hàng");
+        
+        return result;
     }
 }

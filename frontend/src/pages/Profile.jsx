@@ -6,7 +6,7 @@ import interstellar from '../assets/images/interstellar.jpg';
 import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
 import driveMyCar from '../assets/images/drive-my-car.jpg';
-import { updateCustomerProfile, uploadAvatar } from '../services/customer.js';
+import { updateCustomerProfile, uploadAvatar, getExpenseStatistics, getCurrentProfile, updateOldOrders } from '../services/customer.js';
 import { customerVoucherService } from '../services/customerVoucherService';
 
 const PROVINCES = [
@@ -76,27 +76,105 @@ export default function Profile() {
   const [vouchers, setVouchers] = useState([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [expenseStats, setExpenseStats] = useState({
+    totalSpent: 0,
+    totalTickets: 0,
+    totalOrders: 0,
+    thisMonthSpent: 0,
+    lastMonthSpent: 0,
+    lastThreeMonthsSpent: 0
+  });
+  const [loadingExpenseStats, setLoadingExpenseStats] = useState(false);
 
+  // Load user profile from API
   useEffect(() => {
-    const storedUser = JSON.parse(localStorage.getItem('user')) || {};
-    if (storedUser.userId) {
-      setUserData({
-        userId: storedUser.userId || "",
-        name: storedUser.name || "",
-        email: storedUser.email || "",
-        phone: storedUser.phone || "",
-        dob: storedUser.dob || "",
-        joinDate: storedUser.joinDate || "",
-        address: {
-          description: storedUser.address?.description || "",
-          province: storedUser.address?.province || ""
-        },
-        avatar: storedUser.avatar || null,
-        totalBookings: storedUser.totalBookings || 0,
-        totalSpent: storedUser.totalSpent || 0,
-        favoriteMovies: storedUser.favoriteMovies || 0,
-      });
-    }
+    const loadUserProfile = async () => {
+      const token = localStorage.getItem('jwt');
+      const storedUser = JSON.parse(localStorage.getItem('user')) || {};
+      
+      if (!token) {
+        // Fallback to localStorage if no token
+        if (storedUser.userId) {
+          setUserData({
+            userId: storedUser.userId || "",
+            name: storedUser.name || "",
+            email: storedUser.email || "",
+            phone: storedUser.phone || "",
+            dob: storedUser.dob || "",
+            joinDate: storedUser.joinDate || "",
+            address: {
+              description: storedUser.address?.description || "",
+              province: storedUser.address?.province || ""
+            },
+            avatar: storedUser.avatar || null,
+            totalBookings: storedUser.totalBookings || 0,
+            totalSpent: storedUser.totalSpent || 0,
+            favoriteMovies: storedUser.favoriteMovies || 0,
+          });
+        }
+        return;
+      }
+
+      try {
+        const profile = await getCurrentProfile();
+        console.log('Loaded profile from API:', profile);
+        
+        // Update userData
+        setUserData({
+          userId: profile.userId || "",
+          name: profile.name || "",
+          email: profile.email || "",
+          phone: profile.phone || "",
+          dob: profile.dob || "",
+          joinDate: storedUser.joinDate || "",
+          address: {
+            description: profile.address?.description || "",
+            province: profile.address?.province || ""
+          },
+          avatar: profile.avatar || null,
+          totalBookings: storedUser.totalBookings || 0,
+          totalSpent: storedUser.totalSpent || 0,
+          favoriteMovies: storedUser.favoriteMovies || 0,
+        });
+
+        // Update localStorage với avatar mới
+        storedUser.avatar = profile.avatar;
+        storedUser.name = profile.name;
+        storedUser.email = profile.email;
+        storedUser.phone = profile.phone;
+        storedUser.dob = profile.dob;
+        if (profile.address) {
+          storedUser.address = profile.address;
+        }
+        localStorage.setItem('user', JSON.stringify(storedUser));
+        
+        // Dispatch event để Header cập nhật avatar
+        window.dispatchEvent(new Event('userUpdated'));
+      } catch (error) {
+        console.error('Error loading profile from API:', error);
+        // Fallback to localStorage
+        if (storedUser.userId) {
+          setUserData({
+            userId: storedUser.userId || "",
+            name: storedUser.name || "",
+            email: storedUser.email || "",
+            phone: storedUser.phone || "",
+            dob: storedUser.dob || "",
+            joinDate: storedUser.joinDate || "",
+            address: {
+              description: storedUser.address?.description || "",
+              province: storedUser.address?.province || ""
+            },
+            avatar: storedUser.avatar || null,
+            totalBookings: storedUser.totalBookings || 0,
+            totalSpent: storedUser.totalSpent || 0,
+            favoriteMovies: storedUser.favoriteMovies || 0,
+          });
+        }
+      }
+    };
+
+    loadUserProfile();
   }, []);
 
   // Read tab from URL query parameter on mount
@@ -137,6 +215,70 @@ export default function Profile() {
 
     loadVouchers();
   }, []);
+
+  // Load expense statistics when expenses tab is active
+  useEffect(() => {
+    const loadExpenseStatistics = async () => {
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        console.error('No JWT token found');
+        return;
+      }
+      
+      if (activeTab !== 'expenses') {
+        console.log('Not on expenses tab, skipping load. Active tab:', activeTab);
+        return;
+      }
+
+      console.log('=== Starting to load expense statistics ===');
+      setLoadingExpenseStats(true);
+      
+      try {
+        // First, update old orders to set vnpPayDate
+        console.log('Updating old orders first...');
+        const updateResult = await updateOldOrders();
+        console.log('Update old orders result:', updateResult);
+        
+        console.log('Calling getExpenseStatistics API...');
+        const stats = await getExpenseStatistics();
+        
+        console.log('=== API Response ===');
+        console.log('Full response:', stats);
+        console.log('Response keys:', Object.keys(stats));
+        console.log('totalSpent:', stats.totalSpent, 'Type:', typeof stats.totalSpent);
+        console.log('totalTickets:', stats.totalTickets, 'Type:', typeof stats.totalTickets);
+        console.log('totalOrders:', stats.totalOrders, 'Type:', typeof stats.totalOrders);
+        
+        const expenseData = {
+          totalSpent: stats.totalSpent ? Number(stats.totalSpent) : 0,
+          totalTickets: stats.totalTickets ? Number(stats.totalTickets) : 0,
+          totalOrders: stats.totalOrders ? Number(stats.totalOrders) : 0,
+          thisMonthSpent: stats.thisMonthSpent ? Number(stats.thisMonthSpent) : 0,
+          lastMonthSpent: stats.lastMonthSpent ? Number(stats.lastMonthSpent) : 0,
+          lastThreeMonthsSpent: stats.lastThreeMonthsSpent ? Number(stats.lastThreeMonthsSpent) : 0
+        };
+        
+        console.log('=== Data to set in state ===');
+        console.log('Expense data:', expenseData);
+        
+        setExpenseStats(expenseData);
+        console.log('State updated successfully');
+      } catch (error) {
+        console.error('=== Error loading expense statistics ===');
+        console.error('Error:', error);
+        console.error('Error message:', error.message);
+        console.error('Error response:', error.response);
+        console.error('Error response data:', error.response?.data);
+        console.error('Error response status:', error.response?.status);
+        // Keep default values on error
+      } finally {
+        setLoadingExpenseStats(false);
+        console.log('=== Finished loading expense statistics ===');
+      }
+    };
+
+    loadExpenseStatistics();
+  }, [activeTab]);
 
   // Handler to change tab and update URL
   const handleTabChange = (tab) => {
@@ -621,62 +763,89 @@ export default function Profile() {
 
               {activeTab === 'expenses' && (
                 <div>
-                  {/* Expenses Summary */}
-                  <div className="profile-stats-grid" style={{ marginBottom: '32px' }}>
-                    <div className="profile-stat-card">
-                      <div className="profile-stat-card__icon text-[#ffd159]">
-                        {getIcon('money')}
-                      </div>
-                      <div className="profile-stat-card__content">
-                        <div className="profile-stat-card__value">
-                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(userData.totalSpent)}
+                  {loadingExpenseStats ? (
+                    <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
+                      <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#ffd159] mb-5"></div>
+                      <p className="text-base m-0">Đang tải thống kê chi tiêu...</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Main Statistics - 3 columns */}
+                      <div className="profile-stats-grid" style={{ marginBottom: '32px' }}>
+                        {/* Tổng chi tiêu */}
+                        <div className="profile-stat-card">
+                          <div className="profile-stat-card__icon text-[#ffd159]">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="12" y1="1" x2="12" y2="23"/>
+                              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                          </div>
+                          <div className="profile-stat-card__content">
+                            <div className="profile-stat-card__value">
+                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(expenseStats.totalSpent)}
+                            </div>
+                            <div className="profile-stat-card__label">Tổng chi tiêu</div>
+                          </div>
                         </div>
-                        <div className="profile-stat-card__label">Tổng chi tiêu</div>
-                      </div>
-                    </div>
-                    <div className="profile-stat-card">
-                      <div className="profile-stat-card__icon text-[#2196f3]">
-                        {getIcon('ticket')}
-                      </div>
-                      <div className="profile-stat-card__content">
-                        <div className="profile-stat-card__value">{userData.totalBookings}</div>
-                        <div className="profile-stat-card__label">Tổng số vé đã mua</div>
-                      </div>
-                    </div>
-                    <div className="profile-stat-card">
-                      <div className="profile-stat-card__icon text-[#4caf50]">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                        </svg>
-                      </div>
-                      <div className="profile-stat-card__content">
-                        <div className="profile-stat-card__value">
-                          {userData.totalBookings > 0 
-                            ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(userData.totalSpent / userData.totalBookings)
-                            : '0₫'
-                          }
-                        </div>
-                        <div className="profile-stat-card__label">Chi tiêu trung bình/vé</div>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Monthly Expenses */}
-                  <div className="profile-section">
-                    <h2 className="profile-section__title">Chi tiêu theo tháng</h2>
-                    <div style={{ marginTop: '20px', padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-                        {['Tháng này', 'Tháng trước', '3 tháng qua'].map((period, idx) => (
-                          <div key={idx} style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            <div style={{ fontSize: '13px', color: '#c9c4c5', marginBottom: '8px' }}>{period}</div>
-                            <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff' }}>
-                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(0)}
+                        {/* Tổng số vé */}
+                        <div className="profile-stat-card">
+                          <div className="profile-stat-card__icon text-[#2196f3]">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
+                              <path d="M6 9v6M18 9v6"/>
+                            </svg>
+                          </div>
+                          <div className="profile-stat-card__content">
+                            <div className="profile-stat-card__value">{expenseStats.totalTickets}</div>
+                            <div className="profile-stat-card__label">Tổng số vé đã mua</div>
+                          </div>
+                        </div>
+
+                        {/* Tổng số đơn hàng */}
+                        <div className="profile-stat-card">
+                          <div className="profile-stat-card__icon text-[#4caf50]">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                              <path d="M9 12h6M9 16h6"/>
+                            </svg>
+                          </div>
+                          <div className="profile-stat-card__content">
+                            <div className="profile-stat-card__value">{expenseStats.totalOrders}</div>
+                            <div className="profile-stat-card__label">Tổng số đơn hàng</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Monthly Expenses */}
+                      <div className="profile-section">
+                        <h2 className="profile-section__title">Chi tiêu theo tháng</h2>
+                        <div style={{ marginTop: '20px', padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                            <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                              <div style={{ fontSize: '13px', color: '#c9c4c5', marginBottom: '8px' }}>Tháng này</div>
+                              <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff' }}>
+                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(expenseStats.thisMonthSpent)}
+                              </div>
+                            </div>
+                            <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                              <div style={{ fontSize: '13px', color: '#c9c4c5', marginBottom: '8px' }}>Tháng trước</div>
+                              <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff' }}>
+                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(expenseStats.lastMonthSpent)}
+                              </div>
+                            </div>
+                            <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                              <div style={{ fontSize: '13px', color: '#c9c4c5', marginBottom: '8px' }}>3 tháng qua</div>
+                              <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff' }}>
+                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(expenseStats.lastThreeMonthsSpent)}
+                              </div>
                             </div>
                           </div>
-                        ))}
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>

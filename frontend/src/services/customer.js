@@ -86,6 +86,18 @@ export const deleteAvatar = async (userId) => {
   }
 };
 
+export const getCurrentProfile = async () => {
+  try {
+    const res = await axiosInstance.get('/customer/profile');
+    if (res.data.success && res.data.data) {
+      return res.data.data;
+    }
+    throw new Error(res.data.message || 'Lấy thông tin profile thất bại');
+  } catch (err) {
+    throw err;
+  }
+};
+
 export const getMyOrders = async () => {
   try {
     const res = await axiosInstance.get('/customer/orders');
@@ -118,6 +130,40 @@ export const getAllOrdersManager = async () => {
     }
     throw new Error(res.data.message || 'Lấy danh sách đơn hàng thất bại');
   } catch (err) {
+    throw err;
+  }
+};
+
+export const getExpenseStatistics = async () => {
+  try {
+    console.log('Calling expense-statistics API...');
+    const res = await axiosInstance.get('/customer/expense-statistics');
+    console.log('Expense statistics API response:', res.data);
+    if (res.data.success && res.data.data) {
+      console.log('Expense statistics data:', res.data.data);
+      return res.data.data;
+    }
+    console.error('API response missing success or data:', res.data);
+    throw new Error(res.data.message || 'Lấy thống kê chi tiêu thất bại');
+  } catch (err) {
+    console.error('Error calling expense-statistics API:', err);
+    console.error('Error response:', err.response?.data);
+    throw err;
+  }
+};
+
+export const updateOldOrders = async () => {
+  try {
+    console.log('Calling update-old-orders API...');
+    const res = await axiosInstance.post('/customer/update-old-orders');
+    console.log('Update old orders API response:', res.data);
+    if (res.data.success && res.data.data) {
+      console.log('Update result:', res.data.data);
+      return res.data.data;
+    }
+    throw new Error(res.data.message || 'Cập nhật đơn hàng cũ thất bại');
+  } catch (err) {
+    console.error('Error calling update-old-orders API:', err);
     throw err;
   }
 };
