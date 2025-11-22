@@ -202,6 +202,7 @@ public class ReviewService {
             .updatedAt(review.getCreatedUpdate())
             .isHidden(review.getIsHidden())
             .reportCount(review.getReportCount())
+            .avatar(review.getUser().getAvatar())
             .build();
     }
 }

@@ -155,8 +155,9 @@ export default function Checkout() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation();
     
-    // Prevent double submission
+    // Prevent double submission - disable button ngay lập tức
     if (isSubmitting) {
       console.log('Payment is already being processed, please wait...');
       return;
@@ -169,7 +170,16 @@ export default function Checkout() {
       return;
     }
 
+    // Set submitting state NGAY LẬP TỨC để lock button
     setIsSubmitting(true);
+    
+    // Disable button ngay lập tức
+    const submitButton = document.querySelector('button[type="submit"]');
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.style.opacity = '0.6';
+      submitButton.style.cursor = 'not-allowed';
+    }
 
     // Thanh toán qua ZaloPay
     if (paymentMethod === 'ZALOPAY') {
@@ -239,6 +249,13 @@ export default function Checkout() {
       } catch (error) {
         console.error('Error creating ZaloPay order:', error);
         alert('Có lỗi xảy ra khi tạo đơn hàng thanh toán');
+        // Re-enable button
+        const submitButton = document.querySelector('button[type="submit"]');
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.style.opacity = '1';
+          submitButton.style.cursor = 'pointer';
+        }
         setIsSubmitting(false);
       }
       return;
@@ -263,7 +280,9 @@ export default function Checkout() {
 
         const response = await paymentService.createMomoPayment(payload);
         if (response.success && response.data?.paymentUrl) {
+          // Redirect đến MoMo payment page - KHÔNG reset isSubmitting vì đang redirect
           window.location.href = response.data.paymentUrl;
+          return; // Exit early để không reset state
         } else {
           // Nếu là duplicate order, hiển thị thông báo đặc biệt
           if (response.message && response.message.includes('đang được xử lý')) {
@@ -271,11 +290,25 @@ export default function Checkout() {
           } else {
             alert(response.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
           }
+          // Re-enable button
+          const submitButton = document.querySelector('button[type="submit"]');
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.style.opacity = '1';
+            submitButton.style.cursor = 'pointer';
+          }
           setIsSubmitting(false);
         }
       } catch (error) {
         console.error('Error creating MoMo payment:', error);
         alert(error.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
+        // Re-enable button
+        const submitButton = document.querySelector('button[type="submit"]');
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.style.opacity = '1';
+          submitButton.style.cursor = 'pointer';
+        }
         setIsSubmitting(false);
       }
       return;

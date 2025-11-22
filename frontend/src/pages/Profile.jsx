@@ -6,7 +6,7 @@ import interstellar from '../assets/images/interstellar.jpg';
 import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
 import driveMyCar from '../assets/images/drive-my-car.jpg';
-import { updateCustomerProfile } from '../services/customer.js';
+import { updateCustomerProfile, uploadAvatar } from '../services/customer.js';
 import { customerVoucherService } from '../services/customerVoucherService';
 
 const PROVINCES = [
@@ -34,6 +34,7 @@ const initialUserData = {
     description: storedUser.address?.description || "",
     province: storedUser.address?.province || ""
   },
+  avatar: storedUser.avatar || null,
   totalBookings: storedUser.totalBookings || 0,
   totalSpent: storedUser.totalSpent || 0,
   favoriteMovies: storedUser.favoriteMovies || 0,
@@ -74,6 +75,7 @@ export default function Profile() {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [vouchers, setVouchers] = useState([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem('user')) || {};
@@ -89,6 +91,7 @@ export default function Profile() {
           description: storedUser.address?.description || "",
           province: storedUser.address?.province || ""
         },
+        avatar: storedUser.avatar || null,
         totalBookings: storedUser.totalBookings || 0,
         totalSpent: storedUser.totalSpent || 0,
         favoriteMovies: storedUser.favoriteMovies || 0,
@@ -177,6 +180,50 @@ export default function Profile() {
       }
     }, 0);
   };
+
+  // Handle avatar upload
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      showMessage('error', 'Chỉ chấp nhận file ảnh');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      showMessage('error', 'Kích thước file không được vượt quá 5MB');
+      return;
+    }
+
+    try {
+      setUploadingAvatar(true);
+      const avatarUrl = await uploadAvatar(userData.userId, file);
+      
+      // Update userData and localStorage
+      const updatedUserData = { ...userData, avatar: avatarUrl };
+      setUserData(updatedUserData);
+      
+      // Update localStorage
+      const storedUser = JSON.parse(localStorage.getItem('user')) || {};
+      storedUser.avatar = avatarUrl;
+      localStorage.setItem('user', JSON.stringify(storedUser));
+      
+      // Dispatch event to update header avatar
+      window.dispatchEvent(new Event('userUpdated'));
+      
+      showMessage('success', 'Cập nhật ảnh đại diện thành công');
+    } catch (error) {
+      showMessage('error', error.message || 'Có lỗi xảy ra khi upload ảnh');
+    } finally {
+      setUploadingAvatar(false);
+      // Reset input
+      e.target.value = '';
+    }
+  };
+
 
   const stats = [
     { label: 'Tổng số vé đã mua', value: userData.totalBookings, icon: 'ticket' },
@@ -270,6 +317,7 @@ export default function Profile() {
         phone: updatedUser.phone || editData.phone || "",
         dob: formatDate(updatedUser.dob) || editData.dob || "",
         joinDate: userData.joinDate || "",
+        avatar: updatedUser.avatar || userData.avatar || null,
         address: {
           description: (updatedUser.address && updatedUser.address.description) 
             ? updatedUser.address.description 
@@ -320,17 +368,59 @@ export default function Profile() {
             {/* Profile Header */}
             <div className="profile-header">
               <div className="profile-header__avatar">
-                <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="60" cy="60" r="60" fill="#4a3f41"/>
-                  <circle cx="60" cy="45" r="25" fill="#e6e1e2"/>
-                  <path d="M30 90c0-16.569 13.431-30 30-30s30 13.431 30 30" fill="#e6e1e2"/>
-                </svg>
-                <button className="profile-header__edit-avatar" title="Đổi ảnh đại diện">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                {userData.avatar ? (
+                  <img 
+                    src={userData.avatar} 
+                    alt="Avatar" 
+                    className="profile-avatar-image"
+                  />
+                ) : (
+                  <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="60" cy="60" r="60" fill="#4a3f41"/>
+                    <circle cx="60" cy="45" r="25" fill="#e6e1e2"/>
+                    <path d="M30 90c0-16.569 13.431-30 30-30s30 13.431 30 30" fill="#e6e1e2"/>
                   </svg>
-                </button>
+                )}
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    disabled={uploadingAvatar}
+                    style={{
+                      position: 'absolute',
+                      width: '40px',
+                      height: '40px',
+                      opacity: 0,
+                      cursor: uploadingAvatar ? 'not-allowed' : 'pointer',
+                      zIndex: 2
+                    }}
+                    id="avatar-upload"
+                  />
+                  <label
+                    htmlFor="avatar-upload"
+                    className="profile-header__edit-avatar"
+                    title={uploadingAvatar ? 'Đang tải...' : 'Đổi ảnh đại diện'}
+                    style={{
+                      cursor: uploadingAvatar ? 'not-allowed' : 'pointer',
+                      opacity: uploadingAvatar ? 0.6 : 1
+                    }}
+                  >
+                    {uploadingAvatar ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" strokeDasharray="31.416" strokeDashoffset="31.416">
+                          <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416;0 31.416" repeatCount="indefinite"/>
+                          <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416;-31.416" repeatCount="indefinite"/>
+                        </circle>
+                      </svg>
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    )}
+                  </label>
+                </div>
               </div>
               <div className="profile-header__info">
                 <h1 className="profile-header__name">{userData.name}</h1>

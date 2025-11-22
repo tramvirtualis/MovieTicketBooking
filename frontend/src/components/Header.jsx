@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import NotificationBell from './NotificationBell';
+import VoiceSearchBar from './VoiceSearchBar';
 import { cinemaComplexService } from '../services/cinemaComplexService';
 
 export default function Header({ children }) {
@@ -43,11 +44,36 @@ export default function Header({ children }) {
     loadCinemas();
   }, []);
 
+  // Load user from localStorage
   useEffect(() => {
-    // Lấy user từ localStorage khi load
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) setUser(JSON.parse(storedUser));
+    const loadUser = () => {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) setUser(JSON.parse(storedUser));
+    };
+    
+    loadUser();
+    
+    // Listen for storage changes to update avatar
+    const handleStorageChange = () => {
+      loadUser();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('userUpdated', handleStorageChange);
+    
+    // Poll for changes (in case same window updates localStorage)
+    const interval = setInterval(() => {
+      loadUser();
+    }, 1000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('userUpdated', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
 
+  useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowCinemaDropdown(false);
@@ -160,6 +186,13 @@ export default function Header({ children }) {
           <Link to="/events">Sự kiện và khuyến mãi</Link>
         </nav>
 
+        {/* Search Bar */}
+        <div className="header-search">
+          <VoiceSearchBar 
+            placeholder="Tìm phim..."
+          />
+        </div>
+
         <div className="actions">
           {/* render optional header children */}
           {children}
@@ -170,19 +203,53 @@ export default function Header({ children }) {
           {user ? (
             <div className="user-menu" ref={userDropdownRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
               {/* Hiển thị username */}
-              <span style={{ color: '#fff', fontWeight: 600 }}>{user.username}</span>
+              <span style={{ color: '#fff', fontWeight: 600, fontSize: '14px' }}>{user.username}</span>
 
               {/* Avatar */}
               <button
                 className="user-avatar"
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
                 aria-label="User menu"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'transform 200ms ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
               >
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="16" cy="16" r="16" fill="#4a3f41"/>
-                  <circle cx="16" cy="12" r="5" fill="#e6e1e2"/>
-                  <path d="M8 26c0-4.418 3.582-8 8-8s8 3.582 8 8" fill="#e6e1e2"/>
-                </svg>
+                {user.avatar ? (
+                  <img 
+                    src={user.avatar} 
+                    alt={user.username || 'Avatar'} 
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      borderRadius: '50%',
+                      border: '2px solid rgba(232, 59, 65, 0.5)'
+                    }}
+                  />
+                ) : (
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="16" cy="16" r="16" fill="#4a3f41"/>
+                    <circle cx="16" cy="12" r="5" fill="#e6e1e2"/>
+                    <path d="M8 26c0-4.418 3.582-8 8-8s8 3.582 8 8" fill="#e6e1e2"/>
+                  </svg>
+                )}
               </button>
 
               {/* Dropdown menu */}

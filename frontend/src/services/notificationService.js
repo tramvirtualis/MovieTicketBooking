@@ -230,6 +230,53 @@ export const notificationService = {
   },
 
   /**
+   * Trigger notification cho order thành công
+   */
+  triggerOrderSuccessNotification: async (orderId) => {
+    try {
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        return {
+          success: false,
+          error: 'Vui lòng đăng nhập để tiếp tục',
+        };
+      }
+
+      const response = await axiosInstance.post(`/notifications/trigger-order-success/${orderId}`);
+      
+      if (response.data && response.data.success) {
+        return {
+          success: true,
+          message: response.data.message || 'Thông báo đã được tạo',
+        };
+      }
+
+      return {
+        success: false,
+        error: response.data?.message || 'Không thể tạo thông báo',
+      };
+    } catch (error) {
+      let errorMessage = 'Không thể tạo thông báo';
+      
+      if (error.response) {
+        if (error.response.status === 401 || error.response.status === 403) {
+          errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+          localStorage.removeItem('jwt');
+        } else if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  },
+
+  /**
    * Xóa thông báo
    */
   deleteNotification: async (notificationId) => {

@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Header from '../components/Header.jsx';
 import HeroCarousel from '../components/HeroCarousel.jsx';
 import Footer from '../components/Footer.jsx';
 import { Section, CardsGrid, PromosGrid } from '../components/SectionGrid.jsx';
-import VoiceSearchBar from '../components/VoiceSearchBar.jsx';
 import { enumService } from '../services/enumService';
 import { bannerService } from '../services/bannerService';
 import { voucherService } from '../services/voucherService';
@@ -79,7 +78,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadingBanners, setLoadingBanners] = useState(true);
   const [loadingPromos, setLoadingPromos] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
 
   // Kiểm tra role - chặn admin và manager vào trang chủ
   useEffect(() => {
@@ -219,96 +217,19 @@ export default function Home() {
     setTrailerModal({ isOpen: false, videoId: null });
   };
 
-  // Handle search
-  const handleSearch = (term) => {
-    setSearchTerm(term);
-  };
-
-  // Filter movies based on search term
-  const filteredNowShowing = useMemo(() => {
-    if (!searchTerm.trim()) return nowShowing;
-    const term = searchTerm.toLowerCase();
-    return nowShowing.filter(movie => 
-      movie.title.toLowerCase().includes(term) ||
-      movie.genre.toLowerCase().includes(term)
-    );
-  }, [nowShowing, searchTerm]);
-
-  const filteredComingSoon = useMemo(() => {
-    if (!searchTerm.trim()) return comingSoon;
-    const term = searchTerm.toLowerCase();
-    return comingSoon.filter(movie => 
-      movie.title.toLowerCase().includes(term) ||
-      movie.genre.toLowerCase().includes(term)
-    );
-  }, [comingSoon, searchTerm]);
-
   return (
     <div className="min-h-screen cinema-mood">
       <Header />
       <HeroCarousel posters={banners.length > 0 ? banners : [interstellar, inception, darkKnightRises, driveMyCar]} />
       
-      {/* Search Bar */}
-      <div style={{
-        padding: '32px 20px',
-        background: 'linear-gradient(180deg, rgba(26, 20, 21, 0.95) 0%, rgba(26, 20, 21, 0.8) 100%)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-      }}>
-        <VoiceSearchBar 
-          onSearch={handleSearch}
-          placeholder="Tìm kiếm phim theo tên hoặc thể loại..."
-        />
-        {searchTerm && (
-          <div style={{
-            textAlign: 'center',
-            marginTop: '16px',
-            color: '#e6e1e2',
-            fontSize: '14px'
-          }}>
-            Kết quả tìm kiếm cho: <strong style={{ color: '#ffd159' }}>"{searchTerm}"</strong>
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                handleSearch('');
-              }}
-              style={{
-                marginLeft: '12px',
-                background: 'transparent',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                borderRadius: '4px',
-                padding: '4px 12px',
-                color: '#e6e1e2',
-                cursor: 'pointer',
-                fontSize: '12px',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = 'rgba(232, 59, 65, 0.2)';
-                e.target.style.borderColor = '#e83b41';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = 'transparent';
-                e.target.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-              }}
-            >
-              Xóa
-            </button>
-          </div>
-        )}
-      </div>
-
       <main className="main">
         <Section id="now-showing" title="Phim Đang Chiếu">
           {loading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
               Đang tải phim...
             </div>
-          ) : filteredNowShowing.length > 0 ? (
-            <CardsGrid items={filteredNowShowing} isNowShowing={true} onPlayTrailer={handlePlayTrailer} />
-          ) : searchTerm ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
-              Không tìm thấy phim đang chiếu nào phù hợp với "{searchTerm}"
-            </div>
+          ) : nowShowing.length > 0 ? (
+            <CardsGrid items={nowShowing} isNowShowing={true} onPlayTrailer={handlePlayTrailer} />
           ) : (
             <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
               Hiện chưa có phim đang chiếu
@@ -320,12 +241,8 @@ export default function Home() {
             <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
               Đang tải phim...
             </div>
-          ) : filteredComingSoon.length > 0 ? (
-            <CardsGrid items={filteredComingSoon} isNowShowing={true} onPlayTrailer={handlePlayTrailer} />
-          ) : searchTerm ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
-              Không tìm thấy phim sắp chiếu nào phù hợp với "{searchTerm}"
-            </div>
+          ) : comingSoon.length > 0 ? (
+            <CardsGrid items={comingSoon} isNowShowing={true} onPlayTrailer={handlePlayTrailer} />
           ) : (
             <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
               Hiện chưa có phim sắp chiếu

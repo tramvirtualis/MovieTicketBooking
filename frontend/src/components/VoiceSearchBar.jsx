@@ -34,9 +34,9 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
         setSearchTerm(transcript);
         setIsListening(false);
         
-        // Tự động thực hiện tìm kiếm sau khi nhận diện
-        if (onSearch && transcript) {
-          onSearch(transcript);
+        // Tự động navigate đến trang search results sau khi nhận diện
+        if (transcript.trim()) {
+          navigate(`/search?q=${encodeURIComponent(transcript.trim())}`);
         }
       };
 
@@ -92,11 +92,11 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
+      // Luôn navigate đến trang search results
+      navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
+      // Nếu có callback onSearch, vẫn gọi nó (cho các trường hợp đặc biệt)
       if (onSearch) {
         onSearch(searchTerm.trim());
-      } else {
-        // Mặc định: navigate đến trang tìm kiếm hoặc filter
-        navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
       }
     }
   };
@@ -113,8 +113,7 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
       style={{
         position: 'relative',
         width: '100%',
-        maxWidth: '600px',
-        margin: '0 auto'
+        maxWidth: '100%'
       }}
     >
       <div style={{
@@ -122,31 +121,46 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
         display: 'flex',
         alignItems: 'center',
         background: 'rgba(45, 38, 39, 0.9)',
-        border: `2px solid ${isListening ? '#e83b41' : 'rgba(255, 255, 255, 0.2)'}`,
+        border: `1.5px solid ${isListening ? '#e83b41' : 'rgba(255, 255, 255, 0.2)'}`,
         borderRadius: '50px',
-        padding: '8px 16px',
+        padding: '4px 10px',
         transition: 'all 0.3s ease',
         boxShadow: isListening 
-          ? '0 0 20px rgba(232, 59, 65, 0.5)' 
-          : '0 4px 12px rgba(0, 0, 0, 0.2)'
+          ? '0 0 15px rgba(232, 59, 65, 0.4)' 
+          : '0 1px 4px rgba(0, 0, 0, 0.15)'
       }}>
-        {/* Search Icon */}
-        <svg 
-          width="20" 
-          height="20" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="2"
+        {/* Search Icon - Clickable */}
+        <button
+          type="submit"
           style={{
-            color: '#e6e1e2',
-            marginRight: '12px',
-            flexShrink: 0
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            margin: 0,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: '6px'
           }}
+          title="Tìm kiếm"
         >
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.35-4.35"/>
-        </svg>
+          <svg 
+            width="14" 
+            height="14" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2"
+            style={{
+              color: '#e6e1e2',
+              flexShrink: 0
+            }}
+          >
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+        </button>
 
         {/* Input */}
         <input
@@ -161,8 +175,9 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
             border: 'none',
             outline: 'none',
             color: '#e6e1e2',
-            fontSize: '15px',
-            padding: '4px 0'
+            fontSize: '13px',
+            padding: '0',
+            minWidth: '120px'
           }}
         />
 
@@ -177,13 +192,13 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
               : 'transparent',
             border: 'none',
             borderRadius: '50%',
-            width: '40px',
-            height: '40px',
+            width: '28px',
+            height: '28px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: isSupported ? 'pointer' : 'not-allowed',
-            marginLeft: '8px',
+            marginLeft: '4px',
             transition: 'all 0.3s ease',
             position: 'relative'
           }}
@@ -203,8 +218,8 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
                 animation: 'pulse 1.5s ease-in-out infinite'
               }} />
               <svg 
-                width="20" 
-                height="20" 
+                width="14" 
+                height="14" 
                 viewBox="0 0 24 24" 
                 fill="currentColor"
                 style={{
@@ -219,8 +234,8 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
             </>
           ) : (
             <svg 
-              width="20" 
-              height="20" 
+              width="14" 
+              height="14" 
               viewBox="0 0 24 24" 
               fill="none" 
               stroke="currentColor" 
@@ -237,36 +252,6 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
             </svg>
           )}
         </button>
-
-        {/* Search Button */}
-        {searchTerm && (
-          <button
-            type="submit"
-            style={{
-              background: 'linear-gradient(135deg, #e83b41 0%, #a10f14 100%)',
-              border: 'none',
-              borderRadius: '50px',
-              padding: '8px 20px',
-              color: '#fff',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              marginLeft: '8px',
-              transition: 'all 0.3s ease',
-              whiteSpace: 'nowrap'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 4px 12px rgba(232, 59, 65, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            Tìm kiếm
-          </button>
-        )}
       </div>
 
       {/* CSS Animation for pulse */}

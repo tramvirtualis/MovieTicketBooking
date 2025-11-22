@@ -53,6 +53,39 @@ export const updateCustomerProfile = async (userId, profileData) => {
   }
 };
 
+export const uploadAvatar = async (userId, file) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const res = await axiosInstance.post(`/customer/${userId}/avatar`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    if (res.data.success && res.data.data) {
+      return res.data.data.avatar;
+    }
+    throw new Error(res.data.message || 'Upload avatar thất bại');
+  } catch (err) {
+    throw err;
+  }
+};
+
+export const deleteAvatar = async (userId) => {
+  try {
+    const res = await axiosInstance.delete(`/customer/${userId}/avatar`);
+    
+    if (res.data.success) {
+      return true;
+    }
+    throw new Error(res.data.message || 'Xóa avatar thất bại');
+  } catch (err) {
+    throw err;
+  }
+};
+
 export const getMyOrders = async () => {
   try {
     const res = await axiosInstance.get('/customer/orders');

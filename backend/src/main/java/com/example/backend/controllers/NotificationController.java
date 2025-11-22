@@ -30,6 +30,23 @@ public class NotificationController {
     private final UserRepository userRepository;
     
     /**
+     * Trigger notification cho order khi thanh toán thành công
+     */
+    @PostMapping("/api/notifications/trigger-order-success/{orderId}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> triggerOrderSuccessNotification(@PathVariable Long orderId, HttpServletRequest request) {
+        try {
+            Long userId = getUserIdFromRequest(request);
+            notificationService.triggerOrderSuccessNotification(userId, orderId);
+            return ResponseEntity.ok(createSuccessResponse("Thông báo đã được tạo", null));
+        } catch (Exception e) {
+            log.error("Error triggering order success notification: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    /**
      * Lấy tất cả thông báo của user hiện tại
      */
     @GetMapping("/api/notifications")

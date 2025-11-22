@@ -246,6 +246,7 @@ public class UserService {
                 .status(user.getStatus())
                 .role(role)
                 .cinemaComplexId(cinemaComplexId)
+                .avatar(user.getAvatar())
                 .build();
         
         log.debug("Mapped DTO: userId={}, role={}", dto.getUserId(), dto.getRole());

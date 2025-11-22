@@ -165,6 +165,27 @@ const NotificationBell = () => {
           return [notification, ...prev];
         });
       });
+      
+      // Listen for payment success event to reload notifications
+      const handlePaymentSuccess = () => {
+        console.log('Payment success event received, reloading notifications...');
+        // Delay a bit to allow backend to create notification
+        setTimeout(() => {
+          loadNotifications();
+          playNotificationSound();
+        }, 1000);
+      };
+      
+      window.addEventListener('paymentSuccess', handlePaymentSuccess);
+      
+      return () => {
+        window.removeEventListener('paymentSuccess', handlePaymentSuccess);
+        websocketService.disconnect();
+        // Cleanup audio context
+        if (audioContextRef.current) {
+          audioContextRef.current.close().catch(() => {});
+        }
+      };
     }
 
     return () => {

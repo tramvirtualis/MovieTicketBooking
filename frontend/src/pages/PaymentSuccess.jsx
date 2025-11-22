@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import './PaymentSuccess.css';
 import { paymentService } from '../services/paymentService';
+import { notificationService } from '../services/notificationService';
 
 const PaymentSuccess = () => {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ const PaymentSuccess = () => {
   });
   const [loading, setLoading] = useState(true);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [notificationTriggered, setNotificationTriggered] = useState(false);
 
   useEffect(() => {
     // Xác định payment method từ URL params
@@ -39,21 +41,42 @@ const PaymentSuccess = () => {
       // ZaloPay
       paymentMethod = 'ZaloPay';
       transactionId = apptransid;
-      paymentStatus = status === '1' ? 'Thành công' : 'Thất bại';
-      isPaymentSuccess = status === '1';
+      // Nếu có status trong URL, dùng nó, nhưng vẫn sẽ kiểm tra order để chắc chắn
+      if (status !== null && status !== undefined) {
+        paymentStatus = status === '1' ? 'Thành công' : 'Thất bại';
+        isPaymentSuccess = status === '1';
+      } else {
+        // Không có status, sẽ kiểm tra order
+        paymentStatus = 'Đang kiểm tra...';
+        isPaymentSuccess = false; // Tạm thời false, sẽ update sau khi fetch order
+      }
     } else if (orderId) {
       // MoMo
       paymentMethod = 'MoMo';
       transactionId = orderId;
-      paymentStatus = resultCode === '0' ? 'Thành công' : 'Thất bại';
-      isPaymentSuccess = resultCode === '0';
+      // Nếu có resultCode trong URL, dùng nó, nhưng vẫn sẽ kiểm tra order để chắc chắn
+      if (resultCode !== null && resultCode !== undefined) {
+        paymentStatus = resultCode === '0' ? 'Thành công' : 'Thất bại';
+        isPaymentSuccess = resultCode === '0';
+      } else {
+        // Không có resultCode, sẽ kiểm tra order
+        paymentStatus = 'Đang kiểm tra...';
+        isPaymentSuccess = false; // Tạm thời false, sẽ update sau khi fetch order
+      }
     } else if (vnp_TxnRef) {
       // VNPay
       paymentMethod = 'VNPay';
       transactionId = vnp_TxnRef;
-      paymentStatus = vnp_ResponseCode === '00' ? 'Thành công' : 'Thất bại';
-      isPaymentSuccess = vnp_ResponseCode === '00';
+      // Nếu có vnp_ResponseCode trong URL, dùng nó
+      if (vnp_ResponseCode !== null && vnp_ResponseCode !== undefined) {
+        paymentStatus = vnp_ResponseCode === '00' ? 'Thành công' : 'Thất bại';
+        isPaymentSuccess = vnp_ResponseCode === '00';
+      } else {
+        paymentStatus = 'Đang kiểm tra...';
+        isPaymentSuccess = false;
+      }
     } else {
+      // Không có params nào, không thể xác định
       setLoading(false);
       return;
     }
@@ -66,23 +89,42 @@ const PaymentSuccess = () => {
       status: paymentStatus,
       orderId: '',
       txnRef: txnRef || '',
-      message: isPaymentSuccess ? 'Thanh toán thành công!' : 'Thanh toán thất bại.'
+      message: isPaymentSuccess ? 'Thanh toán thành công!' : 'Đang kiểm tra...'
     });
     setIsSuccess(isPaymentSuccess);
     
-    // Chỉ fetch order info nếu thanh toán thành công (vì chỉ lưu đơn thành công)
-    if (isPaymentSuccess && txnRef) {
+    // LUÔN LUÔN thử fetch order info dựa trên txnRef để xác định thực sự thành công hay không
+    // Vì chỉ lưu đơn thành công, nếu tìm thấy order = thanh toán thành công
+    if (txnRef) {
       fetchOrderInfo(txnRef);
     } else {
+      // Không có txnRef = không thể kiểm tra
       setLoading(false);
     }
   }, [searchParams]);
 
   const fetchOrderInfo = async (txnRef) => {
     try {
-      const result = await paymentService.getOrderByTxnRef(txnRef);
-      if (result.success && result.data) {
-        const orderData = result.data;
+      // Thử fetch order nhiều lần với delay để đợi order được lưu (tránh race condition)
+      let retryCount = 0;
+      const maxRetries = 5;
+      let orderData = null;
+      
+      while (retryCount < maxRetries) {
+        const result = await paymentService.getOrderByTxnRef(txnRef);
+        if (result.success && result.data) {
+          orderData = result.data;
+          break;
+        }
+        
+        // Nếu không tìm thấy, đợi 500ms rồi thử lại
+        if (retryCount < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        retryCount++;
+      }
+      
+      if (orderData) {
         // Nếu tìm thấy order thì thanh toán thành công (vì chỉ lưu đơn thành công)
         setIsSuccess(true);
         setPaymentInfo(prev => ({
@@ -99,18 +141,52 @@ const PaymentSuccess = () => {
         // Xóa cart và booking data
         localStorage.removeItem('checkoutCart');
         localStorage.removeItem('pendingBooking');
+        
+        // Trigger notification từ frontend làm FALLBACK (chỉ 1 lần duy nhất)
+        // Vì callback/IPN có thể không được gọi (localhost, firewall, etc.)
+        // notifyBookingSuccess có check duplicate 10 giây nên an toàn
+        const storedUser = JSON.parse(localStorage.getItem('user'));
+        if (storedUser && storedUser.userId && orderData.orderId && !notificationTriggered) {
+          setNotificationTriggered(true); // Đánh dấu đã trigger
+          
+          // Đợi 1 giây rồi trigger notification
+          setTimeout(async () => {
+            try {
+              console.log('Triggering notification from frontend for order:', orderData.orderId);
+              await notificationService.triggerOrderSuccessNotification(orderData.orderId);
+              console.log('Notification triggered successfully from frontend');
+            } catch (notifError) {
+              console.error('Error triggering notification:', notifError);
+              // Không fail flow chính
+            }
+            
+            // Reload notifications
+            window.dispatchEvent(new CustomEvent('paymentSuccess', { 
+              detail: { orderId: orderData.orderId } 
+            }));
+          }, 1000);
+        }
       } else {
-        // Không tìm thấy order = thanh toán thất bại
+        // Không tìm thấy order sau nhiều lần thử = thanh toán thất bại hoặc đang xử lý
         setIsSuccess(false);
         setPaymentInfo(prev => ({
           ...prev,
           status: 'Thất bại',
-          message: 'Thanh toán thất bại.'
+          message: 'Không tìm thấy đơn hàng. Thanh toán có thể đã thất bại hoặc đang được xử lý. Vui lòng kiểm tra lại sau.'
         }));
+        
+        // Xóa cart và booking data để user có thể đặt lại
+        localStorage.removeItem('checkoutCart');
+        localStorage.removeItem('pendingBooking');
       }
     } catch (error) {
       console.error('Error fetching order info:', error);
       setIsSuccess(false);
+      setPaymentInfo(prev => ({
+        ...prev,
+        status: 'Lỗi',
+        message: 'Không thể xác nhận trạng thái thanh toán. Vui lòng kiểm tra lại trong trang đơn hàng.'
+      }));
     } finally {
       setLoading(false);
     }
@@ -229,27 +305,59 @@ const PaymentSuccess = () => {
         </div>
 
         <div className="payment-success__actions">
-          <button
-            className="payment-success__button payment-success__button--primary"
-            onClick={() => navigate('/orders')}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
+          {isSuccess && paymentInfo.orderId && (
+            <button
+              className="payment-success__button payment-success__button--primary"
+              onClick={() => navigate('/orders')}
             >
-              <path
-                d="M3 5h14M5 5v12a2 2 0 002 2h6a2 2 0 002-2V5M8 5V3a2 2 0 012-2h0a2 2 0 012 2v2"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Xem đơn hàng
-          </button>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3 5h14M5 5v12a2 2 0 002 2h6a2 2 0 002-2V5M8 5V3a2 2 0 012-2h0a2 2 0 012 2v2"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Xem đơn hàng
+            </button>
+          )}
+          {!isSuccess && (
+            <button
+              className="payment-success__button payment-success__button--primary"
+              onClick={() => navigate('/checkout')}
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M10 10v6M7 13h6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Thử lại
+            </button>
+          )}
           <button
             className="payment-success__button payment-success__button--secondary"
             onClick={() => navigate('/')}

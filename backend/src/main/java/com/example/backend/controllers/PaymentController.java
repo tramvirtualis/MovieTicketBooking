@@ -15,6 +15,7 @@ import com.example.backend.services.OrderCreationService;
 import com.example.backend.services.OrderService;
 import com.example.backend.services.MomoService;
 import com.example.backend.services.ZaloPayService;
+import com.example.backend.services.NotificationService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
@@ -56,13 +57,14 @@ public class PaymentController {
     // ZaloPay dependencies
     private final ZaloPayService zaloPayService;
     private final OrderCreationService orderCreationService;
+    private final OrderService orderService;
+    private final NotificationService notificationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     // MoMo dependencies
     private final UserRepository userRepository;
     private final VoucherRepository voucherRepository;
     private final OrderRepository orderRepository;
-    private final OrderService orderService;
     private final MomoService momoService;
     private final MomoProperties momoProperties;
 
@@ -123,16 +125,16 @@ public class PaymentController {
                 }
             }
             
-            // Check for duplicate order trong vòng 3 giây gần đây (tránh double-click)
+            // Check for duplicate order trong vòng 10 giây gần đây (tránh double-click và race condition)
             // Tạo final copies để sử dụng trong lambda
             final Long finalShowtimeId = showtimeId;
             final List<String> finalSeatIds = new ArrayList<>(seatIds);
             final List<Map<String, Object>> finalFoodComboMaps = new ArrayList<>(foodComboMaps);
             
-            LocalDateTime threeSecondsAgo = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusSeconds(3);
+            LocalDateTime tenSecondsAgo = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusSeconds(10);
             List<Order> recentOrders = orderRepository.findByUserUserIdOrderByOrderDateDesc(user.getUserId());
             Optional<Order> duplicateOrder = recentOrders.stream()
-                .filter(o -> o.getOrderDate() != null && o.getOrderDate().isAfter(threeSecondsAgo))
+                .filter(o -> o.getOrderDate() != null && o.getOrderDate().isAfter(tenSecondsAgo))
                 .filter(o -> {
                     // Check cùng showtime và seats (nếu có vé)
                     if (finalShowtimeId != null && !finalSeatIds.isEmpty()) {
@@ -192,6 +194,42 @@ public class PaymentController {
                 response.put("message", "Đơn hàng đang được xử lý, vui lòng đợi...");
                 response.put("orderId", existingOrder.getOrderId());
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+            }
+            
+            // Double check duplicate TRƯỚC KHI tạo order (tránh race condition)
+            // Check lại trong vòng 2 giây gần đây với cùng showtime và seats
+            if (showtimeId != null && !seatIds.isEmpty()) {
+                // Tạo final copies để sử dụng trong lambda
+                final Long finalShowtimeIdForCheck = showtimeId;
+                final List<String> finalSeatIdsForCheck = new ArrayList<>(seatIds);
+                
+                LocalDateTime twoSecondsAgo = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusSeconds(2);
+                List<Order> veryRecentOrders = orderRepository.findByUserUserIdOrderByOrderDateDesc(user.getUserId());
+                boolean hasVeryRecentDuplicate = veryRecentOrders.stream()
+                    .filter(o -> o.getOrderDate() != null && o.getOrderDate().isAfter(twoSecondsAgo))
+                    .anyMatch(o -> {
+                        if (o.getTickets() != null && !o.getTickets().isEmpty()) {
+                            Long orderShowtimeId = o.getTickets().get(0).getShowtime().getShowtimeId();
+                            if (orderShowtimeId.equals(finalShowtimeIdForCheck)) {
+                                List<String> orderSeats = o.getTickets().stream()
+                                    .map(t -> t.getSeat().getSeatRow() + String.valueOf(t.getSeat().getSeatColumn()))
+                                    .sorted()
+                                    .toList();
+                                List<String> requestSeats = new ArrayList<>(finalSeatIdsForCheck);
+                                requestSeats.sort(String::compareTo);
+                                return orderSeats.size() == requestSeats.size() && orderSeats.equals(requestSeats);
+                            }
+                        }
+                        return false;
+                    });
+                
+                if (hasVeryRecentDuplicate) {
+                    System.out.println("Very recent duplicate detected, returning conflict");
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("success", false);
+                    response.put("message", "Đơn hàng đang được xử lý, vui lòng đợi...");
+                    return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+                }
             }
             
             // Tạo Order trực tiếp (giống MoMo)
@@ -327,14 +365,43 @@ public class PaymentController {
                         Optional<Order> orderOpt = orderService.findByTxnRef(appTransId);
                         if (orderOpt.isPresent()) {
                             Order order = orderOpt.get();
-                            // Cập nhật transaction info từ callback
-                            Object zpTransToken = dataMap.get("zp_trans_token");
-                            if (zpTransToken != null) {
-                                order.setVnpTransactionNo(zpTransToken.toString());
+                            
+                            // Kiểm tra xem đã xử lý callback này chưa (idempotency check)
+                            // Chỉ check vnpPayDate - nếu đã có thì đã xử lý rồi
+                            boolean alreadyProcessed = order.getVnpPayDate() != null;
+                            
+                            if (alreadyProcessed) {
+                                System.out.println("Order ID: " + order.getOrderId() + " already processed (vnpPayDate exists), skipping callback");
+                            } else {
+                                // Chưa xử lý hoàn toàn, cập nhật thông tin transaction
+                                Object zpTransToken = dataMap.get("zp_trans_token");
+                                if (zpTransToken != null) {
+                                    order.setVnpTransactionNo(zpTransToken.toString());
+                                }
+                                // Set vnpPayDate để đánh dấu đã xử lý
+                                order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+                                orderService.save(order);
+                                System.out.println("Updated transaction info for Order ID: " + order.getOrderId());
+                                
+                                // Gửi thông báo đặt hàng thành công
+                                // notifyBookingSuccess đã có check duplicate, nên an toàn
+                                try {
+                                    String totalAmountStr = order.getTotalAmount()
+                                        .setScale(0, RoundingMode.HALF_UP)
+                                        .toPlainString() + " VND";
+                                    System.out.println("Attempting to send notification for Order ID: " + order.getOrderId());
+                                    notificationService.notifyOrderSuccess(
+                                        order.getUser().getUserId(),
+                                        order.getOrderId(),
+                                        totalAmountStr
+                                    );
+                                    System.out.println("Notification sent successfully for Order ID: " + order.getOrderId());
+                                } catch (Exception e) {
+                                    System.err.println("Error sending notification: " + e.getMessage());
+                                    e.printStackTrace();
+                                    // Không fail callback nếu notification lỗi
+                                }
                             }
-                            order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
-                            orderService.save(order);
-                            System.out.println("Updated transaction info for Order ID: " + order.getOrderId());
                         }
                     }
                 } catch (Exception e) {
@@ -408,16 +475,16 @@ public class PaymentController {
                 voucher = voucherRepository.findByCode(voucherCode).orElse(null);
             }
 
-            // Check for duplicate order trong vòng 3 giây gần đây (tránh double-click)
+            // Check for duplicate order trong vòng 10 giây gần đây (tránh double-click và race condition)
             // Tạo final copies để sử dụng trong lambda
             final Long finalShowtimeId = showtimeId;
             final List<String> finalSeatIds = new ArrayList<>(seatIds);
             final List<Map<String, Object>> finalFoodComboMaps = new ArrayList<>(foodComboMaps);
             
-            LocalDateTime threeSecondsAgo = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusSeconds(3);
+            LocalDateTime tenSecondsAgo = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusSeconds(10);
             List<Order> recentOrders = orderRepository.findByUserUserIdOrderByOrderDateDesc(user.getUserId());
             Optional<Order> duplicateOrder = recentOrders.stream()
-                .filter(o -> o.getOrderDate() != null && o.getOrderDate().isAfter(threeSecondsAgo))
+                .filter(o -> o.getOrderDate() != null && o.getOrderDate().isAfter(tenSecondsAgo))
                 .filter(o -> {
                     // Check cùng showtime và seats (nếu có vé)
                     if (finalShowtimeId != null && !finalSeatIds.isEmpty()) {
@@ -452,6 +519,42 @@ public class PaymentController {
                 response.put("message", "Đơn hàng đang được xử lý, vui lòng đợi...");
                 response.put("orderId", existingOrder.getOrderId());
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+            }
+            
+            // Double check duplicate TRƯỚC KHI tạo order (tránh race condition)
+            // Check lại trong vòng 2 giây gần đây với cùng showtime và seats
+            if (showtimeId != null && !seatIds.isEmpty()) {
+                // Tạo final copies để sử dụng trong lambda
+                final Long finalShowtimeIdForCheck = showtimeId;
+                final List<String> finalSeatIdsForCheck = new ArrayList<>(seatIds);
+                
+                LocalDateTime twoSecondsAgo = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusSeconds(2);
+                List<Order> veryRecentOrders = orderRepository.findByUserUserIdOrderByOrderDateDesc(user.getUserId());
+                boolean hasVeryRecentDuplicate = veryRecentOrders.stream()
+                    .filter(o -> o.getOrderDate() != null && o.getOrderDate().isAfter(twoSecondsAgo))
+                    .anyMatch(o -> {
+                        if (o.getTickets() != null && !o.getTickets().isEmpty()) {
+                            Long orderShowtimeId = o.getTickets().get(0).getShowtime().getShowtimeId();
+                            if (orderShowtimeId.equals(finalShowtimeIdForCheck)) {
+                                List<String> orderSeats = o.getTickets().stream()
+                                    .map(t -> t.getSeat().getSeatRow() + String.valueOf(t.getSeat().getSeatColumn()))
+                                    .sorted()
+                                    .toList();
+                                List<String> requestSeats = new ArrayList<>(finalSeatIdsForCheck);
+                                requestSeats.sort(String::compareTo);
+                                return orderSeats.size() == requestSeats.size() && orderSeats.equals(requestSeats);
+                            }
+                        }
+                        return false;
+                    });
+                
+                if (hasVeryRecentDuplicate) {
+                    System.out.println("Very recent MoMo duplicate detected, returning conflict");
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("success", false);
+                    response.put("message", "Đơn hàng đang được xử lý, vui lòng đợi...");
+                    return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+                }
             }
             
             // Tạo Order với tickets và orderCombos (giống ZaloPay)
@@ -556,12 +659,43 @@ public class PaymentController {
         // Chỉ cập nhật transaction info, không set status (vì chỉ lưu đơn thành công)
         if ("0".equals(resultCode)) {
             // Thanh toán thành công - cập nhật transaction info
-            order.setVnpTransactionNo(transId);
-            order.setVnpBankCode(payType);
-            order.setVnpResponseCode(resultCode);
-            order.setVnpTransactionStatus(message);
-            order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
-            orderService.save(order);
+            // Kiểm tra xem đã xử lý IPN này chưa (idempotency check)
+            // Chỉ check vnpPayDate - nếu đã có thì đã xử lý rồi
+            boolean alreadyProcessed = order.getVnpPayDate() != null;
+            
+            if (alreadyProcessed) {
+                System.out.println("Order ID: " + order.getOrderId() + " already processed (vnpPayDate exists), skipping IPN");
+            } else {
+                // Chưa xử lý hoàn toàn, cập nhật thông tin transaction
+                // Set vnpPayDate để đánh dấu đã xử lý
+                order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+                order.setVnpTransactionNo(transId);
+                order.setVnpBankCode(payType);
+                order.setVnpResponseCode(resultCode);
+                order.setVnpTransactionStatus(message);
+                orderService.save(order);
+                System.out.println("Updated transaction info for Order ID: " + order.getOrderId());
+                
+                // Gửi thông báo đặt hàng thành công
+                // notifyBookingSuccess đã có check duplicate, nên an toàn
+                try {
+                    String totalAmountStr = order.getTotalAmount()
+                        .setScale(0, RoundingMode.HALF_UP)
+                        .toPlainString() + " VND";
+                    System.out.println("Attempting to send notification for Order ID: " + order.getOrderId());
+                    notificationService.notifyOrderSuccess(
+                        order.getUser().getUserId(),
+                        order.getOrderId(),
+                        totalAmountStr
+                    );
+                    System.out.println("Notification sent successfully for Order ID: " + order.getOrderId());
+                } catch (Exception e) {
+                    System.err.println("Error sending notification: " + e.getMessage());
+                    e.printStackTrace();
+                    // Không fail IPN nếu notification lỗi
+                }
+            }
+            
             return ResponseEntity.ok(createMomoIpnResponse(0, "Confirm Success"));
         } else {
             // Thanh toán thất bại - xóa Order vì chỉ lưu đơn thành công

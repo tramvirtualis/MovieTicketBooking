@@ -30,6 +30,12 @@
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid rgba(255,255,255,0.1);
+  min-height: 60px;
+}
+
+.admin-sidebar--closed .admin-sidebar__header {
+  justify-content: center;
+  padding: 20px 12px;
 }
 .admin-sidebar__logo {
   display: flex;
@@ -50,8 +56,11 @@
 .admin-sidebar--closed .admin-logo__text {
   display: none;
 }
+.admin-sidebar--closed .admin-logo__icon {
+  display: none;
+}
 .admin-sidebar--closed .admin-sidebar__logo {
-  justify-content: center;
+  display: none;
 }
 .admin-sidebar__toggle {
   background: transparent;

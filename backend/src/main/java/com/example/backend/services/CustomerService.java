@@ -15,6 +15,7 @@ import com.example.backend.repositories.OrderRepository;
 import com.example.backend.repositories.UserRepository;
 import com.example.backend.repositories.VoucherRepository;
 import com.example.backend.services.MovieService;
+import com.example.backend.services.CloudinaryService;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,7 @@ public class CustomerService {
     private final OrderRepository orderRepository;
     private final MovieService movieService;
     private final NotificationService notificationService;
+    private final CloudinaryService cloudinaryService;
 
     // Constructor injection with @Lazy for MovieService to avoid circular dependency
     public CustomerService(
@@ -45,7 +47,8 @@ public class CustomerService {
             MovieRepository movieRepository,
             OrderRepository orderRepository,
             @Lazy MovieService movieService,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            CloudinaryService cloudinaryService) {
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
         this.customerRepository = customerRepository;
@@ -54,6 +57,7 @@ public class CustomerService {
         this.orderRepository = orderRepository;
         this.movieService = movieService;
         this.notificationService = notificationService;
+        this.cloudinaryService = cloudinaryService;
     }
 
     public Customer updateProfile(Long userId, UpdateCustomerProfileRequestDTO req) throws Exception {
@@ -84,6 +88,52 @@ public class CustomerService {
         addressRepository.save(address);
         customer.setAddress(address);
 
+        return userRepository.save(customer);
+    }
+
+    @Transactional
+    public Customer updateAvatar(Long userId, String avatarUrl) throws Exception {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new Exception("User không tồn tại"));
+
+        if (!(user instanceof Customer customer)) {
+            throw new Exception("User này không phải Customer");
+        }
+
+        // Xóa avatar cũ nếu có
+        if (customer.getAvatar() != null && !customer.getAvatar().isEmpty()) {
+            try {
+                cloudinaryService.deleteImage(customer.getAvatar());
+            } catch (Exception e) {
+                // Log error nhưng không throw - có thể ảnh đã bị xóa hoặc không tồn tại
+                System.err.println("Warning: Could not delete old avatar: " + e.getMessage());
+            }
+        }
+
+        customer.setAvatar(avatarUrl);
+        return userRepository.save(customer);
+    }
+
+    @Transactional
+    public Customer deleteAvatar(Long userId) throws Exception {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new Exception("User không tồn tại"));
+
+        if (!(user instanceof Customer customer)) {
+            throw new Exception("User này không phải Customer");
+        }
+
+        // Xóa avatar từ Cloudinary nếu có
+        if (customer.getAvatar() != null && !customer.getAvatar().isEmpty()) {
+            try {
+                cloudinaryService.deleteImage(customer.getAvatar());
+            } catch (Exception e) {
+                // Log error nhưng không throw - có thể ảnh đã bị xóa hoặc không tồn tại
+                System.err.println("Warning: Could not delete avatar from Cloudinary: " + e.getMessage());
+            }
+        }
+
+        customer.setAvatar(null);
         return userRepository.save(customer);
     }
 

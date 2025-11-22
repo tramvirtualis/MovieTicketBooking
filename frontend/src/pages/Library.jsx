@@ -5,6 +5,7 @@ import Footer from '../components/Footer.jsx';
 import { favoriteService } from '../services/favoriteService';
 import { movieService } from '../services/movieService';
 import { enumService } from '../services/enumService';
+import { reviewService } from '../services/reviewService';
 
 export default function Library() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function Library() {
   const [favorites, setFavorites] = useState([]);
   const [ratedMovies, setRatedMovies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingRated, setLoadingRated] = useState(false);
   const [error, setError] = useState(null);
   const [removingMovieId, setRemovingMovieId] = useState(null);
 
@@ -94,6 +96,87 @@ export default function Library() {
     };
 
     loadFavorites();
+  }, []);
+
+  // Load rated movies (reviews) from API
+  useEffect(() => {
+    const loadRatedMovies = async () => {
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        setLoadingRated(false);
+        setRatedMovies([]);
+        return;
+      }
+
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        setLoadingRated(false);
+        setRatedMovies([]);
+        return;
+      }
+
+      try {
+        const user = JSON.parse(userStr);
+        const userId = user.userId;
+        
+        if (!userId) {
+          setLoadingRated(false);
+          setRatedMovies([]);
+          return;
+        }
+
+        setLoadingRated(true);
+        const reviews = await reviewService.getReviewsByUser(userId);
+        
+        // Map reviews to rated movies format
+        const mappedRatedMovies = await Promise.all(
+          reviews.map(async (review) => {
+            try {
+              // Get movie details
+              const movieResult = await movieService.getPublicMovieById(review.movieId);
+              if (!movieResult.success || !movieResult.data) {
+                return null;
+              }
+
+              const movie = movieResult.data;
+              
+              // Map genre to Vietnamese
+              let genreDisplay = '';
+              if (movie.genre && Array.isArray(movie.genre)) {
+                genreDisplay = movie.genre.map(g => enumService.mapGenreToVietnamese(g)).join(', ');
+              }
+
+              return {
+                id: review.reviewId,
+                movieId: review.movieId,
+                title: movie.title || review.movieTitle || '',
+                poster: movie.poster || '',
+                genre: genreDisplay,
+                year: movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : null,
+                rating: review.rating || 0,
+                reviewText: review.context || '',
+                reviewDate: review.createdAt || review.updatedAt || new Date().toISOString().split('T')[0],
+                addedDate: review.createdAt || new Date().toISOString().split('T')[0]
+              };
+            } catch (err) {
+              console.error('Error mapping review:', err);
+              return null;
+            }
+          })
+        );
+
+        // Filter out null values
+        const validRatedMovies = mappedRatedMovies.filter(movie => movie !== null);
+        setRatedMovies(validRatedMovies);
+      } catch (err) {
+        console.error('Error loading rated movies:', err);
+        setRatedMovies([]);
+      } finally {
+        setLoadingRated(false);
+      }
+    };
+
+    loadRatedMovies();
   }, []);
 
   const handleRemoveFavorite = async (movieId) => {
@@ -306,7 +389,19 @@ export default function Library() {
 
           {activeTab === 'rated' && (
             <div className="library-section">
-              {ratedMovies.length === 0 ? (
+              {loadingRated ? (
+                <div className="library-empty">
+                  <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                    <div className="spinner" style={{ margin: '0 auto 20px', width: '40px', height: '40px', border: '4px solid rgba(255, 255, 255, 0.1)', borderTopColor: '#ffd159', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+                    <p>Đang tải danh sách phim đã đánh giá...</p>
+                  </div>
+                  <style>{`
+                    @keyframes spin {
+                      to { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                </div>
+              ) : ratedMovies.length === 0 ? (
                 <div className="library-empty">
                   <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -326,15 +421,19 @@ export default function Library() {
                     
                     return (
                       <div key={movie.id} className="library-review-card">
-                        <Link to={`/movie/${encodeURIComponent(movie.title)}`} className="library-review-card__poster-link">
+                        <Link to={`/movie/${movie.movieId || movie.id}`} className="library-review-card__poster-link">
                           <div className="library-review-card__poster">
-                            <img src={movie.poster} alt={movie.title} />
+                            <img 
+                              src={movie.poster || '/placeholder-movie.jpg'} 
+                              alt={movie.title}
+                              onError={(e) => { e.target.src = '/placeholder-movie.jpg'; }}
+                            />
                           </div>
                         </Link>
                         <div className="library-review-card__content">
                           <div className="library-review-card__header">
                             <div className="library-review-card__title-section">
-                              <Link to={`/movie/${encodeURIComponent(movie.title)}`} className="library-review-card__title-link">
+                              <Link to={`/movie/${movie.movieId || movie.id}`} className="library-review-card__title-link">
                                 <h3 className="library-review-card__title">{movie.title}</h3>
                               </Link>
                               <div className="library-review-card__meta">

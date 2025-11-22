@@ -24,6 +24,7 @@ import FoodAndDrinksWithTicket from './pages/FoodAndDrinksWithTicket.jsx';
 import Checkout from './pages/Checkout.jsx';
 import BookTicket from './pages/BookTicket.jsx';
 import PaymentSuccess from './pages/PaymentSuccess.jsx';
+import SearchResults from './pages/SearchResults.jsx';
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/home" element={<Home />} />
+        <Route path="/search" element={<SearchResults />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/login" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />

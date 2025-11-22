@@ -8,7 +8,9 @@ import com.example.backend.entities.Customer;
 import com.example.backend.repositories.CustomerRepository;
 import com.example.backend.services.CustomerService;
 import com.example.backend.services.OrderService;
+import com.example.backend.services.CloudinaryService;
 import jakarta.validation.Valid;
+import org.springframework.web.multipart.MultipartFile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +35,7 @@ public class CustomerController {
     private final CustomerService customerService;
     private final CustomerRepository customerRepository;
     private final OrderService orderService;
+    private final CloudinaryService cloudinaryService;
 
     @PutMapping("/{id}/profile")
     public ResponseEntity<?> updateProfile(
@@ -55,6 +58,7 @@ public class CustomerController {
             customerData.put("email", updatedCustomer.getEmail());
             customerData.put("phone", updatedCustomer.getPhone());
             customerData.put("dob", updatedCustomer.getDob());
+            customerData.put("avatar", updatedCustomer.getAvatar());
             
             // Map address if exists
             if (updatedCustomer.getAddress() != null) {
@@ -332,6 +336,64 @@ public class CustomerController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    // ============ AVATAR ENDPOINTS ============
+
+    @PostMapping("/{id}/avatar")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> uploadAvatar(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(createErrorResponse("File không được để trống"));
+            }
+
+            // Validate file type
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                return ResponseEntity.badRequest()
+                    .body(createErrorResponse("Chỉ chấp nhận file ảnh"));
+            }
+
+            // Upload to Cloudinary
+            String avatarUrl = cloudinaryService.uploadImage(file);
+            
+            // Update user avatar
+            Customer updatedCustomer = customerService.updateAvatar(id, avatarUrl);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Cập nhật ảnh đại diện thành công");
+            response.put("data", Map.of("avatar", updatedCustomer.getAvatar()));
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Lỗi khi upload ảnh: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}/avatar")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> deleteAvatar(@PathVariable Long id) {
+        try {
+            Customer updatedCustomer = customerService.deleteAvatar(id);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Xóa ảnh đại diện thành công");
+            response.put("data", Map.of("avatar", updatedCustomer.getAvatar()));
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Lỗi khi xóa ảnh: " + e.getMessage()));
         }
     }
 }

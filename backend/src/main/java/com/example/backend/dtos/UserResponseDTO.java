@@ -18,5 +18,6 @@ public class UserResponseDTO {
     private Boolean status;
     private String role; // ADMIN, MANAGER, USER
     private Long cinemaComplexId; // Chỉ có khi role là MANAGER
+    private String avatar; // URL của avatar từ Cloudinary
 }
 

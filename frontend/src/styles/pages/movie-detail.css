@@ -156,14 +156,39 @@
   border-radius: 50%;
   overflow: hidden;
   background: rgba(10, 6, 20, 0.8);
-  border: 2px solid rgba(232, 59, 65, 0.25);
+  border: 2px solid transparent;
+  background-image: linear-gradient(135deg, #e83b41, #ff5258, #ffd159, #e83b41);
+  background-size: 300% 300%;
+  background-clip: padding-box, border-box;
+  animation: review-avatar-border 4s ease infinite;
+  box-shadow: 0 0 15px rgba(232, 59, 65, 0.4),
+             0 0 30px rgba(255, 209, 89, 0.2);
   transition: all 300ms ease;
+  position: relative;
+}
+
+.movie-review-card__avatar::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 50%;
+  background: linear-gradient(45deg, 
+    transparent 30%, 
+    rgba(255, 209, 89, 0.5) 50%, 
+    transparent 70%);
+  background-size: 200% 200%;
+  animation: review-avatar-shine 3s linear infinite;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .movie-review-card:hover .movie-review-card__avatar {
-  border-color: rgba(232, 59, 65, 0.4);
   transform: scale(1.05);
-  box-shadow: 0 4px 16px rgba(232, 59, 65, 0.25);
+  box-shadow: 0 0 20px rgba(232, 59, 65, 0.6),
+             0 0 40px rgba(255, 209, 89, 0.3);
 }
 
 .movie-review-card__avatar img {
@@ -171,6 +196,36 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 50%;
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes review-avatar-border {
+  0%, 100% {
+    background-position: 0% 50%;
+    box-shadow: 0 0 15px rgba(232, 59, 65, 0.4),
+                0 0 30px rgba(255, 209, 89, 0.2);
+  }
+  50% {
+    background-position: 100% 50%;
+    box-shadow: 0 0 20px rgba(232, 59, 65, 0.6),
+                0 0 40px rgba(255, 209, 89, 0.3);
+  }
+}
+
+@keyframes review-avatar-shine {
+  0% {
+    background-position: -200% 0;
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    background-position: 200% 0;
+    opacity: 0;
+  }
 }
 
 .movie-review-card__content {

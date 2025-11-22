@@ -2,9 +2,11 @@ package com.example.backend.services;
 
 import com.example.backend.dtos.NotificationDTO;
 import com.example.backend.entities.Notification;
+import com.example.backend.entities.Order;
 import com.example.backend.entities.User;
 import com.example.backend.repositories.NotificationRepository;
 import com.example.backend.repositories.UserRepository;
+import com.example.backend.repositories.OrderRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -13,8 +15,10 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,6 +29,7 @@ public class NotificationService {
     private final SimpMessagingTemplate messagingTemplate;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final OrderRepository orderRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -206,8 +211,51 @@ public class NotificationService {
     /**
      * Gửi thông báo đặt vé thành công
      * Sử dụng method này sau khi tạo booking/order thành công
+     * Có check duplicate để tránh tạo notification nhiều lần
      */
-    public void notifyBookingSuccess(Long userId, Long orderId, String totalAmount) {
+    @Transactional
+    public synchronized void notifyBookingSuccess(Long userId, Long orderId, String totalAmount) {
+        log.info("notifyBookingSuccess called for order {} and user {}", orderId, userId);
+        
+        // Kiểm tra xem đã có notification cho order này chưa (tránh duplicate)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+        
+        // Kiểm tra TOÀN BỘ notifications của user, không giới hạn thời gian
+        // Vì notification chỉ tạo 1 lần cho mỗi order
+        List<Notification> allNotifications = notificationRepository.findByUserOrderByTimestampDesc(user);
+        
+        boolean hasOrderNotification = allNotifications.stream()
+            .filter(n -> n.getType().equals("BOOKING_SUCCESS"))
+            .anyMatch(n -> {
+                // Kiểm tra message có chứa orderId - cách đơn giản nhất
+                if (n.getMessage() != null) {
+                    String message = n.getMessage();
+                    String orderIdStr = orderId.toString();
+                    if (message.contains("#" + orderId) || message.contains("#" + orderIdStr)) {
+                        log.info("Found existing notification in message for order {}", orderId);
+                        return true;
+                    }
+                }
+                // Kiểm tra data chứa orderId
+                if (n.getData() != null && !n.getData().isEmpty()) {
+                    String dataStr = n.getData();
+                    String orderIdStr = orderId.toString();
+                    if (dataStr.contains(orderIdStr)) {
+                        log.info("Found existing notification in data for order {}", orderId);
+                        return true;
+                    }
+                }
+                return false;
+            });
+        
+        if (hasOrderNotification) {
+            log.info("Notification already exists for order {} and user {}, SKIPPING", orderId, userId);
+            return;
+        }
+        
+        log.info("Creating NEW notification for order {} and user {}", orderId, userId);
+        // Tạo notification mới
         NotificationDTO notification = NotificationDTO.builder()
                 .type("BOOKING_SUCCESS")
                 .title("Đặt vé thành công")
@@ -216,6 +264,7 @@ public class NotificationService {
                 .data(java.util.Map.of("orderId", orderId, "totalAmount", totalAmount))
                 .build();
         sendNotificationToUser(userId, notification);
+        log.info("Notification created and sent for order {} and user {}", orderId, userId);
     }
     
     /**
@@ -223,6 +272,38 @@ public class NotificationService {
      */
     public void notifyOrderSuccess(Long userId, Long orderId, String totalAmount) {
         notifyBookingSuccess(userId, orderId, totalAmount);
+    }
+    
+    /**
+     * Trigger notification cho order thành công (được gọi từ frontend khi thanh toán thành công)
+     * Chỉ tạo notification nếu order thuộc về user và chưa có notification cho order này
+     */
+    @Transactional
+    public void triggerOrderSuccessNotification(Long userId, Long orderId) {
+        log.info("triggerOrderSuccessNotification called for order {} and user {}", orderId, userId);
+        
+        try {
+            // Kiểm tra order có tồn tại và thuộc về user không
+            Optional<Order> orderOpt = orderRepository.findById(orderId);
+            if (orderOpt.isEmpty()) {
+                throw new RuntimeException("Không tìm thấy đơn hàng với ID: " + orderId);
+            }
+            
+            Order order = orderOpt.get();
+            if (!order.getUser().getUserId().equals(userId)) {
+                throw new RuntimeException("Đơn hàng không thuộc về người dùng này");
+            }
+            
+            // Tạo notification - notifyOrderSuccess sẽ check duplicate
+            String totalAmountStr = order.getTotalAmount()
+                .setScale(0, RoundingMode.HALF_UP)
+                .toPlainString() + " VND";
+            
+            notifyOrderSuccess(userId, orderId, totalAmountStr);
+        } catch (Exception e) {
+            log.error("Error triggering order success notification: {}", e.getMessage(), e);
+            throw new RuntimeException("Không thể tạo thông báo: " + e.getMessage());
+        }
     }
 }
 

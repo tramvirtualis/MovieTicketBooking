@@ -15,6 +15,78 @@
   position: relative;
   flex-shrink: 0;
 }
+
+/* Avatar với hiệu ứng lấp lánh phù hợp giao diện */
+.profile-avatar-image {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid transparent;
+  background: linear-gradient(135deg, #e83b41, #ff5258, #ffd159, #e83b41) padding-box,
+              linear-gradient(135deg, #e83b41, #ff5258, #ffd159, #ff6b6b, #e83b41) border-box;
+  background-size: 300% 300%;
+  animation: avatar-border-glow 4s ease infinite;
+  box-shadow: 0 0 25px rgba(232, 59, 65, 0.6),
+             0 0 50px rgba(255, 209, 89, 0.3),
+             inset 0 0 25px rgba(232, 59, 65, 0.15);
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.profile-avatar-image:hover {
+  box-shadow: 0 0 35px rgba(232, 59, 65, 0.8),
+             0 0 70px rgba(255, 209, 89, 0.5),
+             inset 0 0 35px rgba(232, 59, 65, 0.25);
+  transform: scale(1.02);
+}
+
+.profile-avatar-image::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  border-radius: 50%;
+  background: linear-gradient(45deg, 
+    transparent 30%, 
+    rgba(255, 209, 89, 0.6) 50%, 
+    transparent 70%);
+  background-size: 200% 200%;
+  animation: avatar-shine 3s linear infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes avatar-border-glow {
+  0%, 100% {
+    background-position: 0% 50%;
+    box-shadow: 0 0 25px rgba(232, 59, 65, 0.6),
+                0 0 50px rgba(255, 209, 89, 0.3),
+                inset 0 0 25px rgba(232, 59, 65, 0.15);
+  }
+  50% {
+    background-position: 100% 50%;
+    box-shadow: 0 0 35px rgba(232, 59, 65, 0.8),
+                0 0 70px rgba(255, 209, 89, 0.5),
+                inset 0 0 35px rgba(232, 59, 65, 0.25);
+  }
+}
+
+@keyframes avatar-shine {
+  0% {
+    background-position: -200% 0;
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    background-position: 200% 0;
+    opacity: 0;
+  }
+}
 .profile-header__edit-avatar {
   position: absolute;
   bottom: 8px;
