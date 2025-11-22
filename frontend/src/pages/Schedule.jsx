@@ -22,6 +22,13 @@ const formatRoomType = (format) => {
   return format;
 };
 
+const openGoogleMap = (address) => {
+  if (!address) return;
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  window.open(url, '_blank');
+};
+
+
 const getTodayDate = () => {
   const today = new Date();
   const year = today.getFullYear();
@@ -333,8 +340,25 @@ export default function Schedule() {
                                 <circle cx="12" cy="10" r="3"/>
                               </svg>
                               <div className="flex-1">
-                                <div className="text-white font-semibold mb-1">{cinema.name || 'Rạp đang cập nhật'}</div>
-                                <div className="text-[#c9c4c5] text-sm">{cinema.address}</div>
+                              <div className="text-white font-semibold mb-1">
+  {cinema.name || 'Rạp đang cập nhật'}
+</div>
+
+<div className="text-[#c9c4c5] text-sm">
+  {cinema.address}
+</div>
+
+<button
+  onClick={() => openGoogleMap(cinema.address)}
+  className="mt-1 inline-flex items-center gap-1 text-sm text-[#ffd159] hover:text-white transition-colors"
+>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+    <circle cx="12" cy="10" r="3"/>
+  </svg>
+  Xem đường đi
+</button>
+
                               </div>
                             </div>
 

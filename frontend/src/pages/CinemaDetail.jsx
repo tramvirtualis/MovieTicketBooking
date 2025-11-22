@@ -24,6 +24,12 @@ export default function CinemaDetail() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('now-showing');
 
+  const openGoogleMap = (address) => {
+    if (!address) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+    window.open(url, '_blank');
+  };
+  
   // Load cinema info and movies
   useEffect(() => {
     const loadData = async () => {
@@ -237,15 +243,44 @@ export default function CinemaDetail() {
 
       <div className="cinema-header">
         <div className="container">
-          <h1 className="cinema-header__title">CINESMART {cinema.name?.toUpperCase() || ''} ({cinema.addressProvince || ''})</h1>
+          <h1 className="cinema-header__title">
+            CINESMART {cinema.name?.toUpperCase() || ''} ({cinema.addressProvince || ''})
+          </h1>
+
           <p className="cinema-header__address">
             {cinema.fullAddress || 
-             (cinema.addressDescription && cinema.addressProvince 
-               ? `${cinema.addressDescription}, ${cinema.addressProvince}`
-               : cinema.addressDescription || cinema.addressProvince || '')}
+            (cinema.addressDescription && cinema.addressProvince 
+              ? `${cinema.addressDescription}, ${cinema.addressProvince}`
+              : cinema.addressDescription || cinema.addressProvince || '')}
           </p>
+
+          {/* NÚT XEM ĐƯỜNG ĐI GOOGLE MAP */}
+          <button
+            onClick={() =>
+              openGoogleMap(
+                cinema.fullAddress || 
+                (cinema.addressDescription && cinema.addressProvince 
+                  ? `${cinema.addressDescription}, ${cinema.addressProvince}`
+                  : cinema.addressDescription || cinema.addressProvince || '')
+              )
+            }
+            className="mt-2 inline-flex items-center gap-2 text-sm text-[#ffd159] hover:text-white transition-colors duration-200"
+          >
+            <svg
+              className="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            Xem đường đi
+          </button>
         </div>
       </div>
+
 
       <div className="cinema-nav">
         <div className="container">
