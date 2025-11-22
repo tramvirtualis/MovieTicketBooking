@@ -134,23 +134,34 @@ public class EmailService {
     private final java.util.concurrent.ConcurrentHashMap<Long, Long> sentEmailOrders = new java.util.concurrent.ConcurrentHashMap<>();
     
     /**
-     * Gửi email xác nhận đặt vé với QR code
+     * Gửi email xác nhận đặt vé với QR code (hoặc chỉ đồ ăn)
+     * Xử lý 3 trường hợp:
+     * 1. Mua vé xem phim (có tickets)
+     * 2. Mua vé + đồ ăn
+     * 3. Mua riêng đồ ăn (không có vé)
      */
     public void sendBookingConfirmationEmail(Order order) {
         // Kiểm tra đã gửi email cho order này chưa (trong vòng 5 phút)
+        // Sử dụng synchronized để tránh race condition
         Long orderId = order.getOrderId();
-        Long currentTime = System.currentTimeMillis();
-        Long lastSentTime = sentEmailOrders.get(orderId);
-        
-        if (lastSentTime != null && (currentTime - lastSentTime) < 5 * 60 * 1000) {
-            return; // Đã gửi trong vòng 5 phút, không gửi lại
+        synchronized (sentEmailOrders) {
+            Long currentTime = System.currentTimeMillis();
+            Long lastSentTime = sentEmailOrders.get(orderId);
+            
+            if (lastSentTime != null && (currentTime - lastSentTime) < 5 * 60 * 1000) {
+                return; // Đã gửi trong vòng 5 phút, không gửi lại
+            }
+            
+            // Đánh dấu đã gửi TRƯỚC KHI thực sự gửi để tránh duplicate
+            sentEmailOrders.put(orderId, currentTime);
         }
-        
-        sentEmailOrders.put(orderId, currentTime);
         try {
-            // Chỉ gửi email nếu order có tickets (có vé xem phim)
-            if (order.getTickets() == null || order.getTickets().isEmpty()) {
-                return;
+            // Kiểm tra: phải có ticket hoặc combo để gửi email
+            boolean hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
+            boolean hasCombos = order.getOrderCombos() != null && !order.getOrderCombos().isEmpty();
+            
+            if (!hasTickets && !hasCombos) {
+                return; // Không có vé cũng không có đồ ăn, không gửi
             }
             
             if (order.getUser() == null) {
@@ -162,101 +173,101 @@ public class EmailService {
                 return;
             }
             
-            // Lấy thông tin từ order
-            Ticket firstTicket = order.getTickets().get(0);
-            if (firstTicket.getShowtime() == null) {
-                return;
-            }
-            
-            Showtime showtime = firstTicket.getShowtime();
-            if (showtime.getMovieVersion() == null) {
-                return;
-            }
-            
-            MovieVersion movieVersion = showtime.getMovieVersion();
-            if (movieVersion.getMovie() == null) {
-                return;
-            }
-            
-            Movie movie = movieVersion.getMovie();
-            if (showtime.getCinemaRoom() == null) {
-                return;
-            }
-            
-            CinemaRoom room = showtime.getCinemaRoom();
-            if (room.getCinemaComplex() == null) {
-                return;
-            }
-            
-            CinemaComplex cinema = room.getCinemaComplex();
-            
-            // Group tickets by showtime để xử lý nhiều vé cùng showtime
-            Map<String, List<Ticket>> ticketsByShowtime = order.getTickets().stream()
-                .collect(Collectors.groupingBy(t -> 
-                    t.getShowtime().getShowtimeId().toString()
-                ));
-            
-            // Tạo QR code cho mỗi nhóm showtime
-            List<String> qrCodeBase64List = new ArrayList<>();
+            // Nếu có tickets, xử lý thông tin vé
             List<BookingInfo> bookingInfoList = new ArrayList<>();
+            List<String> qrCodeBase64List = new ArrayList<>();
             
-            for (List<Ticket> tickets : ticketsByShowtime.values()) {
-                Ticket ticket = tickets.get(0);
-                Showtime st = ticket.getShowtime();
+            if (hasTickets) {
+                // Lấy thông tin phim từ vé đầu tiên
+                Ticket firstTicket = order.getTickets().get(0);
+                if (firstTicket.getShowtime() == null) {
+                    return;
+                }
                 
-                // Lấy danh sách ghế
-                List<String> seatIds = tickets.stream()
-                    .map(t -> t.getSeat().getSeatRow() + t.getSeat().getSeatColumn())
-                    .sorted()
-                    .collect(Collectors.toList());
+                Showtime showtime = firstTicket.getShowtime();
+                if (showtime.getMovieVersion() == null || showtime.getCinemaRoom() == null) {
+                    return;
+                }
                 
-                // Tạo booking ID
-                String bookingId = String.format("%d-%d-%s", 
-                    order.getOrderId(),
-                    st.getShowtimeId(),
-                    st.getStartTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
-                );
+                MovieVersion movieVersion = showtime.getMovieVersion();
+                if (movieVersion.getMovie() == null) {
+                    return;
+                }
                 
-                // Tạo dữ liệu cho QR code
-                Map<String, Object> qrData = new HashMap<>();
-                qrData.put("bookingId", bookingId);
-                qrData.put("orderId", order.getOrderId());
-                qrData.put("movie", movie.getTitle());
-                qrData.put("cinema", cinema.getName() + (cinema.getAddress() != null ? 
-                    " (" + (cinema.getAddress().getProvince() != null ? 
-                        cinema.getAddress().getDescription() + ", " + cinema.getAddress().getProvince() 
-                        : cinema.getAddress().getDescription()) + ")" 
-                    : ""));
-                qrData.put("date", st.getStartTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
-                qrData.put("time", st.getStartTime().format(DateTimeFormatter.ofPattern("HH:mm")));
-                qrData.put("seats", seatIds);
-                qrData.put("format", mapRoomType(movieVersion.getRoomType()));
+                Movie movie = movieVersion.getMovie();
+                CinemaRoom room = showtime.getCinemaRoom();
+                if (room.getCinemaComplex() == null) {
+                    return;
+                }
                 
-                // Tạo QR code
-                String qrCodeBase64 = generateQRCode(qrData);
-                qrCodeBase64List.add(qrCodeBase64);
+                CinemaComplex cinema = room.getCinemaComplex();
                 
-                // Tính tổng giá cho nhóm vé này
-                BigDecimal totalPrice = tickets.stream()
-                    .map(Ticket::getPrice)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+                // Group tickets by showtime để xử lý nhiều vé cùng showtime
+                Map<String, List<Ticket>> ticketsByShowtime = order.getTickets().stream()
+                    .collect(Collectors.groupingBy(t -> 
+                        t.getShowtime().getShowtimeId().toString()
+                    ));
                 
-                // Lưu thông tin booking
-                BookingInfo bookingInfo = new BookingInfo();
-                bookingInfo.movieTitle = movie.getTitle();
-                bookingInfo.cinemaName = cinema.getName();
-                bookingInfo.cinemaAddress = cinema.getAddress() != null 
-                    ? (cinema.getAddress().getProvince() != null 
-                        ? cinema.getAddress().getDescription() + ", " + cinema.getAddress().getProvince()
-                        : cinema.getAddress().getDescription())
-                    : "";
-                bookingInfo.date = st.getStartTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-                bookingInfo.time = st.getStartTime().format(DateTimeFormatter.ofPattern("HH:mm"));
-                bookingInfo.format = mapRoomType(movieVersion.getRoomType());
-                bookingInfo.seats = seatIds;
-                bookingInfo.price = totalPrice;
-                bookingInfo.bookingId = bookingId;
-                bookingInfoList.add(bookingInfo);
+                // Tạo QR code cho mỗi nhóm showtime
+                for (List<Ticket> tickets : ticketsByShowtime.values()) {
+                    Ticket ticket = tickets.get(0);
+                    Showtime st = ticket.getShowtime();
+                    
+                    // Lấy danh sách ghế
+                    List<String> seatIds = tickets.stream()
+                        .map(t -> t.getSeat().getSeatRow() + t.getSeat().getSeatColumn())
+                        .sorted()
+                        .collect(Collectors.toList());
+                    
+                    // Tạo booking ID
+                    String bookingId = String.format("%d-%d-%s", 
+                        order.getOrderId(),
+                        st.getShowtimeId(),
+                        st.getStartTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
+                    );
+                    
+                    // Tạo dữ liệu cho QR code (sử dụng LinkedHashMap để giữ thứ tự giống frontend)
+                    Map<String, Object> qrData = new LinkedHashMap<>();
+                    // Thứ tự: bookingId, orderId, movie, cinema, date, time, seats, format (giống frontend)
+                    qrData.put("bookingId", bookingId);
+                    qrData.put("orderId", order.getOrderId().toString()); // Convert to string để giống frontend
+                    qrData.put("movie", movie.getTitle());
+                    qrData.put("cinema", cinema.getName() + (cinema.getAddress() != null ? 
+                        " (" + (cinema.getAddress().getProvince() != null ? 
+                            cinema.getAddress().getDescription() + ", " + cinema.getAddress().getProvince() 
+                            : cinema.getAddress().getDescription()) + ")" 
+                        : ""));
+                    qrData.put("date", st.getStartTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+                    qrData.put("time", st.getStartTime().format(DateTimeFormatter.ofPattern("HH:mm")));
+                    qrData.put("seats", seatIds);
+                    qrData.put("format", mapRoomType(movieVersion.getRoomType()));
+                    
+                    // Tạo QR code
+                    String qrCodeBase64 = generateQRCode(qrData);
+                    qrCodeBase64List.add(qrCodeBase64);
+                    
+                    // Tính tổng giá cho nhóm vé này
+                    BigDecimal totalPrice = tickets.stream()
+                        .map(Ticket::getPrice)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    
+                    // Lưu thông tin booking
+                    BookingInfo bookingInfo = new BookingInfo();
+                    bookingInfo.movieTitle = movie.getTitle();
+                    bookingInfo.cinemaName = cinema.getName();
+                    bookingInfo.cinemaAddress = cinema.getAddress() != null 
+                        ? (cinema.getAddress().getProvince() != null 
+                            ? cinema.getAddress().getDescription() + ", " + cinema.getAddress().getProvince()
+                            : cinema.getAddress().getDescription())
+                        : "";
+                    bookingInfo.date = st.getStartTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                    bookingInfo.time = st.getStartTime().format(DateTimeFormatter.ofPattern("HH:mm"));
+                    bookingInfo.format = mapRoomType(movieVersion.getRoomType());
+                    bookingInfo.seats = seatIds;
+                    bookingInfo.price = totalPrice;
+                    bookingInfo.bookingId = bookingId;
+                    bookingInfoList.add(bookingInfo);
+                }
             }
             
             // Tạo HTML email với CID cho QR code
@@ -264,7 +275,18 @@ public class EmailService {
             for (int i = 0; i < qrCodeBase64List.size(); i++) {
                 qrCodeCids.add("qr-code-" + order.getOrderId() + "-" + i);
             }
-            String htmlContent = buildBookingEmailHtml(bookingInfoList, qrCodeCids, order);
+            
+            // Xác định subject theo loại đơn hàng
+            String emailSubject;
+            if (hasTickets && hasCombos) {
+                emailSubject = "Xác nhận đặt vé và đồ ăn thành công - Cinesmart Cinema";
+            } else if (hasTickets) {
+                emailSubject = "Xác nhận đặt vé thành công - Cinesmart Cinema";
+            } else {
+                emailSubject = "Xác nhận đơn hàng đồ ăn thành công - Cinesmart Cinema";
+            }
+            
+            String htmlContent = buildBookingEmailHtml(bookingInfoList, qrCodeCids, order, hasTickets, hasCombos);
             
             // Gửi email
             MimeMessage message = mailSender.createMimeMessage();
@@ -272,7 +294,7 @@ public class EmailService {
             
             helper.setFrom(fromEmail);
             helper.setTo(toEmail);
-            helper.setSubject("Xác nhận đặt vé thành công - Cinesmart Cinema");
+            helper.setSubject(emailSubject);
             helper.setText(htmlContent, true);
             
             // Embed QR code images inline using CID
@@ -295,7 +317,9 @@ public class EmailService {
     private String generateQRCode(Map<String, Object> data) {
         try {
             // Convert data to JSON string
+            // Sử dụng ObjectMapper với cấu hình để giữ thứ tự field (không sắp xếp alphabetically)
             ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.configure(com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, false);
             String jsonData = objectMapper.writeValueAsString(data);
             
             // Tạo QR code
@@ -324,7 +348,9 @@ public class EmailService {
      */
     private String buildBookingEmailHtml(List<BookingInfo> bookingInfoList, 
                                          List<String> qrCodeCids, 
-                                         Order order) {
+                                         Order order,
+                                         boolean hasTickets,
+                                         boolean hasCombos) {
         StringBuilder html = new StringBuilder();
         html.append("""
             <!DOCTYPE html>
@@ -475,15 +501,56 @@ public class EmailService {
                     .order-info-item:last-child {
                         margin-bottom: 0;
                     }
+                    .food-section {
+                        margin-top: 20px;
+                        padding: 20px;
+                        background-color: #fefef2;
+                        border-radius: 8px;
+                        border-left: 4px solid #fbbf24;
+                    }
+                    .section-title {
+                        margin-top: 0;
+                        margin-bottom: 12px;
+                        font-size: 16px;
+                        color: #333;
+                        font-weight: 700;
+                    }
+                    .food-item {
+                        background-color: #ffffff;
+                        padding: 12px;
+                        margin-bottom: 8px;
+                        border-radius: 6px;
+                        border-left: 3px solid #fbbf24;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+                    }
+                    .food-name {
+                        font-weight: 600;
+                        color: #333;
+                        margin-bottom: 4px;
+                    }
+                    .food-details {
+                        font-size: 12px;
+                        color: #666;
+                    }
                 </style>
             </head>
             <body>
                 <div class="email-container">
                     <div class="header">
-                        <h1>VÉ XEM PHIM</h1>
-                        <p>Cinesmart Cinema</p>
-                    </div>
-                    <div class="content">
+                        <h1>""");
+        // Xác định header theo loại đơn hàng
+        if (hasTickets && hasCombos) {
+            html.append("VÉ XEM PHIM & ĐỒ ĂN");
+        } else if (hasTickets) {
+            html.append("VÉ XEM PHIM");
+        } else {
+            html.append("ĐƠN HÀNG ĐỒ ĂN");
+        }
+        html.append("</h1>");
+        html.append("<p>Cinesmart Cinema</p>");
+        html.append("</div>");
+        html.append("<div class=\"content\">");
+        html.append("""
                         <div class="order-info">
                             <div class="order-info-item"><strong>Mã đơn hàng:</strong> #""");
         html.append(order.getOrderId());
@@ -497,7 +564,8 @@ public class EmailService {
         html.append("</div>");
         html.append("</div>");
         
-        // Tạo ticket cho mỗi booking
+        // Tạo ticket cho mỗi booking (chỉ hiển thị nếu có vé)
+        if (hasTickets && !bookingInfoList.isEmpty()) {
         for (int i = 0; i < bookingInfoList.size(); i++) {
             BookingInfo info = bookingInfoList.get(i);
             String qrCodeCid = i < qrCodeCids.size() ? qrCodeCids.get(i) : "";
@@ -557,6 +625,30 @@ public class EmailService {
             html.append("</div>");
             html.append("<div class=\"footer-note\">Vui lòng đến rạp trước giờ chiếu 15 phút</div>");
             html.append("</div>");
+            html.append("</div>");
+        }
+        }
+        
+        // Thêm mục đồ ăn nếu có (hiển thị ngay cả khi chỉ mua đồ ăn)
+        if (hasCombos && order.getOrderCombos() != null && !order.getOrderCombos().isEmpty()) {
+            html.append("<div class=\"food-section\">");
+            html.append("<h3 class=\"section-title\">🍿 Đồ ăn & Nước uống</h3>");
+            
+            for (OrderCombo combo : order.getOrderCombos()) {
+                if (combo.getFoodCombos() != null && !combo.getFoodCombos().isEmpty()) {
+                    FoodCombo food = combo.getFoodCombos().get(0);
+                    html.append("<div class=\"food-item\">");
+                    html.append("<div class=\"food-name\">").append(escapeHtml(food.getName())).append("</div>");
+                    html.append("<div class=\"food-details\">");
+                    html.append("Số lượng: ").append(combo.getQuantity());
+                    html.append(" | Đơn giá: ").append(formatPrice(combo.getPrice()));
+                    BigDecimal totalCombo = combo.getPrice().multiply(BigDecimal.valueOf(combo.getQuantity()));
+                    html.append(" | Thành tiền: ").append(formatPrice(totalCombo));
+                    html.append("</div>");
+                    html.append("</div>");
+                }
+            }
+            
             html.append("</div>");
         }
         

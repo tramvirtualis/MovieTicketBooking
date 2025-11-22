@@ -84,6 +84,7 @@ public class OrderService {
                 item.setRoomId(room.getRoomId());
                 item.setRoomName(room.getRoomName());
                 item.setRoomType(mapRoomType(movieVersion.getRoomType()));
+                item.setShowtimeId(showtime.getShowtimeId());
                 item.setShowtimeStart(showtime.getStartTime());
                 item.setShowtimeEnd(showtime.getEndTime());
                 item.setSeatId(seat.getSeatRow() + seat.getSeatColumn());

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import TicketModal from '../components/TicketModal.jsx';
 import { getMyOrders } from '../services/customer';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,6 +11,8 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const ordersPerPage = 5;
 
   // Load orders from API
@@ -43,6 +46,7 @@ export default function Orders() {
                 },
                 cinema: item.cinemaComplexName + (item.cinemaAddress ? ` (${item.cinemaAddress})` : ''),
                 showtime: {
+                  showtimeId: item.showtimeId, // Lưu showtimeId để tạo booking ID
                   date: new Date(item.showtimeStart).toLocaleDateString('vi-VN', {
                     day: '2-digit',
                     month: '2-digit',
@@ -54,7 +58,8 @@ export default function Orders() {
                     hour12: false
                   }),
                   format: item.roomType || 'STANDARD',
-                  start: item.showtimeStart // Lưu lại startTime để check weekend
+                  start: item.showtimeStart, // Lưu lại startTime để check weekend
+                  startTime: item.showtimeStart // Lưu lại startTime để tạo booking ID
                 },
                 seats: [],
                 price: 0,
@@ -334,6 +339,18 @@ export default function Orders() {
                           <span className="order-card__footer-value">{order.bookingDate}</span>
                         </div>
                       </div>
+                      <div className="order-card__footer-actions" style={{ marginTop: '12px' }}>
+                        <button
+                          className="btn btn--primary"
+                          style={{ fontSize: '14px', padding: '10px 20px' }}
+                          onClick={() => {
+                            setSelectedOrder(order);
+                            setShowTicketModal(true);
+                          }}
+                        >
+                          Xem lại vé
+                        </button>
+                      </div>
                     </div>
                   </div>
                   ))}
@@ -376,6 +393,16 @@ export default function Orders() {
           </div>
         </section>
       </main>
+
+      {/* Ticket Modal */}
+      <TicketModal
+        order={selectedOrder}
+        isOpen={showTicketModal}
+        onClose={() => {
+          setShowTicketModal(false);
+          setSelectedOrder(null);
+        }}
+      />
 
       <Footer />
     </div>

@@ -23,6 +23,7 @@ public class OrderItemDTO {
     private Long roomId;
     private String roomName;
     private String roomType; // 2D, 3D, DELUXE
+    private Long showtimeId; // Showtime ID for QR code generation
     private LocalDateTime showtimeStart;
     private LocalDateTime showtimeEnd;
     private String seatId; // Format: "A1", "B2", etc.

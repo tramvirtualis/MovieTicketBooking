@@ -378,7 +378,7 @@ public class PaymentController {
                                 if (zpTransToken != null) {
                                     order.setVnpTransactionNo(zpTransToken.toString());
                                 }
-                                // Set vnpPayDate để đánh dấu đã xử lý
+                                // Set vnpPayDate TRƯỚC KHI gửi email để tránh duplicate
                                 order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
                                 orderService.save(order);
                                 
@@ -396,7 +396,7 @@ public class PaymentController {
                                     // Không fail callback nếu notification lỗi
                                 }
                                 
-                                // Gửi email xác nhận đặt vé
+                                // Gửi email xác nhận đặt vé (sau khi đã set vnpPayDate)
                                 try {
                                     Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(order.getOrderId());
                                     if (orderWithDetails.isPresent()) {
@@ -668,7 +668,7 @@ public class PaymentController {
             
             if (!alreadyProcessed) {
                 // Chưa xử lý hoàn toàn, cập nhật thông tin transaction
-                // Set vnpPayDate để đánh dấu đã xử lý
+                // Set vnpPayDate TRƯỚC KHI gửi email để tránh duplicate
                 order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
                 order.setVnpTransactionNo(transId);
                 order.setVnpBankCode(payType);
@@ -690,7 +690,7 @@ public class PaymentController {
                     // Không fail IPN nếu notification lỗi
                 }
                 
-                // Gửi email xác nhận đặt vé
+                // Gửi email xác nhận đặt vé (sau khi đã set vnpPayDate)
                 try {
                     Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(order.getOrderId());
                     if (orderWithDetails.isPresent()) {
@@ -772,10 +772,13 @@ public class PaymentController {
                 return ResponseEntity.ok(createSuccessResponse("Email đã được gửi từ hệ thống", null));
             }
             
-            // Kiểm tra order có tickets không (phải có vé mới gửi email)
-            if (order.getTickets() == null || order.getTickets().isEmpty()) {
+            // Kiểm tra order có tickets hoặc combos không (phải có vé hoặc đồ ăn mới gửi email)
+            boolean hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
+            boolean hasCombos = order.getOrderCombos() != null && !order.getOrderCombos().isEmpty();
+            
+            if (!hasTickets && !hasCombos) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(createErrorResponse("Đơn hàng không có vé xem phim", null));
+                        .body(createErrorResponse("Đơn hàng không có vé xem phim cũng không có đồ ăn", null));
             }
             
             // Gửi email
