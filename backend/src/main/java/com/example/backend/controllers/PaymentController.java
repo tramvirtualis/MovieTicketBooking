@@ -16,6 +16,7 @@ import com.example.backend.services.OrderService;
 import com.example.backend.services.MomoService;
 import com.example.backend.services.ZaloPayService;
 import com.example.backend.services.NotificationService;
+import com.example.backend.services.EmailService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
@@ -59,6 +60,7 @@ public class PaymentController {
     private final OrderCreationService orderCreationService;
     private final OrderService orderService;
     private final NotificationService notificationService;
+    private final EmailService emailService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     // MoMo dependencies
@@ -342,8 +344,6 @@ public class PaymentController {
     @PostMapping("/zalopay/callback")
     public ResponseEntity<?> zaloPayCallback(@RequestBody Map<String, Object> callbackData) {
         try {
-            System.out.println("=== ZaloPay Callback ===");
-            System.out.println("Callback data: " + callbackData);
             
             // Xác thực callback
             String data = callbackData.get("data") != null ? 
@@ -371,7 +371,7 @@ public class PaymentController {
                             boolean alreadyProcessed = order.getVnpPayDate() != null;
                             
                             if (alreadyProcessed) {
-                                System.out.println("Order ID: " + order.getOrderId() + " already processed (vnpPayDate exists), skipping callback");
+                                // Đã xử lý rồi, skip
                             } else {
                                 // Chưa xử lý hoàn toàn, cập nhật thông tin transaction
                                 Object zpTransToken = dataMap.get("zp_trans_token");
@@ -381,31 +381,35 @@ public class PaymentController {
                                 // Set vnpPayDate để đánh dấu đã xử lý
                                 order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
                                 orderService.save(order);
-                                System.out.println("Updated transaction info for Order ID: " + order.getOrderId());
                                 
                                 // Gửi thông báo đặt hàng thành công
-                                // notifyBookingSuccess đã có check duplicate, nên an toàn
                                 try {
                                     String totalAmountStr = order.getTotalAmount()
                                         .setScale(0, RoundingMode.HALF_UP)
                                         .toPlainString() + " VND";
-                                    System.out.println("Attempting to send notification for Order ID: " + order.getOrderId());
                                     notificationService.notifyOrderSuccess(
                                         order.getUser().getUserId(),
                                         order.getOrderId(),
                                         totalAmountStr
                                     );
-                                    System.out.println("Notification sent successfully for Order ID: " + order.getOrderId());
                                 } catch (Exception e) {
-                                    System.err.println("Error sending notification: " + e.getMessage());
-                                    e.printStackTrace();
                                     // Không fail callback nếu notification lỗi
+                                }
+                                
+                                // Gửi email xác nhận đặt vé
+                                try {
+                                    Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(order.getOrderId());
+                                    if (orderWithDetails.isPresent()) {
+                                        emailService.sendBookingConfirmationEmail(orderWithDetails.get());
+                                    }
+                                } catch (Exception e) {
+                                    // Không fail callback nếu email lỗi
                                 }
                             }
                         }
                     }
                 } catch (Exception e) {
-                    System.err.println("Error parsing callback data: " + e.getMessage());
+                    // Ignore parsing errors
                 }
                 
                 // Trả về response cho ZaloPay
@@ -660,12 +664,9 @@ public class PaymentController {
         if ("0".equals(resultCode)) {
             // Thanh toán thành công - cập nhật transaction info
             // Kiểm tra xem đã xử lý IPN này chưa (idempotency check)
-            // Chỉ check vnpPayDate - nếu đã có thì đã xử lý rồi
             boolean alreadyProcessed = order.getVnpPayDate() != null;
             
-            if (alreadyProcessed) {
-                System.out.println("Order ID: " + order.getOrderId() + " already processed (vnpPayDate exists), skipping IPN");
-            } else {
+            if (!alreadyProcessed) {
                 // Chưa xử lý hoàn toàn, cập nhật thông tin transaction
                 // Set vnpPayDate để đánh dấu đã xử lý
                 order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
@@ -674,25 +675,29 @@ public class PaymentController {
                 order.setVnpResponseCode(resultCode);
                 order.setVnpTransactionStatus(message);
                 orderService.save(order);
-                System.out.println("Updated transaction info for Order ID: " + order.getOrderId());
                 
                 // Gửi thông báo đặt hàng thành công
-                // notifyBookingSuccess đã có check duplicate, nên an toàn
                 try {
                     String totalAmountStr = order.getTotalAmount()
                         .setScale(0, RoundingMode.HALF_UP)
                         .toPlainString() + " VND";
-                    System.out.println("Attempting to send notification for Order ID: " + order.getOrderId());
                     notificationService.notifyOrderSuccess(
                         order.getUser().getUserId(),
                         order.getOrderId(),
                         totalAmountStr
                     );
-                    System.out.println("Notification sent successfully for Order ID: " + order.getOrderId());
                 } catch (Exception e) {
-                    System.err.println("Error sending notification: " + e.getMessage());
-                    e.printStackTrace();
                     // Không fail IPN nếu notification lỗi
+                }
+                
+                // Gửi email xác nhận đặt vé
+                try {
+                    Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(order.getOrderId());
+                    if (orderWithDetails.isPresent()) {
+                        emailService.sendBookingConfirmationEmail(orderWithDetails.get());
+                    }
+                } catch (Exception e) {
+                    // Không fail IPN nếu email lỗi
                 }
             }
             
@@ -732,6 +737,55 @@ public class PaymentController {
         }
         
         response.sendRedirect(redirectUrl);
+    }
+
+    /**
+     * Endpoint để gửi email xác nhận đặt vé (có thể gọi từ frontend sau khi thanh toán thành công)
+     * Dùng làm fallback nếu callback/IPN không được gọi
+     */
+    @PostMapping("/orders/{orderId}/send-confirmation-email")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> sendBookingConfirmationEmail(@PathVariable Long orderId) {
+        try {
+            // Lấy user hiện tại
+            User currentUser = getCurrentUser()
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
+            
+            // Load order với đầy đủ relations
+            Optional<Order> orderOpt = orderRepository.findByIdWithDetails(orderId);
+            if (orderOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(createErrorResponse("Không tìm thấy đơn hàng", null));
+            }
+            
+            Order order = orderOpt.get();
+            
+            // Kiểm tra quyền truy cập
+            if (!order.getUser().getUserId().equals(currentUser.getUserId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(createErrorResponse("Bạn không có quyền xem đơn hàng này", null));
+            }
+            
+            // Chỉ gửi email từ frontend nếu callback/IPN chưa được gọi (vnpPayDate == null)
+            // Nếu vnpPayDate đã có nghĩa là callback/IPN đã gửi email rồi
+            if (order.getVnpPayDate() != null) {
+                return ResponseEntity.ok(createSuccessResponse("Email đã được gửi từ hệ thống", null));
+            }
+            
+            // Kiểm tra order có tickets không (phải có vé mới gửi email)
+            if (order.getTickets() == null || order.getTickets().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(createErrorResponse("Đơn hàng không có vé xem phim", null));
+            }
+            
+            // Gửi email
+            emailService.sendBookingConfirmationEmail(order);
+            
+            return ResponseEntity.ok(createSuccessResponse("Email xác nhận đã được gửi", null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Không thể gửi email: " + e.getMessage(), null));
+        }
     }
 
     @GetMapping("/orders/{txnRef}")

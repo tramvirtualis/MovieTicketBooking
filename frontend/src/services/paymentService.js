@@ -146,6 +146,28 @@ export const paymentService = {
       };
     }
   },
+
+  /**
+   * Gửi email xác nhận đặt vé (fallback nếu callback/IPN không được gọi)
+   * @param {number} orderId - Order ID
+   * @returns {Promise<Object>} Response từ server
+   */
+  sendBookingConfirmationEmail: async (orderId) => {
+    try {
+      const response = await axiosInstance.post(`/payment/orders/${orderId}/send-confirmation-email`);
+      return {
+        success: response.data?.success,
+        message: response.data?.message,
+        data: response.data?.data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Không thể gửi email xác nhận',
+        data: null
+      };
+    }
+  },
 };
 
 // Export default để tương thích với code cũ

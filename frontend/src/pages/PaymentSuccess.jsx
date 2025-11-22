@@ -142,29 +142,32 @@ const PaymentSuccess = () => {
         localStorage.removeItem('checkoutCart');
         localStorage.removeItem('pendingBooking');
         
-        // Trigger notification từ frontend làm FALLBACK (chỉ 1 lần duy nhất)
+        // Trigger notification và email từ frontend làm FALLBACK (chỉ 1 lần duy nhất)
         // Vì callback/IPN có thể không được gọi (localhost, firewall, etc.)
-        // notifyBookingSuccess có check duplicate 10 giây nên an toàn
         const storedUser = JSON.parse(localStorage.getItem('user'));
-        if (storedUser && storedUser.userId && orderData.orderId && !notificationTriggered) {
-          setNotificationTriggered(true); // Đánh dấu đã trigger
+        const orderId = orderData?.orderId;
+        if (storedUser && storedUser.userId && orderId && !notificationTriggered) {
+          setNotificationTriggered(true);
           
-          // Đợi 1 giây rồi trigger notification
+          // Đợi 2 giây rồi trigger notification và email
           setTimeout(async () => {
             try {
-              console.log('Triggering notification from frontend for order:', orderData.orderId);
-              await notificationService.triggerOrderSuccessNotification(orderData.orderId);
-              console.log('Notification triggered successfully from frontend');
+              await notificationService.triggerOrderSuccessNotification(orderId);
             } catch (notifError) {
-              console.error('Error triggering notification:', notifError);
               // Không fail flow chính
             }
             
-            // Reload notifications
+            // Gửi email xác nhận đặt vé (fallback - chỉ khi callback/IPN chưa gửi)
+            try {
+              await paymentService.sendBookingConfirmationEmail(orderId);
+            } catch (emailError) {
+              // Không fail flow chính
+            }
+            
             window.dispatchEvent(new CustomEvent('paymentSuccess', { 
-              detail: { orderId: orderData.orderId } 
+              detail: { orderId: orderId } 
             }));
-          }, 1000);
+          }, 2000);
         }
       } else {
         // Không tìm thấy order sau nhiều lần thử = thanh toán thất bại hoặc đang xử lý
