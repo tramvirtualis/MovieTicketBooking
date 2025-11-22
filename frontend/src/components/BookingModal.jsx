@@ -40,21 +40,18 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
   // Initialize date with today's date in YYYY-MM-DD format
   const getTodayDate = () => {
     const today = new Date();
-    return today.toISOString().slice(0, 10);
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
   
-  const [date, setDate] = useState(''); // Default: Tất cả (empty = all dates)
+  const [date, setDate] = useState(getTodayDate()); // Default: Hôm nay
   const [province, setProvince] = useState(''); // Default: Tất cả (empty = all provinces)
   const [cinema, setCinema] = useState(''); // Default: Tất cả (empty = all cinemas)
   const [format, setFormat] = useState('Tất cả');
   const [showLoginModal, setShowLoginModal] = useState(false);
   
-  // Update date when dates array is ready
-  useEffect(() => {
-    if (dates.length > 0 && !date) {
-      setDate(dates[0].key);
-    }
-  }, [dates]);
   
   // Update format when options.formats changes
   useEffect(() => {
@@ -72,7 +69,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
       // Reset to "Tất cả" (empty = all)
       setProvince('');
       setCinema('');
-      setDate('');
+      // Keep date as today (don't reset it)
       setFormat('Tất cả');
     } else {
       // Close login modal when main modal closes
@@ -80,17 +77,23 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
     }
   }, [isOpen]);
   
-  // Notify parent when filters change or modal opens
+  // Load showtimes when modal opens with today's date
+  useEffect(() => {
+    if (isOpen && onFiltersChange && options.movieId && date) {
+      // Load with today's date and all provinces
+      onFiltersChange(options.movieId, null, date);
+    }
+  }, [isOpen, options.movieId]);
+  
+  // Notify parent when filters change (province or date changes)
   useEffect(() => {
     // Ensure we have all required values before calling onFiltersChange
     if (isOpen && onFiltersChange && options.movieId) {
-      // If date is empty, pass null to get all dates
-      const dateToUse = date && date.trim() !== '' ? date : null;
       // If province is empty, pass null to get all provinces
       const provinceToUse = (province && province.trim() !== '') ? province : null;
       
-      // Call with null for "Tất cả" (all)
-      onFiltersChange(options.movieId, provinceToUse, dateToUse);
+      // Call with current date and province filter
+      onFiltersChange(options.movieId, provinceToUse, date);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [province, date, options.movieId, isOpen]);

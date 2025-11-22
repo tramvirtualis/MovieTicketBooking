@@ -22,8 +22,16 @@ const formatRoomType = (format) => {
   return format;
 };
 
+const getTodayDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function Schedule() {
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(getTodayDate());
   const [movie, setMovie] = useState('');
   const [cinema, setCinema] = useState('');
   const [options, setOptions] = useState({ movies: [], cinemas: [] });
@@ -104,15 +112,8 @@ export default function Schedule() {
 
   const cards = useMemo(() => {
     const movieGroups = new Map();
-    const now = new Date();
-    const minTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 phút từ bây giờ
 
     listings.forEach((item) => {
-      // Filter: chỉ hiển thị showtime chưa chiếu và còn hơn 30 phút nữa
-      const showtimeDate = new Date(item.startTime);
-      if (showtimeDate <= minTime) {
-        return; // Bỏ qua showtime đã qua hoặc còn ít hơn 30 phút
-      }
 
       const movieKey = item.movieId ?? `movie-${item.showtimeId}`;
 

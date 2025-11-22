@@ -150,5 +150,28 @@ public class PriceService {
                 .price(price.getPrice())
                 .build();
     }
+    
+    /**
+     * Tính giá cuối cùng dựa trên giá gốc và ngày trong tuần
+     * Nếu là thứ 7 (6) hoặc chủ nhật (7): nhân 1.3x
+     * @param basePrice giá gốc
+     * @param showtimeDateTime thời gian chiếu
+     * @return giá đã tính
+     */
+    public BigDecimal calculateWeekendPrice(BigDecimal basePrice, java.time.LocalDateTime showtimeDateTime) {
+        if (basePrice == null || showtimeDateTime == null) {
+            return basePrice;
+        }
+        
+        // dayOfWeek: 1=Mon, 2=Tue, ..., 6=Sat, 7=Sun
+        int dayOfWeek = showtimeDateTime.getDayOfWeek().getValue();
+        
+        // Nếu là thứ 7 (6) hoặc chủ nhật (7), tăng giá 30%
+        if (dayOfWeek == 6 || dayOfWeek == 7) {
+            return basePrice.multiply(new BigDecimal("1.3"));
+        }
+        
+        return basePrice;
+    }
 }
 

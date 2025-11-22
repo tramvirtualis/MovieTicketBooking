@@ -53,14 +53,17 @@ export default function Orders() {
                     minute: '2-digit',
                     hour12: false
                   }),
-                  format: item.roomType || 'STANDARD'
+                  format: item.roomType || 'STANDARD',
+                  start: item.showtimeStart // Lưu lại startTime để check weekend
                 },
                 seats: [],
-                price: 0
+                price: 0,
+                basePrice: 0
               };
             }
             itemsByShowtime[key].seats.push(item.seatId);
             itemsByShowtime[key].price += Number(item.price);
+            itemsByShowtime[key].basePrice += Number(item.basePrice || item.price);
           });
 
           // Map combos to foodItems
@@ -257,7 +260,27 @@ export default function Orders() {
                                   Giá
                                 </span>
                                 <span className="order-item__detail-value order-item__detail-value--price">
-                                  {formatPrice(item.price)}
+                                  {(() => {
+                                    const showtimeDate = new Date(item.showtime.start);
+                                    const dayOfWeek = showtimeDate.getDay();
+                                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                                    
+                                    return (
+                                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', flexWrap: 'wrap' }}>
+                                        {isWeekend && (
+                                          <span style={{ textDecoration: 'line-through', fontSize: '12px', color: '#c9c4c5' }}>
+                                            {formatPrice(item.basePrice)}
+                                          </span>
+                                        )}
+                                        <span>{formatPrice(item.price)}</span>
+                                        {isWeekend && (
+                                          <span style={{ fontSize: '11px', color: '#4caf50', fontWeight: 600 }}>
+                                            +30%
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </span>
                               </div>
                             </div>

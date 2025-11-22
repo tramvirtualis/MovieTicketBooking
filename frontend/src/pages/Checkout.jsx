@@ -627,8 +627,27 @@ export default function Checkout() {
                                 Ghế: {bookingData.seats?.join(', ')}
                               </div>
                             </div>
-                            <div className="text-[#ffd159] font-bold whitespace-nowrap">
-                              {formatPrice(bookingData.totalPrice || 0)}
+                            <div className="flex flex-col items-end gap-1">
+                              {bookingData.showtime?.basePrice && bookingData.showtime?.adjustedPrice && 
+                               bookingData.showtime.basePrice !== bookingData.showtime.adjustedPrice && (
+                                <>
+                                  <div className="text-xs text-[#c9c4c5] line-through">
+                                    {formatPrice(bookingData.totalPrice / (bookingData.seats?.length || 1) * (bookingData.seats?.length || 1))}
+                                  </div>
+                                  <div className="text-[#ffd159] font-bold">
+                                    {formatPrice(bookingData.totalPrice)}
+                                  </div>
+                                  <div className="text-[10px] text-[#4caf50] font-semibold">
+                                    +30% Weekend
+                                  </div>
+                                </>
+                              )}
+                              {!(bookingData.showtime?.basePrice && bookingData.showtime?.adjustedPrice && 
+                                 bookingData.showtime.basePrice !== bookingData.showtime.adjustedPrice) && (
+                                <div className="text-[#ffd159] font-bold">
+                                  {formatPrice(bookingData.totalPrice || 0)}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>

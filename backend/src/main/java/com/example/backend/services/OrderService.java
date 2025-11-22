@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.backend.dtos.OrderComboDTO;
 import com.example.backend.dtos.OrderItemDTO;
 import com.example.backend.dtos.OrderResponseDTO;
+import com.example.backend.dtos.PriceDTO;
 import com.example.backend.entities.CinemaComplex;
 import com.example.backend.entities.CinemaRoom;
 import com.example.backend.entities.Movie;
@@ -18,6 +19,7 @@ import com.example.backend.entities.Order;
 import com.example.backend.entities.Seat;
 import com.example.backend.entities.Showtime;
 import com.example.backend.repositories.OrderRepository;
+import com.example.backend.entities.enums.SeatType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,6 +30,7 @@ import java.time.LocalDateTime;
 public class OrderService {
     
     private final OrderRepository orderRepository;
+    private final PriceService priceService;
     
     // ==================== Methods from HEAD (for getting orders) ====================
     
@@ -87,6 +90,26 @@ public class OrderService {
                 item.setSeatRow(seat.getSeatRow());
                 item.setSeatColumn(seat.getSeatColumn());
                 item.setPrice(ticket.getPrice());
+                
+                // Calculate basePrice - lấy giá gốc từ database dựa trên roomType + seatType
+                try {
+                    PriceDTO priceDTO = priceService.getPriceByRoomTypeAndSeatType(
+                        movieVersion.getRoomType(),
+                        seat.getType()
+                    );
+                    
+                    if (priceDTO != null) {
+                        java.math.BigDecimal basePrice = priceDTO.getPrice();
+                        item.setBasePrice(basePrice);
+                    } else {
+                        // Nếu không tìm thấy giá trong database, giả sử giá hiện tại là basePrice
+                        item.setBasePrice(ticket.getPrice());
+                    }
+                } catch (Exception e) {
+                    // Nếu có lỗi, sử dụng giá hiện tại
+                    item.setBasePrice(ticket.getPrice());
+                }
+                
                 return item;
             })
             .collect(Collectors.toList());
