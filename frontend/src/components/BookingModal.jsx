@@ -175,24 +175,6 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
                 onChange={(e)=>setDate(e.target.value)}
                 placeholder="Tất cả"
               />
-              {date && (
-                <button 
-                  type="button"
-                  onClick={() => setDate('')}
-                  style={{ 
-                    marginLeft: '8px', 
-                    padding: '4px 8px', 
-                    background: '#4a3f41', 
-                    border: '1px solid #6b5d5f', 
-                    color: '#fff', 
-                    cursor: 'pointer',
-                    borderRadius: '4px',
-                    fontSize: '12px'
-                  }}
-                >
-                  Xóa
-                </button>
-              )}
             </label>
           </div>
         </div>
