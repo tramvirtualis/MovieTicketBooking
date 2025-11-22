@@ -13,16 +13,10 @@ import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
 import driveMyCar from '../assets/images/drive-my-car.jpg';
 
-// Helper function để map AgeRating từ backend sang format frontend
+// Helper function để map AgeRating từ backend sang format frontend (13+, 16+, 18+, P, K)
 const mapAgeRating = (ageRating) => {
-  const ratingMap = {
-    'P': 'P',
-    'K': 'K',
-    'AGE_13_PLUS': 'T13',
-    'AGE_16_PLUS': 'T16',
-    'AGE_18_PLUS': 'T18'
-  };
-  return ratingMap[ageRating] || ageRating;
+  // Use enumService to map age rating to display format
+  return enumService.mapAgeRatingToDisplay(ageRating) || 'P';
 };
 
 // Helper function để extract YouTube video ID từ URL

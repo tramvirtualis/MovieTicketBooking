@@ -47,8 +47,8 @@ export default function Header({ children }) {
   // Load user from localStorage
   useEffect(() => {
     const loadUser = () => {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) setUser(JSON.parse(storedUser));
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) setUser(JSON.parse(storedUser));
     };
     
     loadUser();
@@ -244,11 +244,11 @@ export default function Header({ children }) {
                     }}
                   />
                 ) : (
-                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="16" cy="16" r="16" fill="#4a3f41"/>
-                    <circle cx="16" cy="12" r="5" fill="#e6e1e2"/>
-                    <path d="M8 26c0-4.418 3.582-8 8-8s8 3.582 8 8" fill="#e6e1e2"/>
-                  </svg>
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="16" cy="16" r="16" fill="#4a3f41"/>
+                  <circle cx="16" cy="12" r="5" fill="#e6e1e2"/>
+                  <path d="M8 26c0-4.418 3.582-8 8-8s8 3.582 8 8" fill="#e6e1e2"/>
+                </svg>
                 )}
               </button>
 

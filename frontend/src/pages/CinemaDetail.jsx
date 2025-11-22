@@ -5,6 +5,7 @@ import Footer from '../components/Footer.jsx';
 import { cinemaComplexService } from '../services/cinemaComplexService';
 import scheduleService from '../services/scheduleService';
 import { movieService } from '../services/movieService';
+import { enumService } from '../services/enumService';
 
 export default function CinemaDetail() {
   const { name } = useParams();
@@ -89,28 +90,41 @@ export default function CinemaDetail() {
             });
 
             console.log('Showtimes result type:', typeof showtimesResult);
-            console.log('Showtimes result:', showtimesResult);
+            console.log('Showtimes result raw:', showtimesResult);
 
-            // scheduleService.getListings returns data directly as array
-            const listings = Array.isArray(showtimesResult) ? showtimesResult : [];
+            // scheduleService.getListings returns data directly as array OR in a wrapper
+            let listings = [];
+            if (Array.isArray(showtimesResult)) {
+              listings = showtimesResult;
+            } else if (showtimesResult && showtimesResult.data && Array.isArray(showtimesResult.data)) {
+              listings = showtimesResult.data;
+            } else if (showtimesResult && typeof showtimesResult === 'object') {
+              // Sometimes it might return an object with keys as movie IDs or dates
+              listings = Object.values(showtimesResult).flat();
+            }
 
-            console.log('Listings count:', listings.length);
+            console.log('Processed listings count:', listings.length);
+            if (listings.length > 0) {
+                console.log('Sample listing:', listings[0]);
+            }
             console.log('Found cinema complexId:', currentCinema.complexId);
 
             // Extract unique movie IDs from showtimes
             listings.forEach(listing => {
-              console.log('Processing listing:', listing);
               // Check if this listing belongs to our cinema
-              // cinemaId in ScheduleListingDTO is the complexId
-              if (listing.cinemaId && listing.cinemaId === currentCinema.complexId && listing.movieId) {
-                allMovieIds.add(listing.movieId);
+              // Handle different data structures from backend
+              const listingCinemaId = listing.cinemaId || listing.cinemaComplexId;
+              const listingMovieId = listing.movieId || listing.movie?.movieId;
+              
+              if (listingCinemaId && Number(listingCinemaId) === Number(currentCinema.complexId) && listingMovieId) {
+                allMovieIds.add(Number(listingMovieId));
                 
                 // Check if this showtime is in the future
-                if (listing.startTime) {
-                  const showtimeDate = new Date(listing.startTime);
-                  console.log(`Showtime ${listing.movieId}: ${listing.startTime} -> ${showtimeDate} >= ${now}? ${showtimeDate >= now}`);
+                const startTime = listing.startTime || listing.startDateTime;
+                if (startTime) {
+                  const showtimeDate = new Date(startTime);
                   if (showtimeDate >= now) {
-                    nowShowingMovieIds.add(listing.movieId);
+                    nowShowingMovieIds.add(Number(listingMovieId));
                   }
                 }
               }
@@ -144,7 +158,8 @@ export default function CinemaDetail() {
         // Now showing: movies with future showtimes at this cinema
         const nowShowing = allMovies.filter(m => {
           if (!m || !m.movieId) return false;
-          const hasFutureShowtime = nowShowingMovieIds.has(m.movieId);
+          // Compare as numbers to be safe
+          const hasFutureShowtime = nowShowingMovieIds.has(Number(m.movieId));
           return hasFutureShowtime;
         });
 
@@ -155,20 +170,21 @@ export default function CinemaDetail() {
         // OR movies with release date in the future
         const comingSoon = allMovies.filter(m => {
           if (!m || !m.movieId) return false;
+          const movieIdNum = Number(m.movieId);
           
           // Skip movies that are already in now showing
-          if (nowShowingMovieIds.has(m.movieId)) {
+          if (nowShowingMovieIds.has(movieIdNum)) {
             return false;
           }
           
           // If movie has showtimes but all are in the past, and release date is in future
-          if (allMovieIds.has(m.movieId) && !nowShowingMovieIds.has(m.movieId)) {
+          if (allMovieIds.has(movieIdNum) && !nowShowingMovieIds.has(movieIdNum)) {
             const releaseDate = m.releaseDate ? new Date(m.releaseDate) : null;
             return releaseDate && releaseDate > now;
           }
           
           // If movie doesn't have any showtimes yet, check release date
-          if (!allMovieIds.has(m.movieId)) {
+          if (!allMovieIds.has(movieIdNum)) {
             const releaseDate = m.releaseDate ? new Date(m.releaseDate) : null;
             return releaseDate && releaseDate > now;
           }
@@ -192,17 +208,37 @@ export default function CinemaDetail() {
   }, [cinemaName, province]);
 
   const formatAgeRating = (ageRating) => {
-    if (!ageRating) return 'T13';
+    if (!ageRating) return 'P';
+    // Use enumService to map age rating to display format (13+, 16+, 18+, P, K)
     const ratingStr = typeof ageRating === 'string' ? ageRating : ageRating.toString();
-    return ratingStr.replace('RATING_', 'T');
+    return enumService.mapAgeRatingToDisplay(ratingStr) || 'P';
   };
 
   const formatGenres = (genres) => {
-    if (!genres || !Array.isArray(genres)) return 'N/A';
-    return genres.map(g => {
-      const genreStr = typeof g === 'string' ? g : g.toString();
-      return genreStr.replace('GENRE_', '');
-    }).join(', ');
+    if (!genres) return 'N/A';
+    
+    // Handle different formats: array, string, or object
+    let genreArray = [];
+    if (Array.isArray(genres)) {
+      genreArray = genres.map(g => {
+        const genreStr = typeof g === 'string' ? g : (g.value || g.name || g).toString();
+        return genreStr.toUpperCase();
+      });
+    } else if (typeof genres === 'string') {
+      // Handle comma-separated string or single value
+      if (genres.includes(',')) {
+        genreArray = genres.split(',').map(g => g.trim().toUpperCase());
+      } else {
+        genreArray = [genres.toUpperCase()];
+      }
+    } else {
+      // Handle object
+      const genreValue = (genres.value || genres.name || genres).toString().toUpperCase();
+      genreArray = [genreValue];
+    }
+    
+    // Map each genre to Vietnamese
+    return genreArray.map(g => enumService.mapGenreToVietnamese(g)).join(', ');
   };
 
   const formatLanguage = (languages) => {
@@ -337,7 +373,17 @@ export default function CinemaDetail() {
                           <span>{formatLanguage(movie.languages)}</span>
                         </div>
                         <div className="cinema-movie-card__rating-desc">
-                          {formatAgeRating(movie.ageRating)}: Phim dành cho khán giả từ đủ {formatAgeRating(movie.ageRating).replace('T', '')} tuổi trở lên ({formatAgeRating(movie.ageRating).replace('T', '')}+)
+                          {(() => {
+                            const rating = formatAgeRating(movie.ageRating);
+                            const ageNumber = rating && /^\d+/.test(rating) ? rating.replace(/[^0-9]/g, '') : null;
+                            if (rating === 'P') {
+                              return 'P: Phim dành cho mọi lứa tuổi';
+                            } else if (ageNumber) {
+                              return `${rating}: Phim dành cho khán giả từ đủ ${ageNumber} tuổi trở lên (${rating})`;
+                            } else {
+                              return `${rating}: Phim dành cho khán giả từ đủ ${rating} tuổi trở lên`;
+                            }
+                          })()}
                         </div>
                         {movie.description && (
                           <div className="cinema-movie-card__description" style={{ marginTop: '12px', color: '#c9c4c5', fontSize: '14px', lineHeight: '1.6' }}>

@@ -32,26 +32,11 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
         const ordersData = await getAllOrdersAdmin();
         console.log('Reports: Loaded orders from backend:', ordersData);
         
-        // Map backend format to frontend format
+        // Map backend format to frontend format (same as BookingManagement)
         const mappedOrders = [];
         ordersData.forEach(order => {
           if (order.items && order.items.length > 0) {
-            // Group tickets by cinema complex first to calculate revenue per cinema
-            const ticketsByCinema = {};
-            order.items.forEach(item => {
-              const cinemaId = item.cinemaComplexId;
-              if (!ticketsByCinema[cinemaId]) {
-                ticketsByCinema[cinemaId] = [];
-              }
-              ticketsByCinema[cinemaId].push(item);
-            });
-            
-            // Calculate total ticket price for all tickets
-            const totalTicketPrice = order.items.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
-            const comboTotal = order.combos ? order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0) : 0;
-            const orderTotalAmount = parseFloat(order.totalAmount) || (totalTicketPrice + comboTotal);
-            
-            // Now group tickets by showtime to create booking records
+            // Group tickets by showtime to create booking records
             const ticketsByShowtime = {};
             order.items.forEach(item => {
               const key = `${item.showtimeStart}_${item.cinemaComplexId}_${item.roomId}`;
@@ -65,21 +50,11 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
             Object.values(ticketsByShowtime).forEach(ticketGroup => {
               const firstTicket = ticketGroup[0];
               const seats = ticketGroup.map(t => t.seatId);
-              const showtimeTicketPrice = ticketGroup.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
+              const totalTicketPrice = ticketGroup.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
               
-              // Calculate this showtime's share of the order
-              // If order has tickets from multiple cinemas, distribute combo costs proportionally
-              const cinemaTickets = ticketsByCinema[firstTicket.cinemaComplexId] || [];
-              const cinemaTicketTotal = cinemaTickets.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
-              
-              // Proportional combo cost for this cinema
-              const cinemaComboShare = totalTicketPrice > 0 ? (cinemaTicketTotal / totalTicketPrice) * comboTotal : 0;
-              
-              // This showtime's share of cinema's combo
-              const showtimeComboShare = cinemaTicketTotal > 0 ? (showtimeTicketPrice / cinemaTicketTotal) * cinemaComboShare : 0;
-              
-              // Total amount for this showtime
-              const showtimeTotalAmount = showtimeTicketPrice + showtimeComboShare;
+              // Calculate total including combos
+              const comboTotal = order.combos ? order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0) : 0;
+              const totalAmount = totalTicketPrice + comboTotal;
               
               mappedOrders.push({
                 bookingId: order.orderId,
@@ -98,10 +73,9 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
                 showtime: firstTicket.showtimeStart,
                 seats: seats,
                 pricePerSeat: ticketGroup.length > 0 ? parseFloat(ticketGroup[0].price) || 0 : 0,
-                ticketAmount: showtimeTicketPrice, // Amount from tickets for this showtime
-                comboAmount: showtimeComboShare, // Proportional combo amount
-                totalAmount: showtimeTotalAmount, // Total for this showtime
-                orderTotalAmount: orderTotalAmount, // Total order amount (for reference)
+                ticketAmount: totalTicketPrice, // Amount from tickets only
+                comboAmount: comboTotal, // Amount from combos only
+                totalAmount: parseFloat(order.totalAmount) || totalAmount,
                 combos: order.combos || [], // Store combos for food revenue calculation
                 orderDate: order.orderDate || order.createdAt || new Date().toISOString(), // Store order date
                 status: 'PAID', // All orders in DB are successful
@@ -202,28 +176,53 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
     return Object.values(movieRevenue).sort((a, b) => b.revenue - a.revenue);
   }, [filteredOrders, movies]);
 
-  // Revenue by Cinema - Now correctly aggregates based on cinema-specific amounts
+  // Revenue by Cinema - Aggregate by unique orderId to avoid double counting
   const revenueByCinema = useMemo(() => {
     console.log('Calculating revenueByCinema from filteredOrders:', filteredOrders.length);
     const cinemaRevenue = {};
     
-    // Simply aggregate by cinema - each booking record already has correct amount for that cinema
+    // Group orders by unique (cinemaId, orderId) pair to avoid double counting
+    // Each order can have multiple booking records (one per showtime), but we only count the order once per cinema
+    const uniqueOrdersByCinema = {};
+    
     filteredOrders.forEach(order => {
       const cinemaId = order.cinemaComplexId;
+      const orderId = order.orderId;
       
-      if (!cinemaId) {
-        console.warn('Order missing cinemaId:', order);
+      if (!orderId || !cinemaId) {
+        console.warn('Order missing orderId or cinemaId:', order);
         return;
       }
       
-      const cinemaIdNum = Number(cinemaId);
+      // Create a unique key for this (cinema, order) pair
+      const key = `${cinemaId}_${orderId}`;
       
-      if (!cinemaRevenue[cinemaIdNum]) {
-        const cinemaName = cinemas.find(c => c.complexId === cinemaIdNum)?.name || 
+      // Only process each order once per cinema
+      // If already exists, add tickets (since one order can have multiple showtimes)
+      if (!uniqueOrdersByCinema[key]) {
+        uniqueOrdersByCinema[key] = {
+          cinemaId: Number(cinemaId),
+          orderId: orderId,
+          totalAmount: order.totalAmount || 0,
+          ticketCount: order.seats?.length || 0,
+          cinemaName: order.cinemaName
+        };
+      } else {
+        // Add tickets from this showtime to the total (for orders with multiple showtimes)
+        uniqueOrdersByCinema[key].ticketCount += order.seats?.length || 0;
+      }
+    });
+    
+    // Aggregate revenue by cinema
+    Object.values(uniqueOrdersByCinema).forEach(order => {
+      const cinemaId = order.cinemaId;
+      
+      if (!cinemaRevenue[cinemaId]) {
+        const cinemaName = cinemas.find(c => c.complexId === cinemaId)?.name || 
                           order.cinemaName || 
-                          `Rạp #${cinemaIdNum}`;
-        cinemaRevenue[cinemaIdNum] = {
-          cinemaId: cinemaIdNum,
+                          `Rạp #${cinemaId}`;
+        cinemaRevenue[cinemaId] = {
+          cinemaId: cinemaId,
           name: cinemaName,
           revenue: 0,
           tickets: 0
@@ -231,13 +230,13 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
       }
       
       // Sum up revenue and tickets for this cinema
-      // Each booking record already has the correct proportional amount
-      cinemaRevenue[cinemaIdNum].revenue += order.totalAmount || 0;
-      cinemaRevenue[cinemaIdNum].tickets += order.seats?.length || 0;
+      cinemaRevenue[cinemaId].revenue += order.totalAmount || 0;
+      cinemaRevenue[cinemaId].tickets += order.ticketCount || 0;
     });
     
     const result = Object.values(cinemaRevenue).sort((a, b) => b.revenue - a.revenue);
     console.log('revenueByCinema result:', result);
+    console.log('Unique orders processed:', Object.keys(uniqueOrdersByCinema).length);
     console.log('Cinemas found:', result.length);
     return result;
   }, [filteredOrders, cinemas]);

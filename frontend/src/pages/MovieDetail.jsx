@@ -400,23 +400,61 @@ export default function MovieDetail() {
   const mapMovieFromBackend = (movieData) => {
     if (!movieData) return null;
 
-    // Map age rating
+    console.log('=== mapMovieFromBackend DEBUG ===');
+    console.log('movieData.ageRating:', movieData.ageRating, typeof movieData.ageRating);
+    console.log('movieData.genre:', movieData.genre, typeof movieData.genre, Array.isArray(movieData.genre));
+
+    // Map age rating - hiển thị đúng format: 13+, 16+, 18+, P, K
     const ageRatingDisplay = enumService.mapAgeRatingToDisplay(movieData.ageRating);
-    // Nếu là số (13+, 16+, 18+) thì thêm prefix "T", còn "P" hoặc "K" thì giữ nguyên
-    let ratingBadge = ageRatingDisplay || 'P';
-    if (ratingBadge && /^\d+\+?$/.test(ratingBadge)) {
-      // Có số, thêm prefix "T"
-      ratingBadge = `T${ratingBadge.replace(/[^0-9]/g, '')}`;
-    }
-    // Nếu là "P" hoặc "K" thì giữ nguyên, không thêm prefix "T"
+    console.log('ageRatingDisplay after map:', ageRatingDisplay);
+    // Giữ nguyên format từ enumService (13+, 16+, 18+, P, K), không thêm prefix "T"
+    const ratingBadge = ageRatingDisplay || 'P';
+    console.log('ratingBadge final:', ratingBadge);
 
     // Map formats
     const formats = movieService.mapFormatsFromBackend(movieData.formats || []);
 
-    // Map genres to Vietnamese string
-    const genreString = movieData.genre && Array.isArray(movieData.genre)
-      ? movieData.genre.map(g => enumService.mapGenreToVietnamese(g)).join(', ')
-      : (movieData.genre ? enumService.mapGenreToVietnamese(movieData.genre) : '');
+    // Map genres to Vietnamese string - handle both array and string formats
+    let genreString = '';
+    if (movieData.genre) {
+      if (Array.isArray(movieData.genre)) {
+        // If it's an array, map each genre to Vietnamese
+        console.log('Processing genre as array:', movieData.genre);
+        genreString = movieData.genre.map(g => {
+          // Handle if genre is already an object with a property, or just a string
+          let genreValue = typeof g === 'string' ? g : (g.value || g.name || g);
+          // Convert to uppercase to match enum values
+          genreValue = genreValue.toUpperCase();
+          const mapped = enumService.mapGenreToVietnamese(genreValue);
+          console.log(`  Genre "${g}" -> "${genreValue}" -> "${mapped}"`);
+          return mapped;
+        }).filter(g => g && g !== 'N/A').join(', ');
+      } else if (typeof movieData.genre === 'string') {
+        // If it's a string, check if it's comma-separated or single value
+        console.log('Processing genre as string:', movieData.genre);
+        if (movieData.genre.includes(',')) {
+          // Comma-separated string like "SCI_FI, ADVENTURE" or "ANIMATION, ADVENTURE, COMEDY"
+          genreString = movieData.genre.split(',').map(g => {
+            const trimmed = g.trim().toUpperCase();
+            const mapped = enumService.mapGenreToVietnamese(trimmed);
+            console.log(`  Genre "${g.trim()}" -> "${trimmed}" -> "${mapped}"`);
+            return mapped;
+          }).filter(g => g && g !== 'N/A').join(', ');
+        } else {
+          // Single genre string
+          const upperGenre = movieData.genre.toUpperCase();
+          genreString = enumService.mapGenreToVietnamese(upperGenre);
+          console.log(`Single genre "${movieData.genre}" -> "${upperGenre}" -> "${genreString}"`);
+        }
+      } else {
+        // If it's an object, try to extract the value
+        const genreValue = (movieData.genre.value || movieData.genre.name || movieData.genre).toString().toUpperCase();
+        genreString = enumService.mapGenreToVietnamese(genreValue);
+        console.log(`Genre object -> "${genreString}"`);
+      }
+    }
+    console.log('genreString final:', genreString);
+    console.log('=== END DEBUG ===');
 
     // Map languages
     const languages = movieData.languages || [];
@@ -1070,7 +1108,7 @@ export default function MovieDetail() {
                 color: '#c9c4c5',
                 lineHeight: '1.6'
               }}>
-                <strong style={{ color: '#ffd159' }}>{movie?.rating || 'N/A'}:</strong> Phim dành cho khán giả từ đủ {movie?.rating?.replace(/[^0-9]/g, '') || 'N/A'} tuổi trở lên ({movie?.rating?.replace(/[^0-9]/g, '') || 'N/A'}+)
+                <strong style={{ color: '#ffd159' }}>{movie?.rating || 'N/A'}:</strong> Phim dành cho khán giả từ đủ {movie?.rating && /^\d+/.test(movie.rating) ? movie.rating.replace(/[^0-9]/g, '') : (movie?.rating === 'P' ? 'mọi' : 'N/A')} tuổi trở lên {movie?.rating && /^\d+/.test(movie.rating) ? `(${movie.rating})` : (movie?.rating === 'P' ? '(P)' : '')}
               </div>
             </div>
 
@@ -1103,7 +1141,7 @@ export default function MovieDetail() {
                   flex: 1
                 }}
               >
-                Tôi xác nhận rằng tôi đã đủ {movie?.rating?.replace(/[^0-9]/g, '') || 'N/A'} tuổi trở lên và đủ điều kiện để xem phim này.
+                Tôi xác nhận rằng tôi đã đủ {movie?.rating && /^\d+/.test(movie.rating) ? movie.rating.replace(/[^0-9]/g, '') : (movie?.rating === 'P' ? 'mọi' : 'N/A')} tuổi trở lên và đủ điều kiện để xem phim này.
               </label>
             </div>
 

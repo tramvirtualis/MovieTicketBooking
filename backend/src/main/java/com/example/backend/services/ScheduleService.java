@@ -108,8 +108,8 @@ public class ScheduleService {
             }
             endTime = dateStart.plusDays(1);
         } else {
-            // Nếu không chọn ngày, lấy showtimes từ bây giờ đến hết ngày hôm nay
-            endTime = LocalDate.now().atStartOfDay().plusDays(1);
+            // Nếu không chọn ngày, lấy showtimes từ bây giờ đến 30 ngày tới để cover danh sách phim đang chiếu
+            endTime = LocalDate.now().atStartOfDay().plusDays(30);
         }
 
         return showtimeRepository.findScheduleShowtimes(startTime, endTime, movieId, cinemaId);

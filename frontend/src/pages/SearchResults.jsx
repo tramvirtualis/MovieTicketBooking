@@ -6,16 +6,10 @@ import Footer from '../components/Footer.jsx';
 import { Section, CardsGrid } from '../components/SectionGrid.jsx';
 import { enumService } from '../services/enumService';
 
-// Helper function để map AgeRating từ backend sang format frontend
+// Helper function để map AgeRating từ backend sang format frontend (13+, 16+, 18+, P, K)
 const mapAgeRating = (ageRating) => {
-  const ratingMap = {
-    'P': 'P',
-    'K': 'K',
-    'AGE_13_PLUS': 'T13',
-    'AGE_16_PLUS': 'T16',
-    'AGE_18_PLUS': 'T18'
-  };
-  return ratingMap[ageRating] || ageRating;
+  // Use enumService to map age rating to display format
+  return enumService.mapAgeRatingToDisplay(ageRating) || 'P';
 };
 
 // Helper function để extract YouTube video ID từ URL
