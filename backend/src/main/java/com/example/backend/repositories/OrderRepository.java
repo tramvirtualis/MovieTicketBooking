@@ -62,4 +62,18 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     // Check if voucher has been used by user in any order
     @Query("SELECT COUNT(o) > 0 FROM Order o WHERE o.user.userId = :userId AND o.voucher.voucherId = :voucherId")
     boolean existsByUserUserIdAndVoucherVoucherId(@Param("userId") Long userId, @Param("voucherId") Long voucherId);
+    
+    // Load order with all relations for email sending
+    @Query("SELECT DISTINCT o FROM Order o " +
+           "LEFT JOIN FETCH o.tickets t " +
+           "LEFT JOIN FETCH t.showtime s " +
+           "LEFT JOIN FETCH s.movieVersion mv " +
+           "LEFT JOIN FETCH mv.movie m " +
+           "LEFT JOIN FETCH t.seat se " +
+           "LEFT JOIN FETCH s.cinemaRoom cr " +
+           "LEFT JOIN FETCH cr.cinemaComplex cc " +
+           "LEFT JOIN FETCH cc.address a " +
+           "LEFT JOIN FETCH o.user u " +
+           "WHERE o.orderId = :orderId")
+    Optional<Order> findByIdWithDetails(@Param("orderId") Long orderId);
 }

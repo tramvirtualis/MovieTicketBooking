@@ -16,6 +16,7 @@ import com.example.backend.services.OrderService;
 import com.example.backend.services.MomoService;
 import com.example.backend.services.ZaloPayService;
 import com.example.backend.services.NotificationService;
+import com.example.backend.services.EmailService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
@@ -59,6 +60,7 @@ public class PaymentController {
     private final OrderCreationService orderCreationService;
     private final OrderService orderService;
     private final NotificationService notificationService;
+    private final EmailService emailService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     // MoMo dependencies
@@ -289,6 +291,29 @@ public class PaymentController {
                 order.setVnpTxnRef(appTransId);
                 orderService.save(order);
                 
+                // Gửi email xác nhận đặt vé ngay sau khi tạo order thành công
+                // Chỉ gửi email nếu order có tickets (có vé xem phim)
+                if (order.getTickets() != null && !order.getTickets().isEmpty()) {
+                    try {
+                        System.out.println("Loading order details for email - Order ID: " + order.getOrderId());
+                        Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(order.getOrderId());
+                        if (orderWithDetails.isPresent()) {
+                            Order orderForEmail = orderWithDetails.get();
+                            System.out.println("Order found with " + (orderForEmail.getTickets() != null ? orderForEmail.getTickets().size() : 0) + " tickets");
+                            emailService.sendBookingConfirmationEmail(orderForEmail);
+                            System.out.println("Email confirmation sent successfully for Order ID: " + order.getOrderId());
+                        } else {
+                            System.err.println("Order not found with details for Order ID: " + order.getOrderId());
+                        }
+                    } catch (Exception e) {
+                        System.err.println("Error sending confirmation email for Order ID " + order.getOrderId() + ": " + e.getMessage());
+                        e.printStackTrace();
+                        // Không fail request nếu email lỗi
+                    }
+                } else {
+                    System.out.println("Order ID: " + order.getOrderId() + " has no tickets, skipping email");
+                }
+                
                 Map<String, Object> response = new HashMap<>();
                 response.put("success", true);
                 Map<String, Object> data = new HashMap<>();
@@ -344,8 +369,6 @@ public class PaymentController {
     @PostMapping("/zalopay/callback")
     public ResponseEntity<?> zaloPayCallback(@RequestBody Map<String, Object> callbackData) {
         try {
-            System.out.println("=== ZaloPay Callback ===");
-            System.out.println("Callback data: " + callbackData);
             
             // Xác thực callback
             String data = callbackData.get("data") != null ? 
@@ -391,6 +414,7 @@ public class PaymentController {
                             
                             // Gửi thông báo đặt hàng thành công (chỉ gửi nếu callback lần đầu)
                             // notifyBookingSuccess đã có check duplicate, nên an toàn
+                            // Lưu ý: Email đã được gửi khi tạo order thành công, không cần gửi lại trong callback
                             if (!alreadyProcessed) {
                                 try {
                                     String totalAmountStr = order.getTotalAmount()
@@ -412,7 +436,7 @@ public class PaymentController {
                         }
                     }
                 } catch (Exception e) {
-                    System.err.println("Error parsing callback data: " + e.getMessage());
+                    // Ignore parsing errors
                 }
                 
                 // Trả về response cho ZaloPay
@@ -614,6 +638,29 @@ public class PaymentController {
                 throw new IllegalStateException("MoMo không trả về liên kết thanh toán");
             }
 
+            // Gửi email xác nhận đặt vé ngay sau khi tạo order thành công
+            // Chỉ gửi email nếu order có tickets (có vé xem phim)
+            if (order.getTickets() != null && !order.getTickets().isEmpty()) {
+                try {
+                    System.out.println("Loading order details for email - Order ID: " + order.getOrderId());
+                    Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(order.getOrderId());
+                    if (orderWithDetails.isPresent()) {
+                        Order orderForEmail = orderWithDetails.get();
+                        System.out.println("Order found with " + (orderForEmail.getTickets() != null ? orderForEmail.getTickets().size() : 0) + " tickets");
+                        emailService.sendBookingConfirmationEmail(orderForEmail);
+                        System.out.println("Email confirmation sent successfully for Order ID: " + order.getOrderId());
+                    } else {
+                        System.err.println("Order not found with details for Order ID: " + order.getOrderId());
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error sending confirmation email for Order ID " + order.getOrderId() + ": " + e.getMessage());
+                    e.printStackTrace();
+                    // Không fail request nếu email lỗi
+                }
+            } else {
+                System.out.println("Order ID: " + order.getOrderId() + " has no tickets, skipping email");
+            }
+
             Map<String, Object> data = new HashMap<>();
             data.put("paymentUrl", momoResponse.getPayUrl());
             data.put("orderId", order.getOrderId());
@@ -669,7 +716,6 @@ public class PaymentController {
         if ("0".equals(resultCode)) {
             // Thanh toán thành công - cập nhật transaction info
             // Kiểm tra xem đã xử lý IPN này chưa (idempotency check)
-            // Chỉ check vnpPayDate - nếu đã có thì đã xử lý rồi
             boolean alreadyProcessed = order.getVnpPayDate() != null;
             
             if (alreadyProcessed) {
@@ -702,6 +748,7 @@ public class PaymentController {
             
             // Gửi thông báo đặt hàng thành công (chỉ gửi nếu IPN lần đầu)
             // notifyBookingSuccess đã có check duplicate, nên an toàn
+            // Lưu ý: Email đã được gửi khi tạo order thành công, không cần gửi lại trong IPN
             if (!alreadyProcessed) {
                 try {
                     String totalAmountStr = order.getTotalAmount()
@@ -757,6 +804,55 @@ public class PaymentController {
         }
         
         response.sendRedirect(redirectUrl);
+    }
+
+    /**
+     * Endpoint để gửi email xác nhận đặt vé (có thể gọi từ frontend sau khi thanh toán thành công)
+     * Dùng làm fallback nếu callback/IPN không được gọi
+     */
+    @PostMapping("/orders/{orderId}/send-confirmation-email")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> sendBookingConfirmationEmail(@PathVariable Long orderId) {
+        try {
+            // Lấy user hiện tại
+            User currentUser = getCurrentUser()
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
+            
+            // Load order với đầy đủ relations
+            Optional<Order> orderOpt = orderRepository.findByIdWithDetails(orderId);
+            if (orderOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(createErrorResponse("Không tìm thấy đơn hàng", null));
+            }
+            
+            Order order = orderOpt.get();
+            
+            // Kiểm tra quyền truy cập
+            if (!order.getUser().getUserId().equals(currentUser.getUserId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(createErrorResponse("Bạn không có quyền xem đơn hàng này", null));
+            }
+            
+            // Chỉ gửi email từ frontend nếu callback/IPN chưa được gọi (vnpPayDate == null)
+            // Nếu vnpPayDate đã có nghĩa là callback/IPN đã gửi email rồi
+            if (order.getVnpPayDate() != null) {
+                return ResponseEntity.ok(createSuccessResponse("Email đã được gửi từ hệ thống", null));
+            }
+            
+            // Kiểm tra order có tickets không (phải có vé mới gửi email)
+            if (order.getTickets() == null || order.getTickets().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(createErrorResponse("Đơn hàng không có vé xem phim", null));
+            }
+            
+            // Gửi email
+            emailService.sendBookingConfirmationEmail(order);
+            
+            return ResponseEntity.ok(createSuccessResponse("Email xác nhận đã được gửi", null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Không thể gửi email: " + e.getMessage(), null));
+        }
     }
 
     @GetMapping("/orders/{txnRef}")
