@@ -225,18 +225,31 @@ public class ManagerController {
     public ResponseEntity<?> getManagerOrders() {
         try {
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
+            System.out.println("=== Manager getOrders - Username: " + username + " ===");
+            
             Optional<Long> complexIdOpt = managerRepository.findCinemaComplexIdByUsername(username);
             
             if (!complexIdOpt.isPresent() || complexIdOpt.get() == null) {
+                System.out.println("Manager chưa được gán cụm rạp");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(createErrorResponse("Manager chưa được gán cụm rạp"));
             }
             
             Long complexId = complexIdOpt.get();
+            System.out.println("Complex ID: " + complexId);
+            
             List<OrderResponseDTO> orders = orderService.getOrdersByComplexId(complexId);
+            System.out.println("Total orders found: " + orders.size());
+            
+            if (!orders.isEmpty()) {
+                System.out.println("First order ID: " + orders.get(0).getOrderId());
+                System.out.println("First order items count: " + (orders.get(0).getItems() != null ? orders.get(0).getItems().size() : 0));
+            }
             
             return ResponseEntity.ok(createSuccessResponse("Lấy danh sách đơn hàng thành công", orders));
         } catch (Exception e) {
+            System.err.println("Error in getManagerOrders: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(createErrorResponse("Có lỗi xảy ra: " + e.getMessage()));
         }

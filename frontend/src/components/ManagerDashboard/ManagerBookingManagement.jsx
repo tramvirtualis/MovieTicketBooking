@@ -94,8 +94,38 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
   }, [cinemas, managerComplexIds]);
 
   const filteredOrders = useMemo(() => {
+    console.log('=== Filtering orders ===');
+    console.log('orders count:', orders?.length || 0);
+    console.log('managerComplexIds:', managerComplexIds);
+    console.log('managerComplexIds length:', managerComplexIds?.length || 0);
+    
+    if (!orders || orders.length === 0) {
+      console.log('No orders to filter');
+      return [];
+    }
+    
     return (orders || []).filter(order => {
-      if (!managerComplexIds.includes(order.cinemaComplexId)) return false;
+      // If managerComplexIds is empty, show all orders (fallback)
+      if (!managerComplexIds || managerComplexIds.length === 0) {
+        console.warn('managerComplexIds is empty, showing all orders');
+        // Continue with other filters below
+      } else {
+        // Check if order's cinemaComplexId matches any of manager's complexIds
+        // Handle type conversion (string vs number)
+        const orderComplexId = order.cinemaComplexId;
+        const matches = managerComplexIds.some(id => 
+          id == orderComplexId || 
+          Number(id) === Number(orderComplexId) ||
+          String(id) === String(orderComplexId)
+        );
+        
+        if (!matches) {
+          if (orders.indexOf(order) < 3) {
+            console.log(`Order ${order.bookingId} filtered out: cinemaComplexId=${orderComplexId} not in managerComplexIds=${managerComplexIds}`);
+          }
+          return false;
+        }
+      }
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const matches = 
@@ -127,6 +157,19 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
       return true;
     });
   }, [orders, searchTerm, filterCinema, filterMovie, filterStatus, dateFrom, dateTo, managerComplexIds]);
+  
+  // Debug logging after filtering
+  useEffect(() => {
+    console.log('=== After filtering ===');
+    console.log('filteredOrders count:', filteredOrders?.length || 0);
+    if (filteredOrders && filteredOrders.length > 0) {
+      console.log('First few filtered orders:', filteredOrders.slice(0, 3));
+    } else {
+      console.log('No filtered orders!');
+      console.log('Orders:', orders);
+      console.log('managerComplexIds:', managerComplexIds);
+    }
+  }, [filteredOrders, orders, managerComplexIds]);
 
   const sorted = useMemo(() => {
     const sortedList = [...filteredOrders];

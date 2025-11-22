@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo, useEffect } from 'react';
 import {
   BarChart,
   Bar,
@@ -14,12 +14,115 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import { getAllOrdersAdmin } from '../../services/customer';
 
 // Reports Component
-function Reports({ orders, movies, cinemas, vouchers, users }) {
+function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
   const [timeRange, setTimeRange] = useState('30');
   const [selectedCinema, setSelectedCinema] = useState('all');
   const [selectedMovie, setSelectedMovie] = useState('all');
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Load orders from backend
+  useEffect(() => {
+    const loadOrders = async () => {
+      setLoading(true);
+      try {
+        const ordersData = await getAllOrdersAdmin();
+        console.log('Reports: Loaded orders from backend:', ordersData);
+        
+        // Map backend format to frontend format
+        const mappedOrders = [];
+        ordersData.forEach(order => {
+          if (order.items && order.items.length > 0) {
+            // Group tickets by cinema complex first to calculate revenue per cinema
+            const ticketsByCinema = {};
+            order.items.forEach(item => {
+              const cinemaId = item.cinemaComplexId;
+              if (!ticketsByCinema[cinemaId]) {
+                ticketsByCinema[cinemaId] = [];
+              }
+              ticketsByCinema[cinemaId].push(item);
+            });
+            
+            // Calculate total ticket price for all tickets
+            const totalTicketPrice = order.items.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
+            const comboTotal = order.combos ? order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0) : 0;
+            const orderTotalAmount = parseFloat(order.totalAmount) || (totalTicketPrice + comboTotal);
+            
+            // Now group tickets by showtime to create booking records
+            const ticketsByShowtime = {};
+            order.items.forEach(item => {
+              const key = `${item.showtimeStart}_${item.cinemaComplexId}_${item.roomId}`;
+              if (!ticketsByShowtime[key]) {
+                ticketsByShowtime[key] = [];
+              }
+              ticketsByShowtime[key].push(item);
+            });
+            
+            // Create a booking record for each showtime group
+            Object.values(ticketsByShowtime).forEach(ticketGroup => {
+              const firstTicket = ticketGroup[0];
+              const seats = ticketGroup.map(t => t.seatId);
+              const showtimeTicketPrice = ticketGroup.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
+              
+              // Calculate this showtime's share of the order
+              // If order has tickets from multiple cinemas, distribute combo costs proportionally
+              const cinemaTickets = ticketsByCinema[firstTicket.cinemaComplexId] || [];
+              const cinemaTicketTotal = cinemaTickets.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
+              
+              // Proportional combo cost for this cinema
+              const cinemaComboShare = totalTicketPrice > 0 ? (cinemaTicketTotal / totalTicketPrice) * comboTotal : 0;
+              
+              // This showtime's share of cinema's combo
+              const showtimeComboShare = cinemaTicketTotal > 0 ? (showtimeTicketPrice / cinemaTicketTotal) * cinemaComboShare : 0;
+              
+              // Total amount for this showtime
+              const showtimeTotalAmount = showtimeTicketPrice + showtimeComboShare;
+              
+              mappedOrders.push({
+                bookingId: order.orderId,
+                orderId: order.orderId, // Keep orderId for reference
+                user: {
+                  name: order.userName || 'N/A',
+                  email: order.userEmail || '',
+                  phone: order.userPhone || ''
+                },
+                movieId: firstTicket.movieId,
+                movieTitle: firstTicket.movieTitle,
+                cinemaComplexId: firstTicket.cinemaComplexId,
+                cinemaName: firstTicket.cinemaComplexName,
+                roomId: firstTicket.roomId,
+                roomName: firstTicket.roomName,
+                showtime: firstTicket.showtimeStart,
+                seats: seats,
+                pricePerSeat: ticketGroup.length > 0 ? parseFloat(ticketGroup[0].price) || 0 : 0,
+                ticketAmount: showtimeTicketPrice, // Amount from tickets for this showtime
+                comboAmount: showtimeComboShare, // Proportional combo amount
+                totalAmount: showtimeTotalAmount, // Total for this showtime
+                orderTotalAmount: orderTotalAmount, // Total order amount (for reference)
+                combos: order.combos || [], // Store combos for food revenue calculation
+                orderDate: order.orderDate || order.createdAt || new Date().toISOString(), // Store order date
+                status: 'PAID', // All orders in DB are successful
+                paymentMethod: order.paymentMethod || 'UNKNOWN'
+              });
+            });
+          }
+        });
+        
+        console.log('Reports: Mapped orders:', mappedOrders);
+        setOrders(mappedOrders);
+      } catch (err) {
+        console.error('Reports: Error loading orders:', err);
+        setOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadOrders();
+  }, []);
 
   // Calculate date range based on timeRange
   const dateRange = useMemo(() => {
@@ -99,19 +202,44 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
     return Object.values(movieRevenue).sort((a, b) => b.revenue - a.revenue);
   }, [filteredOrders, movies]);
 
-  // Revenue by Cinema
+  // Revenue by Cinema - Now correctly aggregates based on cinema-specific amounts
   const revenueByCinema = useMemo(() => {
+    console.log('Calculating revenueByCinema from filteredOrders:', filteredOrders.length);
     const cinemaRevenue = {};
+    
+    // Simply aggregate by cinema - each booking record already has correct amount for that cinema
     filteredOrders.forEach(order => {
       const cinemaId = order.cinemaComplexId;
-      const cinemaName = order.cinemaName || cinemas.find(c => c.complexId === cinemaId)?.name || 'Unknown';
-      if (!cinemaRevenue[cinemaId]) {
-        cinemaRevenue[cinemaId] = { cinemaId, name: cinemaName, revenue: 0, tickets: 0 };
+      
+      if (!cinemaId) {
+        console.warn('Order missing cinemaId:', order);
+        return;
       }
-      cinemaRevenue[cinemaId].revenue += order.totalAmount || 0;
-      cinemaRevenue[cinemaId].tickets += order.seats?.length || 0;
+      
+      const cinemaIdNum = Number(cinemaId);
+      
+      if (!cinemaRevenue[cinemaIdNum]) {
+        const cinemaName = cinemas.find(c => c.complexId === cinemaIdNum)?.name || 
+                          order.cinemaName || 
+                          `Rạp #${cinemaIdNum}`;
+        cinemaRevenue[cinemaIdNum] = {
+          cinemaId: cinemaIdNum,
+          name: cinemaName,
+          revenue: 0,
+          tickets: 0
+        };
+      }
+      
+      // Sum up revenue and tickets for this cinema
+      // Each booking record already has the correct proportional amount
+      cinemaRevenue[cinemaIdNum].revenue += order.totalAmount || 0;
+      cinemaRevenue[cinemaIdNum].tickets += order.seats?.length || 0;
     });
-    return Object.values(cinemaRevenue).sort((a, b) => b.revenue - a.revenue);
+    
+    const result = Object.values(cinemaRevenue).sort((a, b) => b.revenue - a.revenue);
+    console.log('revenueByCinema result:', result);
+    console.log('Cinemas found:', result.length);
+    return result;
   }, [filteredOrders, cinemas]);
 
   // Daily Revenue (last 30 days)
@@ -153,21 +281,59 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
 
   // Cinema Performance (for pie chart)
   const cinemaPerformance = useMemo(() => {
-    return revenueByCinema.slice(0, 5).map(c => ({
+    const result = revenueByCinema.slice(0, 5).map(c => ({
       name: c.name,
       value: c.revenue
     }));
+    console.log('cinemaPerformance for pie chart:', result);
+    return result;
   }, [revenueByCinema]);
 
-  // Food Combo Sales (simulated)
+  // Food Combo Sales - Calculate from actual orders
   const foodComboSales = useMemo(() => {
-    return [
-      { id: 1, name: 'Combo 1: Bắp + Nước', quantity: 245, revenue: 11025000 },
-      { id: 2, name: 'Combo 2: Bắp + Nước + Snack', quantity: 189, revenue: 11340000 },
-      { id: 3, name: 'Combo 3: Bắp lớn + 2 Nước', quantity: 156, revenue: 9360000 },
-      { id: 4, name: 'Combo 4: Snack + Nước', quantity: 98, revenue: 4900000 },
-    ].sort((a, b) => b.revenue - a.revenue);
-  }, []);
+    console.log('Calculating foodComboSales from filteredOrders:', filteredOrders.length);
+    const comboStats = {};
+    const processedOrderIds = new Set(); // Track processed orders to avoid double counting
+    
+    // Aggregate combo sales from all orders
+    filteredOrders.forEach(order => {
+      const orderId = order.orderId;
+      
+      // Only process each order once to avoid double counting
+      // (since one order can have multiple booking records for different showtimes)
+      if (!orderId || processedOrderIds.has(orderId)) {
+        return;
+      }
+      processedOrderIds.add(orderId);
+      
+      // Process combos from this order
+      if (order.combos && Array.isArray(order.combos) && order.combos.length > 0) {
+        order.combos.forEach(combo => {
+          const comboId = combo.comboId || combo.comboName;
+          const comboName = combo.comboName || `Combo #${comboId}`;
+          const quantity = combo.quantity || 1;
+          const price = parseFloat(combo.price) || 0;
+          const revenue = price * quantity;
+          
+          if (!comboStats[comboId]) {
+            comboStats[comboId] = {
+              id: comboId,
+              name: comboName,
+              quantity: 0,
+              revenue: 0
+            };
+          }
+          
+          comboStats[comboId].quantity += quantity;
+          comboStats[comboId].revenue += revenue;
+        });
+      }
+    });
+    
+    const result = Object.values(comboStats).sort((a, b) => b.revenue - a.revenue);
+    console.log('foodComboSales result:', result);
+    return result;
+  }, [filteredOrders]);
 
   // Peak Hours Analysis
   const peakHours = useMemo(() => {
@@ -201,6 +367,32 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
   };
 
   const COLORS = ['#e83b41', '#ffd159', '#4caf50', '#2196f3', '#9c27b0'];
+
+  // Debug logging
+  useEffect(() => {
+    console.log('Reports: Orders loaded:', orders.length);
+    console.log('Reports: Filtered orders:', filteredOrders.length);
+    console.log('Reports: Summary stats:', summaryStats);
+  }, [orders, filteredOrders, summaryStats]);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px', color: '#fff' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            border: '4px solid rgba(232, 59, 65, 0.3)',
+            borderTop: '4px solid #e83b41',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px'
+          }}></div>
+          <p>Đang tải dữ liệu báo cáo...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -480,8 +672,12 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
                     data={cinemaPerformance}
                     cx="50%"
                     cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    labelLine={true}
+                    label={({ name, percent }) => {
+                      // Shorten cinema name if too long
+                      const shortName = name.length > 15 ? name.substring(0, 12) + '...' : name;
+                      return `${shortName}: ${(percent * 100).toFixed(0)}%`;
+                    }}
                     outerRadius={100}
                     fill="#8884d8"
                     dataKey="value"
@@ -498,6 +694,11 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
                       color: '#fff'
                     }}
                     formatter={(value) => formatPrice(value)}
+                  />
+                  <Legend 
+                    verticalAlign="bottom" 
+                    height={36}
+                    wrapperStyle={{ fontSize: '12px' }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -558,34 +759,36 @@ function Reports({ orders, movies, cinemas, vouchers, users }) {
           </div>
         </div>
 
-        {/* Food Combo Sales */}
-        <div className="admin-card">
-          <div className="admin-card__header">
-            <h2 className="admin-card__title">🍿 Doanh số combo đồ ăn</h2>
-          </div>
-          <div className="admin-card__content">
-            <div className="admin-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Combo</th>
-                    <th style={{ textAlign: 'right' }}>SL</th>
-                    <th style={{ textAlign: 'right' }}>Doanh thu</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {foodComboSales.map((combo) => (
-                    <tr key={combo.id}>
-                      <td style={{ fontWeight: 500 }}>{combo.name}</td>
-                      <td style={{ textAlign: 'right', color: '#ffd159' }}>{formatNumber(combo.quantity)}</td>
-                      <td style={{ textAlign: 'right', color: '#4caf50', fontWeight: 600 }}>{formatPrice(combo.revenue)}</td>
+        {/* Food Combo Sales - Only show if there's data */}
+        {foodComboSales && foodComboSales.length > 0 && (
+          <div className="admin-card">
+            <div className="admin-card__header">
+              <h2 className="admin-card__title">🍿 Doanh số combo đồ ăn</h2>
+            </div>
+            <div className="admin-card__content">
+              <div className="admin-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Combo</th>
+                      <th style={{ textAlign: 'right' }}>SL</th>
+                      <th style={{ textAlign: 'right' }}>Doanh thu</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {foodComboSales.map((combo, idx) => (
+                      <tr key={combo.id || idx}>
+                        <td style={{ fontWeight: 500 }}>{combo.name}</td>
+                        <td style={{ textAlign: 'right', color: '#ffd159' }}>{formatNumber(combo.quantity)}</td>
+                        <td style={{ textAlign: 'right', color: '#4caf50', fontWeight: 600 }}>{formatPrice(combo.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Peak Hours Analysis */}

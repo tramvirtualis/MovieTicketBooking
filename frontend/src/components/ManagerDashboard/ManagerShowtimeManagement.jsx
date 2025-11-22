@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import showtimeService from '../../services/showtimeService';
 import movieService from '../../services/movieService';
 import { cinemaRoomService } from '../../services/cinemaRoomService';
+import { cinemaComplexService } from '../../services/cinemaComplexService';
 import ConfirmDeleteModal from '../Common/ConfirmDeleteModal';
 import '../../styles/components/showtime-timeline.css';
 import ExcelJS from 'exceljs';
@@ -70,12 +71,12 @@ export default function ManagerShowtimeManagement({ complexId }) {
     }
   }, [createForm.startTime]);
 
-  const showNotification = (message, type = 'success') => {
+  const showNotification = React.useCallback((message, type = 'success') => {
     setNotification({ message, type });
     setTimeout(() => {
       setNotification(null);
     }, 3000);
-  };
+  }, []);
 
   // Load rooms
   useEffect(() => {
@@ -115,24 +116,33 @@ export default function ManagerShowtimeManagement({ complexId }) {
     loadRooms();
   }, [complexId]);
 
-  // Load movies
+  // Load movies - chỉ lấy phim trong danh sách phim của rạp này
   useEffect(() => {
     const loadMovies = async () => {
+      if (!complexId) {
+        console.log('No complexId, skipping movie load');
+        return;
+      }
       try {
-        const result = await movieService.getAllMoviesManager();
+        console.log('Loading movies for complexId:', complexId);
+        const result = await cinemaComplexService.getComplexMoviesManager(complexId);
+        console.log('getComplexMoviesManager result:', result);
         if (result.success && result.data) {
+          console.log('Movies loaded for complex:', result.data.length);
           setMovies(result.data);
         } else {
           console.error('Error loading movies:', result.error);
           showNotification(result.error || 'Không thể tải danh sách phim', 'error');
+          setMovies([]); // Set empty array if no movies
         }
       } catch (error) {
         console.error('Error loading movies:', error);
         showNotification('Không thể tải danh sách phim', 'error');
+        setMovies([]); // Set empty array on error
       }
     };
     loadMovies();
-  }, []);
+  }, [complexId]);
 
   // Function to load showtimes - can be called from useEffect or after creating showtime
   const loadShowtimes = React.useCallback(async () => {
@@ -186,7 +196,7 @@ export default function ManagerShowtimeManagement({ complexId }) {
               return {
                 showtimeId: st.showtimeId,
                 roomId: st.cinemaRoom?.roomId || roomId,
-                roomName: st.cinemaRoom?.roomName || rooms.find(r => r.roomId === roomId)?.roomName || 'Phòng',
+                roomName: st.cinemaRoom?.roomName || 'Phòng',
                 movieId: movieId,
                 movieTitle: st.movieVersion?.movie?.title || st.movieTitle,
                 date: date,
@@ -220,7 +230,7 @@ export default function ManagerShowtimeManagement({ complexId }) {
       } finally {
         setLoadingShowtimes(false);
       }
-  }, [selectedRooms, rooms, currentDate, dateRange, showNotification]);
+  }, [selectedRooms, currentDate]);
 
   // Load showtimes for selected rooms and date range
   useEffect(() => {

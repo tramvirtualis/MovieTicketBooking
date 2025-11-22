@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   BarChart,
   Bar,
@@ -11,11 +11,85 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
+import { getAllOrdersManager } from '../../services/customer';
 
 // Manager Reports Component (for single cinema complex)
-function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
+function ManagerReports({ orders: initialOrders, movies, cinemas, managerComplexIds }) {
   const [timeRange, setTimeRange] = useState('30');
   const [selectedMovie, setSelectedMovie] = useState('all');
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Load orders from backend
+  useEffect(() => {
+    const loadOrders = async () => {
+      setLoading(true);
+      try {
+        const ordersData = await getAllOrdersManager();
+        console.log('ManagerReports: Loaded orders from backend:', ordersData);
+        
+        // Map backend format to frontend format (same as ManagerBookingManagement)
+        const mappedOrders = [];
+        ordersData.forEach(order => {
+          if (order.items && order.items.length > 0) {
+            // Group tickets by showtime to create booking records
+            const ticketsByShowtime = {};
+            order.items.forEach(item => {
+              const key = `${item.showtimeStart}_${item.cinemaComplexId}_${item.roomId}`;
+              if (!ticketsByShowtime[key]) {
+                ticketsByShowtime[key] = [];
+              }
+              ticketsByShowtime[key].push(item);
+            });
+            
+            // Create a booking record for each showtime group
+            Object.values(ticketsByShowtime).forEach(ticketGroup => {
+              const firstTicket = ticketGroup[0];
+              const seats = ticketGroup.map(t => t.seatId);
+              const totalTicketPrice = ticketGroup.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
+              
+              // Calculate total including combos
+              const comboTotal = order.combos ? order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0) : 0;
+              const totalAmount = totalTicketPrice + comboTotal;
+              
+              mappedOrders.push({
+                bookingId: order.orderId,
+                user: {
+                  name: order.userName || 'N/A',
+                  email: order.userEmail || '',
+                  phone: order.userPhone || ''
+                },
+                movieId: firstTicket.movieId,
+                movieTitle: firstTicket.movieTitle,
+                cinemaComplexId: firstTicket.cinemaComplexId,
+                cinemaName: firstTicket.cinemaComplexName,
+                roomId: firstTicket.roomId,
+                roomName: firstTicket.roomName,
+                theaterName: firstTicket.roomName, // For revenueByTheater
+                theaterId: firstTicket.roomId, // For revenueByTheater
+                showtime: firstTicket.showtimeStart,
+                seats: seats,
+                pricePerSeat: ticketGroup.length > 0 ? parseFloat(ticketGroup[0].price) || 0 : 0,
+                totalAmount: parseFloat(order.totalAmount) || totalAmount,
+                status: 'PAID', // All orders in DB are successful
+                paymentMethod: order.paymentMethod || 'UNKNOWN'
+              });
+            });
+          }
+        });
+        
+        console.log('ManagerReports: Mapped orders:', mappedOrders);
+        setOrders(mappedOrders);
+      } catch (err) {
+        console.error('ManagerReports: Error loading orders:', err);
+        setOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadOrders();
+  }, []);
 
   // Manager chỉ quản lý 1 rạp duy nhất
   const managedCinema = useMemo(() => {
@@ -23,7 +97,30 @@ function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
   }, [cinemas, managerComplexIds]);
 
   const scopedOrders = useMemo(() => {
-    return (orders || []).filter(order => managerComplexIds.includes(order.cinemaComplexId));
+    if (!orders || orders.length === 0) {
+      return [];
+    }
+    
+    // Handle type mismatch (string vs number) similar to ManagerBookingManagement
+    if (!managerComplexIds || managerComplexIds.length === 0) {
+      console.warn('ManagerReports: managerComplexIds is empty, showing all orders');
+      return orders;
+    }
+    
+    return orders.filter(order => {
+      const orderComplexId = order.cinemaComplexId;
+      const matches = managerComplexIds.some(id => 
+        id == orderComplexId || 
+        Number(id) === Number(orderComplexId) ||
+        String(id) === String(orderComplexId)
+      );
+      
+      if (!matches && orders.indexOf(order) < 3) {
+        console.log(`ManagerReports: Order ${order.bookingId} filtered out: cinemaComplexId=${orderComplexId} not in managerComplexIds=${managerComplexIds}`);
+      }
+      
+      return matches;
+    });
   }, [orders, managerComplexIds]);
 
   const dateRange = useMemo(() => {
@@ -139,6 +236,33 @@ function ManagerReports({ orders, movies, cinemas, managerComplexIds }) {
   const formatNumber = (num) => {
     return new Intl.NumberFormat('vi-VN').format(num);
   };
+
+  // Debug logging
+  useEffect(() => {
+    console.log('ManagerReports: Orders loaded:', orders.length);
+    console.log('ManagerReports: Scoped orders:', scopedOrders.length);
+    console.log('ManagerReports: Filtered orders:', filteredOrders.length);
+    console.log('ManagerReports: Summary stats:', summaryStats);
+  }, [orders, scopedOrders, filteredOrders, summaryStats]);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px', color: '#fff' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            border: '4px solid rgba(232, 59, 65, 0.3)',
+            borderTop: '4px solid #e83b41',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px'
+          }}></div>
+          <p>Đang tải dữ liệu báo cáo...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

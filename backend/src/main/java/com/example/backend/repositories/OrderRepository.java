@@ -41,7 +41,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "ORDER BY o.orderDate DESC")
     List<Order> findAllWithDetails();
     
-    // Get orders by cinema complex ID for manager
+    // Get orders by cinema complex ID for manager (only paid orders with tickets)
+    // Note: orderCombos will be loaded lazily in service layer to avoid MultipleBagFetchException
     @Query("SELECT DISTINCT o FROM Order o " +
            "LEFT JOIN FETCH o.tickets t " +
            "LEFT JOIN FETCH t.showtime s " +
@@ -53,6 +54,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "LEFT JOIN FETCH cc.address a " +
            "LEFT JOIN FETCH o.user u " +
            "WHERE cc.complexId = :complexId " +
+           "AND o.vnpPayDate IS NOT NULL " +
+           "AND EXISTS (SELECT 1 FROM Ticket t2 WHERE t2.order = o) " +
            "ORDER BY o.orderDate DESC")
     List<Order> findByCinemaComplexIdWithDetails(@Param("complexId") Long complexId);
     
