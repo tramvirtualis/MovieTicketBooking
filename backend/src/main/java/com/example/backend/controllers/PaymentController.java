@@ -839,10 +839,13 @@ public class PaymentController {
                 return ResponseEntity.ok(createSuccessResponse("Email đã được gửi từ hệ thống", null));
             }
             
-            // Kiểm tra order có tickets không (phải có vé mới gửi email)
-            if (order.getTickets() == null || order.getTickets().isEmpty()) {
+            // Kiểm tra order có tickets hoặc combos không (phải có vé hoặc đồ ăn mới gửi email)
+            boolean hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
+            boolean hasCombos = order.getOrderCombos() != null && !order.getOrderCombos().isEmpty();
+            
+            if (!hasTickets && !hasCombos) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(createErrorResponse("Đơn hàng không có vé xem phim", null));
+                        .body(createErrorResponse("Đơn hàng không có vé xem phim cũng không có đồ ăn", null));
             }
             
             // Gửi email
