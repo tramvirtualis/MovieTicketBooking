@@ -100,6 +100,38 @@ public class ReviewService {
     }
     
     @Transactional
+    public void deleteReview(Long reviewId) {
+        // Lấy username từ SecurityContext
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        
+        // Tìm user
+        Optional<User> userOpt = userRepository.findByUsername(username);
+        if (userOpt.isEmpty()) {
+            throw new RuntimeException("Không tìm thấy người dùng");
+        }
+        User user = userOpt.get();
+        
+        // Tìm review
+        Optional<Review> reviewOpt = reviewRepository.findById(reviewId);
+        if (reviewOpt.isEmpty()) {
+            throw new RuntimeException("Không tìm thấy đánh giá");
+        }
+        Review review = reviewOpt.get();
+        
+        // Kiểm tra quyền: chỉ user tạo review mới được xóa
+        if (!review.getUser().getUserId().equals(user.getUserId())) {
+            throw new RuntimeException("Bạn không có quyền xóa đánh giá này");
+        }
+        
+        // Xóa tất cả reports liên quan
+        List<ReviewReport> reports = reviewReportRepository.findByReviewReviewIdOrderByReportedAtDesc(reviewId);
+        reviewReportRepository.deleteAll(reports);
+        
+        // Xóa review
+        reviewRepository.delete(review);
+    }
+    
+    @Transactional
     public void reportReview(Long reviewId, String reason) {
         // Lấy username từ SecurityContext
         String username = SecurityContextHolder.getContext().getAuthentication().getName();

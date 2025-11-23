@@ -171,6 +171,28 @@ export const reviewService = {
     }
 
     return data.data || [];
+  },
+
+  async deleteReview(reviewId) {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      throw new Error('Bạn cần đăng nhập');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/reviews/${reviewId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Có lỗi xảy ra khi xóa đánh giá');
+    }
+
+    return data;
   }
 };
 

@@ -164,6 +164,23 @@ public class ReviewController {
         }
     }
     
+    @DeleteMapping("/{reviewId}")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN', 'MANAGER')")
+    public ResponseEntity<?> deleteReview(@PathVariable Long reviewId) {
+        try {
+            reviewService.deleteReview(reviewId);
+            return ResponseEntity.ok(
+                createSuccessResponse("Xóa đánh giá thành công", null)
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+    
     private Map<String, Object> createSuccessResponse(String message, Object data) {
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);

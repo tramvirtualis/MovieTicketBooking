@@ -31,6 +31,10 @@ export default function MovieDetail() {
   const [loadingFavorite, setLoadingFavorite] = useState(false);
   const [expandedReviews, setExpandedReviews] = useState(new Set());
   const [reportingReviewId, setReportingReviewId] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedReviewId, setSelectedReviewId] = useState(null);
+  const [reportReason, setReportReason] = useState('');
+  const [showReportSuccess, setShowReportSuccess] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const reviewsPerPage = 4;
   const [showAgeConfirmModal, setShowAgeConfirmModal] = useState(false);
@@ -346,24 +350,35 @@ export default function MovieDetail() {
     }
   };
 
-  // Handle report review
-  const handleReportReview = async (reviewId) => {
+  // Handle open report modal
+  const handleOpenReportModal = (reviewId) => {
     const token = localStorage.getItem('jwt');
     if (!token) {
       alert('Bạn cần đăng nhập để báo cáo đánh giá');
       navigate('/login');
       return;
     }
+    setSelectedReviewId(reviewId);
+    setReportReason('');
+    setShowReportModal(true);
+  };
 
-    const reason = prompt('Vui lòng nhập lý do báo cáo đánh giá này:');
-    if (!reason || reason.trim() === '') {
+  // Handle submit report
+  const handleSubmitReport = async () => {
+    if (!reportReason.trim()) {
       return;
     }
 
-    setReportingReviewId(reviewId);
+    setReportingReviewId(selectedReviewId);
     try {
-      await reviewService.reportReview(reviewId, reason.trim());
-      alert('Báo cáo đánh giá thành công. Cảm ơn bạn đã góp ý!');
+      await reviewService.reportReview(selectedReviewId, reportReason.trim());
+      setShowReportModal(false);
+      setReportReason('');
+      setSelectedReviewId(null);
+      setShowReportSuccess(true);
+      setTimeout(() => {
+        setShowReportSuccess(false);
+      }, 3000);
     } catch (err) {
       alert(err.message || 'Có lỗi xảy ra khi báo cáo đánh giá');
     } finally {
@@ -916,43 +931,54 @@ export default function MovieDetail() {
                               <div className="movie-review-card__date">
                                 {formatShortDate(review.reviewDate)}
                               </div>
-                              <button
-                                onClick={() => handleReportReview(review.id)}
-                                disabled={reportingReviewId === review.id}
-                                style={{
-                                  background: 'transparent',
-                                  border: 'none',
-                                  cursor: reportingReviewId === review.id ? 'wait' : 'pointer',
-                                  padding: '4px 8px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  color: 'rgba(255,255,255,0.6)',
-                                  transition: 'color 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (reportingReviewId !== review.id) {
-                                    e.target.style.color = '#e83b41';
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (reportingReviewId !== review.id) {
-                                    e.target.style.color = 'rgba(255,255,255,0.6)';
-                                  }
-                                }}
-                                title="Báo cáo đánh giá này"
-                              >
-                                <svg 
-                                  width="18" 
-                                  height="18" 
-                                  viewBox="0 0 24 24" 
-                                  fill="none" 
-                                  stroke="currentColor" 
-                                  strokeWidth="2"
-                                >
-                                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
-                                  <line x1="4" y1="22" x2="4" y2="15"></line>
-                                </svg>
-                              </button>
+                              {(() => {
+                                const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+                                const isOwnReview = review.userId && currentUser.userId && review.userId === currentUser.userId;
+                                
+                                if (isOwnReview) {
+                                  return null; // Ẩn nút report cho review của chính mình
+                                }
+                                
+                                return (
+                                  <button
+                                    onClick={() => handleOpenReportModal(review.id)}
+                                    disabled={reportingReviewId === review.id}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      cursor: reportingReviewId === review.id ? 'wait' : 'pointer',
+                                      padding: '4px 8px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      color: 'rgba(255,255,255,0.6)',
+                                      transition: 'color 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      if (reportingReviewId !== review.id) {
+                                        e.target.style.color = '#e83b41';
+                                      }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      if (reportingReviewId !== review.id) {
+                                        e.target.style.color = 'rgba(255,255,255,0.6)';
+                                      }
+                                    }}
+                                    title="Báo cáo đánh giá này"
+                                  >
+                                    <svg 
+                                      width="18" 
+                                      height="18" 
+                                      viewBox="0 0 24 24" 
+                                      fill="none" 
+                                      stroke="currentColor" 
+                                      strokeWidth="2"
+                                    >
+                                      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                      <line x1="4" y1="22" x2="4" y2="15"></line>
+                                    </svg>
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </div>
                           <div className="movie-review-card__review">
@@ -1259,6 +1285,121 @@ export default function MovieDetail() {
           </div>
         </div>
       )}
+
+      {/* Report Review Modal */}
+      {showReportModal && (
+        <div 
+          className="movie-modal-overlay"
+          onClick={() => {
+            setShowReportModal(false);
+            setReportReason('');
+            setSelectedReviewId(null);
+          }}
+        >
+          <div 
+            className="movie-modal" 
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '500px' }}
+          >
+            <div className="movie-modal__header">
+              <h2>Báo cáo đánh giá</h2>
+              <button 
+                className="movie-modal__close" 
+                onClick={() => {
+                  setShowReportModal(false);
+                  setReportReason('');
+                  setSelectedReviewId(null);
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="movie-modal__content">
+              <div className="movie-form">
+                <div className="movie-form__group">
+                  <label>Vui lòng nhập lý do báo cáo đánh giá này <span className="required">*</span></label>
+                  <textarea
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    placeholder="Nhập lý do báo cáo..."
+                    rows="5"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      resize: 'vertical',
+                      minHeight: '100px'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="movie-modal__footer">
+              <button 
+                className="btn btn--ghost" 
+                onClick={() => {
+                  setShowReportModal(false);
+                  setReportReason('');
+                  setSelectedReviewId(null);
+                }}
+              >
+                Hủy
+              </button>
+              <button 
+                className="btn btn--primary" 
+                onClick={handleSubmitReport}
+                disabled={!reportReason.trim() || reportingReviewId === selectedReviewId}
+              >
+                {reportingReviewId === selectedReviewId ? 'Đang gửi...' : 'Gửi báo cáo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Success Notification */}
+      {showReportSuccess && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            background: 'linear-gradient(135deg, rgba(76, 175, 80, 0.95) 0%, rgba(56, 142, 60, 0.95) 100%)',
+            color: '#fff',
+            padding: '16px 24px',
+            borderRadius: '12px',
+            boxShadow: '0 8px 24px rgba(76, 175, 80, 0.4)',
+            zIndex: 10002,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            animation: 'slideInRight 0.3s ease-out',
+            border: '1px solid rgba(255, 255, 255, 0.2)'
+          }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '16px', marginBottom: '2px' }}>
+              Báo cáo thành công!
+            </div>
+            <div style={{ fontSize: '14px', opacity: 0.9 }}>
+              Cảm ơn bạn đã góp ý.
+            </div>
+          </div>
+        </div>
+      )}
+
       <Footer />
     </div>
   );

@@ -38,10 +38,10 @@ export default function ReviewForm({ movie, onClose, onSuccess }) {
       // For now, we'll use a placeholder - you may need to adjust this
       const movieId = movie?.movieId || 1; // This should come from actual booking data
       
-      await reviewService.createReview(movieId, rating, context);
+      const result = await reviewService.createReview(movieId, rating, context);
       
       if (onSuccess) {
-        onSuccess();
+        onSuccess(result.data || { reviewId: result.reviewId, movieId: movieId });
       }
       
       onClose();

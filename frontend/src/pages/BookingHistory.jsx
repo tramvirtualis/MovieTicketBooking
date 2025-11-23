@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import ReviewForm from '../components/ReviewForm.jsx';
+import ConfirmDeleteModal from '../components/Common/ConfirmDeleteModal.jsx';
 import { QRCodeSVG } from 'qrcode.react';
 import { getMyOrders } from '../services/customer';
+import { reviewService } from '../services/reviewService';
 
 export default function BookingHistory() {
   const navigate = useNavigate();
@@ -17,6 +19,41 @@ export default function BookingHistory() {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [selectedMovieForReview, setSelectedMovieForReview] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [successMessageType, setSuccessMessageType] = useState('create'); // 'create' or 'delete'
+  const [userReviews, setUserReviews] = useState([]); // Map movieId -> reviewId
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [deletingReviewId, setDeletingReviewId] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [reviewToDelete, setReviewToDelete] = useState(null); // { reviewId, movieTitle }
+
+  // Load user reviews
+  const loadUserReviews = async () => {
+    const token = localStorage.getItem('jwt');
+    if (!token) return;
+
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!storedUser.userId) return;
+
+    setLoadingReviews(true);
+    try {
+      const reviews = await reviewService.getReviewsByUser(storedUser.userId);
+      // Create a map: movieId -> reviewId
+      const reviewsMap = {};
+      reviews.forEach(review => {
+        reviewsMap[review.movieId] = review.reviewId;
+      });
+      setUserReviews(reviewsMap);
+    } catch (err) {
+      console.error('Error loading user reviews:', err);
+      setUserReviews({});
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUserReviews();
+  }, []);
 
   // Load bookings from API
   useEffect(() => {
@@ -322,42 +359,59 @@ export default function BookingHistory() {
                         </div>
                       </div>
 
-                      {booking.status === 'upcoming' && (
-                        <div className="booking-card__actions mt-4 flex gap-2.5">
-                          <button 
-                            className="btn btn--primary" 
-                            style={{ fontSize: '14px', padding: '10px 20px' }}
-                            onClick={() => {
-                              setSelectedBooking(booking);
-                              setShowTicketModal(true);
-                            }}
-                          >
-                            Xem lại vé
-                          </button>
-                        </div>
-                      )}
 
-                      {booking.status === 'completed' && (
-                        <div className="booking-card__actions mt-4 flex gap-2.5">
-                          <button 
-                            className="btn btn--primary" 
-                            style={{ fontSize: '14px', padding: '10px 20px' }}
-                            onClick={() => {
-                              setSelectedMovieForReview({
-                                title: booking.movie.title,
-                                poster: booking.movie.poster,
-                                movieId: booking.movie.movieId
-                              });
-                              setShowReviewForm(true);
-                            }}
-                          >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
-                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                            </svg>
-                            Viết đánh giá
-                          </button>
-                        </div>
-                      )}
+                      {booking.status === 'completed' && (() => {
+                        const reviewId = userReviews[booking.movie.movieId];
+                        const hasReview = !!reviewId;
+                        
+                        return (
+                          <div className="booking-card__actions mt-4 flex gap-2.5">
+                            {hasReview ? (
+                              <button 
+                                className="btn btn--primary" 
+                                style={{ 
+                                  fontSize: '14px', 
+                                  padding: '10px 20px',
+                                  backgroundColor: '#e83b41',
+                                  opacity: deletingReviewId === reviewId ? 0.7 : 1
+                                }}
+                                onClick={() => {
+                                  setReviewToDelete({
+                                    reviewId: reviewId,
+                                    movieTitle: booking.movie.title
+                                  });
+                                  setShowDeleteConfirm(true);
+                                }}
+                                disabled={deletingReviewId === reviewId}
+                              >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
+                                  <polyline points="3 6 5 6 21 6"/>
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                                {deletingReviewId === reviewId ? 'Đang xóa...' : 'Xóa đánh giá'}
+                              </button>
+                            ) : (
+                              <button 
+                                className="btn btn--primary" 
+                                style={{ fontSize: '14px', padding: '10px 20px' }}
+                                onClick={() => {
+                                  setSelectedMovieForReview({
+                                    title: booking.movie.title,
+                                    poster: booking.movie.poster,
+                                    movieId: booking.movie.movieId
+                                  });
+                                  setShowReviewForm(true);
+                                }}
+                              >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
+                                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                </svg>
+                                Viết đánh giá
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -583,7 +637,10 @@ export default function BookingHistory() {
             setShowReviewForm(false);
             setSelectedMovieForReview(null);
           }}
-          onSuccess={() => {
+          onSuccess={async (reviewData) => {
+            // Reload user reviews to update UI
+            await loadUserReviews();
+            setSuccessMessageType('create');
             setShowSuccessMessage(true);
             setTimeout(() => {
               setShowSuccessMessage(false);
@@ -591,6 +648,40 @@ export default function BookingHistory() {
           }}
         />
       )}
+
+      {/* Confirm Delete Review Modal */}
+      <ConfirmDeleteModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setReviewToDelete(null);
+        }}
+        onConfirm={async () => {
+          if (!reviewToDelete) return;
+          
+          setDeletingReviewId(reviewToDelete.reviewId);
+          try {
+            await reviewService.deleteReview(reviewToDelete.reviewId);
+            // Reload user reviews to update UI
+            await loadUserReviews();
+            setSuccessMessageType('delete');
+            setShowSuccessMessage(true);
+            setTimeout(() => {
+              setShowSuccessMessage(false);
+            }, 3000);
+            setShowDeleteConfirm(false);
+            setReviewToDelete(null);
+          } catch (err) {
+            alert(err.message || 'Có lỗi xảy ra khi xóa đánh giá');
+          } finally {
+            setDeletingReviewId(null);
+          }
+        }}
+        title={reviewToDelete?.movieTitle || 'đánh giá này'}
+        message="Bạn có chắc chắn muốn xóa đánh giá này?"
+        confirmText="Xóa đánh giá"
+        isDeleting={deletingReviewId === reviewToDelete?.reviewId}
+      />
 
       {/* Success Notification */}
       {showSuccessMessage && (
@@ -619,10 +710,10 @@ export default function BookingHistory() {
           </svg>
           <div>
             <div style={{ fontWeight: 700, fontSize: '16px', marginBottom: '2px' }}>
-              Đánh giá thành công!
+              {successMessageType === 'delete' ? 'Xóa đánh giá thành công!' : 'Đánh giá thành công!'}
             </div>
             <div style={{ fontSize: '14px', opacity: 0.9 }}>
-              Cảm ơn bạn đã chia sẻ đánh giá về bộ phim.
+              {successMessageType === 'delete' ? 'Đánh giá đã được xóa khỏi hệ thống.' : 'Cảm ơn bạn đã chia sẻ đánh giá về bộ phim.'}
             </div>
           </div>
         </div>
