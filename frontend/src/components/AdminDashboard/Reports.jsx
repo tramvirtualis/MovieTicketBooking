@@ -15,6 +15,7 @@ import {
   Cell
 } from 'recharts';
 import { getAllOrdersAdmin } from '../../services/customer';
+import { statisticsService } from '../../services/statisticsService';
 
 // Reports Component
 function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
@@ -23,7 +24,43 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
   const [selectedMovie, setSelectedMovie] = useState('all');
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [statistics, setStatistics] = useState({
+    totalRevenue: 0,
+    totalTicketsSold: 0,
+    activeMoviesCount: 0,
+    activeCustomersCount: 0,
+    activeVouchersCount: 0
+  });
+  const [statisticsLoading, setStatisticsLoading] = useState(true);
   
+  // Load statistics from backend
+  useEffect(() => {
+    const loadStatistics = async () => {
+      setStatisticsLoading(true);
+      try {
+        const result = await statisticsService.getAllStatistics();
+        if (result.success && result.data) {
+          setStatistics({
+            totalRevenue: parseFloat(result.data.totalRevenue) || 0,
+            totalTicketsSold: result.data.totalTicketsSold || 0,
+            activeMoviesCount: result.data.activeMoviesCount || 0,
+            activeCustomersCount: result.data.activeCustomersCount || 0,
+            activeVouchersCount: result.data.activeVouchersCount || 0
+          });
+          console.log('Reports: Loaded statistics from backend:', result.data);
+        } else {
+          console.error('Reports: Failed to load statistics:', result.error);
+        }
+      } catch (err) {
+        console.error('Reports: Error loading statistics:', err);
+      } finally {
+        setStatisticsLoading(false);
+      }
+    };
+    
+    loadStatistics();
+  }, []);
+
   // Load orders from backend
   useEffect(() => {
     const loadOrders = async () => {
@@ -120,49 +157,141 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
 
   // Filter orders based on filters
   const filteredOrders = useMemo(() => {
-    return (orders || []).filter(order => {
-      if (order.status !== 'PAID') return false;
+    console.log('Filtering orders:', {
+      totalOrders: orders.length,
+      selectedCinema,
+      selectedMovie,
+      timeRange,
+      dateRangeStart: dateRange.startDate,
+      dateRangeEnd: dateRange.endDate
+    });
+    
+    // Log sample order to see structure
+    if (orders.length > 0) {
+      console.log('Sample order structure:', {
+        order: orders[0],
+        cinemaComplexId: orders[0].cinemaComplexId,
+        cinemaComplexIdType: typeof orders[0].cinemaComplexId,
+        movieId: orders[0].movieId,
+        movieIdType: typeof orders[0].movieId,
+        status: orders[0].status,
+        showtime: orders[0].showtime,
+        orderDate: orders[0].orderDate,
+        orderDateParsed: orders[0].orderDate ? new Date(orders[0].orderDate) : null
+      });
+    }
+    
+    const filtered = (orders || []).filter(order => {
+      // Check status
+      if (order.status !== 'PAID') {
+        console.log('Order filtered out - status not PAID:', order.status, order);
+        return false;
+      }
       
-      const orderDate = new Date(order.showtime);
-      if (orderDate < dateRange.startDate || orderDate > dateRange.endDate) return false;
+      // Check date range - use orderDate (when order was placed) not showtime
+      // If orderDate is not available, fallback to showtime
+      const orderPlacedDate = order.orderDate ? new Date(order.orderDate) : new Date(order.showtime);
       
-      if (selectedCinema !== 'all' && order.cinemaComplexId !== Number(selectedCinema)) return false;
-      if (selectedMovie !== 'all' && order.movieId !== Number(selectedMovie)) return false;
+      // Normalize dates to compare only date part (ignore time)
+      const normalizedOrderDate = new Date(orderPlacedDate);
+      normalizedOrderDate.setHours(0, 0, 0, 0);
+      
+      const normalizedStartDate = new Date(dateRange.startDate);
+      normalizedStartDate.setHours(0, 0, 0, 0);
+      
+      const normalizedEndDate = new Date(dateRange.endDate);
+      normalizedEndDate.setHours(23, 59, 59, 999); // Include entire end date
+      
+      if (normalizedOrderDate < normalizedStartDate || normalizedOrderDate > normalizedEndDate) {
+        console.log('Order filtered out - date out of range:', {
+          orderPlacedDate: normalizedOrderDate,
+          orderDate: order.orderDate,
+          showtime: order.showtime,
+          startDate: normalizedStartDate,
+          endDate: normalizedEndDate,
+          order
+        });
+        return false;
+      }
+      
+      // Filter by cinema - convert both to numbers for comparison
+      if (selectedCinema !== 'all') {
+        const cinemaId = Number(selectedCinema);
+        const orderCinemaId = Number(order.cinemaComplexId);
+        if (isNaN(cinemaId) || isNaN(orderCinemaId)) {
+          console.warn('Invalid cinema ID:', { cinemaId, orderCinemaId, order });
+          return false;
+        }
+        if (orderCinemaId !== cinemaId) {
+          console.log('Order filtered out - cinema mismatch:', {
+            selectedCinema: cinemaId,
+            orderCinemaId,
+            order
+          });
+          return false;
+        }
+      }
+      
+      // Filter by movie - convert both to numbers for comparison
+      if (selectedMovie !== 'all') {
+        const movieId = Number(selectedMovie);
+        const orderMovieId = Number(order.movieId);
+        if (isNaN(movieId) || isNaN(orderMovieId)) {
+          console.warn('Invalid movie ID:', { movieId, orderMovieId, order });
+          return false;
+        }
+        if (orderMovieId !== movieId) {
+          console.log('Order filtered out - movie mismatch:', {
+            selectedMovie: movieId,
+            orderMovieId,
+            order
+          });
+          return false;
+        }
+      }
       
       return true;
     });
-  }, [orders, dateRange, selectedCinema, selectedMovie]);
+    
+    console.log('Filtered orders result:', {
+      filteredCount: filtered.length,
+      sampleOrder: filtered[0],
+      allOrdersCinemaIds: orders.map(o => o.cinemaComplexId),
+      allOrdersMovieIds: orders.map(o => o.movieId),
+      filterApplied: {
+        cinema: selectedCinema,
+        movie: selectedMovie,
+        timeRange: timeRange
+      }
+    });
+    
+    return filtered;
+  }, [orders, dateRange, selectedCinema, selectedMovie, timeRange]);
 
   // Summary Statistics
+  // Note: totalRevenue và totalTickets từ API là tổng tất cả (không filter)
+  // Còn filteredRevenue và filteredTickets là cho biểu đồ (có filter theo thời gian)
   const summaryStats = useMemo(() => {
-    const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-    const totalTickets = filteredOrders.reduce((sum, order) => sum + (order.seats?.length || 0), 0);
-    const activeMovies = (movies || []).filter(m => m.status === 'NOW_SHOWING').length;
-    const registeredCustomers = (users || []).filter(u => {
-      return u.role !== 'ADMIN' && u.role !== 'MANAGER';
-    }).length;
+    // Tính toán doanh thu và vé theo filter (cho biểu đồ)
+    const filteredRevenue = filteredOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+    const filteredTickets = filteredOrders.reduce((sum, order) => sum + (order.seats?.length || 0), 0);
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const activeVouchers = (vouchers || []).filter(v => {
-      const start = new Date(v.startDate);
-      const end = new Date(v.endDate);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      return start <= today && today <= end && v.status;
-    }).length;
-
+    // Sử dụng thống kê từ API (tổng tất cả, không filter)
     return {
-      totalRevenue,
-      totalTickets,
-      activeMovies,
-      registeredCustomers,
-      activeVouchers
+      totalRevenue: statistics.totalRevenue, // Tổng doanh thu từ API (tất cả orders)
+      totalTickets: statistics.totalTicketsSold, // Tổng vé từ API (tất cả tickets)
+      activeMovies: statistics.activeMoviesCount, // Phim đang chiếu từ API
+      registeredCustomers: statistics.activeCustomersCount, // Khách hàng không bị blocked từ API
+      activeVouchers: statistics.activeVouchersCount, // Voucher hoạt động từ API
+      // Giữ lại filtered values cho biểu đồ nếu cần
+      filteredRevenue,
+      filteredTickets
     };
-  }, [filteredOrders, movies, users, vouchers]);
+  }, [filteredOrders, statistics]);
 
   // Revenue by Movie
   const revenueByMovie = useMemo(() => {
+    console.log('Calculating revenueByMovie from filteredOrders:', filteredOrders.length);
     const movieRevenue = {};
     filteredOrders.forEach(order => {
       const movieId = order.movieId;
@@ -173,7 +302,9 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
       movieRevenue[movieId].revenue += order.totalAmount || 0;
       movieRevenue[movieId].tickets += order.seats?.length || 0;
     });
-    return Object.values(movieRevenue).sort((a, b) => b.revenue - a.revenue);
+    const result = Object.values(movieRevenue).sort((a, b) => b.revenue - a.revenue);
+    console.log('revenueByMovie result:', result);
+    return result;
   }, [filteredOrders, movies]);
 
   // Revenue by Cinema - Aggregate by unique orderId to avoid double counting
@@ -259,9 +390,10 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
     }
     
     filteredOrders.forEach(order => {
-      const orderDate = new Date(order.showtime);
-      orderDate.setHours(0, 0, 0, 0);
-      const dateStr = orderDate.toISOString().split('T')[0];
+      // Use orderDate (when order was placed) for daily revenue calculation
+      const orderPlacedDate = new Date(order.orderDate || order.showtime);
+      orderPlacedDate.setHours(0, 0, 0, 0);
+      const dateStr = orderPlacedDate.toISOString().split('T')[0];
       if (daily[dateStr] !== undefined) {
         daily[dateStr] += order.totalAmount || 0;
       }
@@ -372,9 +504,12 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
     console.log('Reports: Orders loaded:', orders.length);
     console.log('Reports: Filtered orders:', filteredOrders.length);
     console.log('Reports: Summary stats:', summaryStats);
-  }, [orders, filteredOrders, summaryStats]);
+    console.log('Reports: Revenue by Movie count:', revenueByMovie.length);
+    console.log('Reports: Revenue by Cinema count:', revenueByCinema.length);
+    console.log('Reports: Current filters:', { selectedCinema, selectedMovie, timeRange });
+  }, [orders, filteredOrders, summaryStats, revenueByMovie, revenueByCinema, selectedCinema, selectedMovie, timeRange]);
 
-  if (loading) {
+  if (loading || statisticsLoading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px', color: '#fff' }}>
         <div style={{ textAlign: 'center' }}>
