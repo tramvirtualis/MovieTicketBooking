@@ -91,13 +91,14 @@ export const paymentService = {
     try {
       const response = await axiosInstance.get(`/payment/zalopay/status/${appTransId}`);
       return {
-        success: true,
-        data: response.data
+        success: response.data?.success,
+        message: response.data?.message,
+        data: response.data?.data,
       };
     } catch (error) {
       return {
         success: false,
-        error: error.message || 'Không thể kiểm tra trạng thái thanh toán',
+        message: error.response?.data?.message || error.message || 'Không thể kiểm tra trạng thái thanh toán',
         data: null
       };
     }

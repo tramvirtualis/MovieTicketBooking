@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.math.RoundingMode;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -30,9 +31,10 @@ public class MomoService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public MomoCreatePaymentResponse createPayment(String orderId,
-                                                   String requestId,
-                                                   BigDecimal amount,
-                                                   String orderInfo) {
+            String requestId,
+            BigDecimal amount,
+            String orderInfo,
+            String extraData) {
         try {
             String amountStr = amount.setScale(0, RoundingMode.HALF_UP).toPlainString();
 
@@ -48,7 +50,7 @@ public class MomoService {
             payload.put("lang", properties.getLang());
             payload.put("orderInfo", orderInfo);
             payload.put("requestId", requestId);
-            payload.put("extraData", properties.getExtraData());
+            payload.put("extraData", extraData != null ? extraData : "");
             if (properties.getPaymentCode() != null && !properties.getPaymentCode().isEmpty()) {
                 payload.put("paymentCode", properties.getPaymentCode());
             }
@@ -57,7 +59,8 @@ public class MomoService {
             }
             payload.put("autoCapture", properties.isAutoCapture());
 
-            String rawSignature = buildCreateSignature(orderId, requestId, amountStr, orderInfo);
+            String rawSignature = buildCreateSignature(orderId, requestId, amountStr, orderInfo,
+                    extraData != null ? extraData : "");
             payload.put("signature", hmacSHA256(properties.getSecretKey(), rawSignature));
 
             HttpHeaders headers = new HttpHeaders();
@@ -67,13 +70,52 @@ public class MomoService {
             ResponseEntity<MomoCreatePaymentResponse> response = restTemplate.postForEntity(
                     properties.getEndpoint(),
                     entity,
-                    MomoCreatePaymentResponse.class
-            );
+                    MomoCreatePaymentResponse.class);
 
             return response.getBody();
         } catch (Exception e) {
             log.error("Failed to create MoMo payment", e);
             throw new IllegalStateException("Không thể tạo giao dịch MoMo", e);
+        }
+    }
+
+    public Map<String, Object> queryTransaction(String orderId) {
+        try {
+            String requestId = UUID.randomUUID().toString();
+            String rawSignature = "accessKey=" + properties.getAccessKey()
+                    + "&orderId=" + orderId
+                    + "&partnerCode=" + properties.getPartnerCode()
+                    + "&requestId=" + requestId;
+            
+            String signature = hmacSHA256(properties.getSecretKey(), rawSignature);
+            
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("partnerCode", properties.getPartnerCode());
+            payload.put("requestId", requestId);
+            payload.put("orderId", orderId);
+            payload.put("signature", signature);
+            payload.put("lang", properties.getLang());
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+            
+            // Derive query endpoint from create endpoint if possible, otherwise use default
+            String queryEndpoint = "https://test-payment.momo.vn/v2/gateway/api/query";
+            if (properties.getEndpoint() != null && properties.getEndpoint().contains("/create")) {
+                queryEndpoint = properties.getEndpoint().replace("/create", "/query");
+            }
+            
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    queryEndpoint,
+                    entity,
+                    Map.class);
+            
+            return response.getBody();
+        } catch (Exception e) {
+            log.error("Failed to query MoMo transaction", e);
+            return null;
         }
     }
 
@@ -88,12 +130,13 @@ public class MomoService {
     }
 
     private String buildCreateSignature(String orderId,
-                                        String requestId,
-                                        String amount,
-                                        String orderInfo) {
+            String requestId,
+            String amount,
+            String orderInfo,
+            String extraData) {
         return "accessKey=" + properties.getAccessKey()
                 + "&amount=" + amount
-                + "&extraData=" + properties.getExtraData()
+                + "&extraData=" + extraData
                 + "&ipnUrl=" + properties.getIpnUrl()
                 + "&orderId=" + orderId
                 + "&orderInfo=" + orderInfo
@@ -155,5 +198,3 @@ public class MomoService {
         }
     }
 }
-
-

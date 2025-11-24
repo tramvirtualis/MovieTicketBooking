@@ -31,6 +31,19 @@ const PaymentSuccess = () => {
     const amount = searchParams.get('amount') || searchParams.get('vnp_Amount'); // Amount
     const txnRef = orderId || vnp_TxnRef || apptransid;
 
+    console.log('=== PaymentSuccess Debug ===');
+    console.log('URL Search Params:', {
+      apptransid,
+      orderId,
+      vnp_TxnRef,
+      status,
+      resultCode,
+      vnp_ResponseCode,
+      amount,
+      txnRef,
+      allParams: Object.fromEntries(searchParams.entries())
+    });
+
     // Xác định payment method
     let paymentMethod = 'UNKNOWN';
     let transactionId = '';
@@ -41,6 +54,7 @@ const PaymentSuccess = () => {
       // ZaloPay
       paymentMethod = 'ZaloPay';
       transactionId = apptransid;
+      console.log('Detected ZaloPay payment, txnRef:', apptransid);
       // Nếu có status trong URL, dùng nó, nhưng vẫn sẽ kiểm tra order để chắc chắn
       if (status !== null && status !== undefined) {
         paymentStatus = status === '1' ? 'Thành công' : 'Thất bại';
@@ -54,6 +68,7 @@ const PaymentSuccess = () => {
       // MoMo
       paymentMethod = 'MoMo';
       transactionId = orderId;
+      console.log('Detected MoMo payment, txnRef:', orderId);
       // Nếu có resultCode trong URL, dùng nó, nhưng vẫn sẽ kiểm tra order để chắc chắn
       if (resultCode !== null && resultCode !== undefined) {
         paymentStatus = resultCode === '0' ? 'Thành công' : 'Thất bại';
@@ -67,6 +82,7 @@ const PaymentSuccess = () => {
       // VNPay
       paymentMethod = 'VNPay';
       transactionId = vnp_TxnRef;
+      console.log('Detected VNPay payment, txnRef:', vnp_TxnRef);
       // Nếu có vnp_ResponseCode trong URL, dùng nó
       if (vnp_ResponseCode !== null && vnp_ResponseCode !== undefined) {
         paymentStatus = vnp_ResponseCode === '00' ? 'Thành công' : 'Thất bại';
@@ -77,9 +93,12 @@ const PaymentSuccess = () => {
       }
     } else {
       // Không có params nào, không thể xác định
+      console.error('No payment params found in URL');
       setLoading(false);
       return;
     }
+
+    console.log('Payment method detected:', paymentMethod, 'txnRef:', txnRef);
 
     // Set initial info
     setPaymentInfo({
@@ -92,40 +111,57 @@ const PaymentSuccess = () => {
       message: isPaymentSuccess ? 'Thanh toán thành công!' : 'Đang kiểm tra...'
     });
     setIsSuccess(isPaymentSuccess);
-    
+
     // LUÔN LUÔN thử fetch order info dựa trên txnRef để xác định thực sự thành công hay không
     // Vì chỉ lưu đơn thành công, nếu tìm thấy order = thanh toán thành công
     if (txnRef) {
-      fetchOrderInfo(txnRef);
+      console.log('Fetching order info for txnRef:', txnRef, 'method:', paymentMethod);
+      fetchOrderInfo(txnRef, paymentMethod);
     } else {
       // Không có txnRef = không thể kiểm tra
+      console.error('No txnRef found, cannot check order status');
       setLoading(false);
     }
   }, [searchParams]);
 
-  const fetchOrderInfo = async (txnRef) => {
+  const fetchOrderInfo = async (txnRef, method) => {
+    console.log('fetchOrderInfo called with:', txnRef, method);
     try {
       // Thử fetch order nhiều lần với delay để đợi order được lưu (tránh race condition)
       let retryCount = 0;
       const maxRetries = 5;
       let orderData = null;
-      
+
       while (retryCount < maxRetries) {
-        const result = await paymentService.getOrderByTxnRef(txnRef);
+        console.log(`Attempt ${retryCount + 1}/${maxRetries} to fetch order...`);
+        let result;
+        if (method === 'ZaloPay') {
+          console.log('Calling checkPaymentStatus for ZaloPay...');
+          result = await paymentService.checkPaymentStatus(txnRef);
+        } else {
+          console.log('Calling getOrderByTxnRef for', method);
+          result = await paymentService.getOrderByTxnRef(txnRef);
+        }
+
+        console.log('API result:', result);
+
         if (result.success && result.data) {
           orderData = result.data;
+          console.log('Order found:', orderData);
           break;
         }
-        
-        // Nếu không tìm thấy, đợi 500ms rồi thử lại
+
+        // Nếu không tìm thấy, đợi 1000ms rồi thử lại (tăng từ 500ms lên 1000ms)
         if (retryCount < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          console.log('Order not found, retrying in 1 second...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
         retryCount++;
       }
-      
+
       if (orderData) {
         // Nếu tìm thấy order thì thanh toán thành công (vì chỉ lưu đơn thành công)
+        console.log('Payment successful, order found:', orderData.orderId);
         setIsSuccess(true);
         setPaymentInfo(prev => ({
           ...prev,
@@ -137,18 +173,18 @@ const PaymentSuccess = () => {
           status: 'Thành công',
           message: 'Thanh toán thành công!'
         }));
-        
+
         // Xóa cart và booking data
         localStorage.removeItem('checkoutCart');
         localStorage.removeItem('pendingBooking');
-        
+
         // Trigger notification và email từ frontend làm FALLBACK (chỉ 1 lần duy nhất)
         // Vì callback/IPN có thể không được gọi (localhost, firewall, etc.)
         const storedUser = JSON.parse(localStorage.getItem('user'));
         const orderId = orderData?.orderId;
         if (storedUser && storedUser.userId && orderId && !notificationTriggered) {
           setNotificationTriggered(true);
-          
+
           // Đợi 2 giây rồi trigger notification và email
           setTimeout(async () => {
             try {
@@ -156,28 +192,29 @@ const PaymentSuccess = () => {
             } catch (notifError) {
               // Không fail flow chính
             }
-            
+
             // Gửi email xác nhận đặt vé (fallback - chỉ khi callback/IPN chưa gửi)
             try {
               await paymentService.sendBookingConfirmationEmail(orderId);
             } catch (emailError) {
               // Không fail flow chính
             }
-            
-            window.dispatchEvent(new CustomEvent('paymentSuccess', { 
-              detail: { orderId: orderId } 
+
+            window.dispatchEvent(new CustomEvent('paymentSuccess', {
+              detail: { orderId: orderId }
             }));
           }, 2000);
         }
       } else {
         // Không tìm thấy order sau nhiều lần thử = thanh toán thất bại hoặc đang xử lý
+        console.error('Order not found after', maxRetries, 'attempts');
         setIsSuccess(false);
         setPaymentInfo(prev => ({
           ...prev,
           status: 'Thất bại',
           message: 'Không tìm thấy đơn hàng. Thanh toán có thể đã thất bại hoặc đang được xử lý. Vui lòng kiểm tra lại sau.'
         }));
-        
+
         // Xóa cart và booking data để user có thể đặt lại
         localStorage.removeItem('checkoutCart');
         localStorage.removeItem('pendingBooking');
@@ -259,7 +296,7 @@ const PaymentSuccess = () => {
           {isSuccess ? 'Thanh toán thành công!' : 'Thanh toán thất bại'}
         </h1>
         <p className="payment-success__message">
-          {paymentInfo.message || (isSuccess 
+          {paymentInfo.message || (isSuccess
             ? 'Cảm ơn bạn đã đặt vé. Đơn hàng của bạn đã được xác nhận.'
             : 'Có lỗi xảy ra trong quá trình thanh toán. Vui lòng thử lại.')}
         </p>

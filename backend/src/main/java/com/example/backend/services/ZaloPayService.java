@@ -37,12 +37,23 @@ public class ZaloPayService {
 
     /**
      * Tạo đơn hàng thanh toán ZaloPay
-     * @param amount Số tiền (VND)
+     * 
+     * @param amount      Số tiền (VND)
      * @param description Mô tả đơn hàng
-     * @param orderId ID đơn hàng trong hệ thống
+     * @param orderId     ID đơn hàng trong hệ thống
      * @return URL thanh toán hoặc null nếu lỗi
      */
-    public Map<String, Object> createPaymentOrder(Long amount, String description, String orderId) {
+    /**
+     * Tạo đơn hàng thanh toán ZaloPay
+     * 
+     * @param amount       Số tiền (VND)
+     * @param description  Mô tả đơn hàng
+     * @param orderId      ID đơn hàng trong hệ thống
+     * @param embedDataStr JSON string chứa dữ liệu nhúng (optional)
+     * @return URL thanh toán hoặc null nếu lỗi
+     */
+    public Map<String, Object> createPaymentOrder(Long amount, String description, String orderId,
+            String embedDataStr) {
         try {
             System.out.println("=== ZaloPayService.createPaymentOrder ===");
             System.out.println("Amount: " + amount);
@@ -50,22 +61,24 @@ public class ZaloPayService {
             System.out.println("OrderId: " + orderId);
             System.out.println("AppId: " + appId);
             System.out.println("Key1: " + key1);
-            
+
             // 1. Tạo app_trans_id theo format: yymmddOrder_identifier
             // Ví dụ: 250210_OrderID (phải có yymmdd ở đầu)
             SimpleDateFormat sdf = new SimpleDateFormat("yyMMdd");
             String dateStr = sdf.format(new Date());
             String appTransId = dateStr + "_" + orderId;
-            
+
             System.out.println("AppTransId: " + appTransId);
 
             // 2. Tạo app_time (milliseconds)
             long appTime = System.currentTimeMillis();
-            
-            // 3. Tạo embed_data (JSON string)
-            Map<String, Object> embedData = new HashMap<>();
-            embedData.put("redirecturl", "http://localhost:5173/payment/success");
-            String embedDataStr = objectMapper.writeValueAsString(embedData);
+
+            // 3. Tạo embed_data (JSON string) nếu chưa có
+            if (embedDataStr == null || embedDataStr.isEmpty()) {
+                Map<String, Object> embedData = new HashMap<>();
+                embedData.put("redirecturl", "http://localhost:5173/payment/success");
+                embedDataStr = objectMapper.writeValueAsString(embedData);
+            }
 
             // 4. Tạo item (JSON array string)
             List<Map<String, Object>> items = new ArrayList<>();
@@ -77,17 +90,15 @@ public class ZaloPayService {
             items.add(item);
             String itemStr = objectMapper.writeValueAsString(items);
 
-
             String appUser = "demo";
-            String macData = appId + "|" + appTransId + "|" + appUser + "|" + amount + "|" + 
-                           appTime + "|" + embedDataStr + "|" + itemStr;
-            
+            String macData = appId + "|" + appTransId + "|" + appUser + "|" + amount + "|" +
+                    appTime + "|" + embedDataStr + "|" + itemStr;
+
             System.out.println("=== MAC Calculation ===");
             System.out.println("MAC data: " + macData);
-            
+
             String mac = HMacHexStringEncode(key1, macData);
             System.out.println("Generated MAC: " + mac);
-
 
             Map<String, String> formParams = new LinkedHashMap<>();
             formParams.put("app_id", appId);
@@ -98,9 +109,9 @@ public class ZaloPayService {
             formParams.put("embed_data", embedDataStr);
             formParams.put("item", itemStr);
             formParams.put("description", description);
-            formParams.put("bank_code", "");  // Để trống để hiển thị tất cả phương thức thanh toán
+            formParams.put("bank_code", ""); // Để trống để hiển thị tất cả phương thức thanh toán
             formParams.put("mac", mac);
-            
+
             System.out.println("=== Final Request Parameters ===");
             formParams.forEach((key, value) -> {
                 if (!key.equals("mac")) {
@@ -111,14 +122,11 @@ public class ZaloPayService {
 
             System.out.println("=== Request to ZaloPay ===");
             System.out.println("Endpoint: " + createOrderEndpoint);
-            
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-            
 
-            org.springframework.util.MultiValueMap<String, String> formData = 
-                new org.springframework.util.LinkedMultiValueMap<>();
+            org.springframework.util.MultiValueMap<String, String> formData = new org.springframework.util.LinkedMultiValueMap<>();
             formData.add("appid", appId);
             formData.add("appuser", appUser);
             formData.add("apptime", String.valueOf(appTime));
@@ -129,19 +137,18 @@ public class ZaloPayService {
             formData.add("description", description);
             formData.add("bankcode", "");
             formData.add("mac", mac);
-            
+
             System.out.println("=== Form Data ===");
             formData.forEach((key, value) -> System.out.println(key + ": " + value));
-            
-            HttpEntity<org.springframework.util.MultiValueMap<String, String>> request = 
-                new HttpEntity<>(formData, headers);
-            
+
+            HttpEntity<org.springframework.util.MultiValueMap<String, String>> request = new HttpEntity<>(formData,
+                    headers);
+
             ResponseEntity<Map> response = restTemplate.exchange(
-                createOrderEndpoint,
-                HttpMethod.POST,
-                request,
-                Map.class
-            );
+                    createOrderEndpoint,
+                    HttpMethod.POST,
+                    request,
+                    Map.class);
 
             System.out.println("=== Response from ZaloPay ===");
             System.out.println("Status: " + response.getStatusCode());
@@ -151,12 +158,12 @@ public class ZaloPayService {
                 Map<String, Object> responseBody = response.getBody();
                 // CHÚ Ý: v001 dùng "returncode" KHÔNG có dấu gạch dưới
                 Integer returnCode = (Integer) responseBody.get("returncode");
-                
+
                 System.out.println("Return code: " + returnCode);
                 System.out.println("Return message: " + responseBody.get("returnmessage"));
                 System.out.println("ZP Trans Token: " + responseBody.get("zptranstoken"));
                 System.out.println("Order URL: " + responseBody.get("orderurl"));
-                
+
                 if (returnCode != null && returnCode == 1) {
                     // Thành công
                     Map<String, Object> result = new HashMap<>();
@@ -179,7 +186,7 @@ public class ZaloPayService {
 
             System.err.println("ZaloPay returned non-OK status or null body");
             return null;
-            
+
         } catch (Exception e) {
             System.err.println("Exception in createPaymentOrder: " + e.getMessage());
             e.printStackTrace();
@@ -209,7 +216,7 @@ public class ZaloPayService {
             SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
             hmac.init(secretKey);
             byte[] hash = hmac.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            
+
             // Convert to hex string
             StringBuilder hexString = new StringBuilder();
             for (byte b : hash) {
@@ -231,27 +238,26 @@ public class ZaloPayService {
     public Map<String, Object> getPaymentStatus(String appTransId) {
         try {
             String queryEndpoint = "https://sb-openapi.zalopay.vn/v2/query";
-            
+
             long appTime = System.currentTimeMillis();
             String macData = appId + "|" + appTransId + "|" + key1;
             String mac = HMacHexStringEncode(key1, macData);
-            
+
             MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
             params.add("app_id", appId);
             params.add("app_trans_id", appTransId);
             params.add("mac", mac);
-            
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-            
+
             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
-            
+
             ResponseEntity<Map> response = restTemplate.postForEntity(
-                queryEndpoint,
-                request,
-                Map.class
-            );
-            
+                    queryEndpoint,
+                    request,
+                    Map.class);
+
             return response.getBody();
         } catch (Exception e) {
             e.printStackTrace();

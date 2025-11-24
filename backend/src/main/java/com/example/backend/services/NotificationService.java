@@ -59,7 +59,7 @@ public class NotificationService {
                     .type(notification.getType())
                     .title(notification.getTitle())
                     .message(notification.getMessage())
-                    .timestamp(notification.getTimestamp() != null ? notification.getTimestamp() : LocalDateTime.now())
+                    .timestamp(LocalDateTime.now())
                     .data(dataJson)
                     .isRead(false)
                     .build();
@@ -161,7 +161,7 @@ public class NotificationService {
                 .type(notification.getType())
                 .title(notification.getTitle())
                 .message(notification.getMessage())
-                .timestamp(notification.getTimestamp())
+                .timestamp(notification.getTimestamp() != null ? notification.getTimestamp().toString() : null)
                 .data(data)
                 .isRead(notification.getIsRead())
                 .build();
@@ -175,7 +175,7 @@ public class NotificationService {
                 .type("REVIEW_SUCCESS")
                 .title("Đánh giá thành công")
                 .message("Bạn đã đánh giá phim \"" + movieTitle + "\" thành công!")
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now().toString())
                 .build();
         sendNotificationToUser(userId, notification);
     }
@@ -188,7 +188,7 @@ public class NotificationService {
                 .type("VOUCHER_ADDED")
                 .title("Voucher mới")
                 .message("Bạn đã nhận được voucher mới: " + voucherName + " (Mã: " + voucherCode + ")")
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now().toString())
                 .data(java.util.Map.of("voucherCode", voucherCode, "voucherName", voucherName))
                 .build();
         sendNotificationToUser(userId, notification);
@@ -202,7 +202,7 @@ public class NotificationService {
                 .type("VOUCHER_SAVED")
                 .title("Lưu voucher thành công")
                 .message("Bạn đã lưu voucher \"" + voucherName + "\" (Mã: " + voucherCode + ") thành công!")
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now().toString())
                 .data(java.util.Map.of("voucherCode", voucherCode, "voucherName", voucherName))
                 .build();
         sendNotificationToUser(userId, notification);
@@ -250,7 +250,9 @@ public class NotificationService {
             });
         
         if (hasOrderNotification) {
-            log.info("Notification already exists for order {} and user {}, SKIPPING", orderId, userId);
+            log.info("Notification already exists for order {} and user {}. Skipping creation.", orderId, userId);
+            // Đã có notification thì không làm gì cả, tránh duplicate
+            // Frontend sẽ tự fetch list notification khi load trang
             return;
         }
         
@@ -260,7 +262,7 @@ public class NotificationService {
                 .type("BOOKING_SUCCESS")
                 .title("Đặt vé thành công")
                 .message("Bạn đã đặt vé thành công! Mã đơn hàng: #" + orderId + ", Tổng tiền: " + totalAmount)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now().toString())
                 .data(java.util.Map.of("orderId", orderId, "totalAmount", totalAmount))
                 .build();
         sendNotificationToUser(userId, notification);

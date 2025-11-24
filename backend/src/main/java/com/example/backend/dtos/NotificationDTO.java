@@ -16,7 +16,7 @@ public class NotificationDTO {
     private String type; // REVIEW_SUCCESS, VOUCHER_ADDED, VOUCHER_SAVED, BOOKING_SUCCESS
     private String title;
     private String message;
-    private LocalDateTime timestamp;
+    private String timestamp; // Changed to String to ensure correct serialization
     private Object data; // Optional additional data
     private Boolean isRead; // Trạng thái đã đọc
 }

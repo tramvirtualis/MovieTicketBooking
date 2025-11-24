@@ -32,6 +32,8 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.example.backend.entities.enums.PaymentMethod;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -39,15 +41,60 @@ public class OrderService {
     
     private final OrderRepository orderRepository;
     private final PriceService priceService;
+    private final MomoService momoService;
+    // private final NotificationService notificationService; // Tránh circular dep nếu notificationService cần OrderService
     
     // ==================== Methods from HEAD (for getting orders) ====================
     
-    @Transactional(readOnly = true)
+    @Transactional
     public List<OrderResponseDTO> getOrdersByUser(Long userId) {
         List<Order> orders = orderRepository.findByUserUserIdWithDetails(userId);
-        return orders.stream()
+        System.out.println("Found " + orders.size() + " total orders for user " + userId);
+        
+        // Self-healing: Check MoMo status for pending orders
+        for (Order order : orders) {
+            if (order.getVnpPayDate() == null && order.getPaymentMethod() == PaymentMethod.MOMO) {
+                try {
+                    System.out.println("Self-healing: Checking MoMo status for pending order " + order.getOrderId());
+                    Map<String, Object> response = momoService.queryTransaction(order.getVnpTxnRef());
+                    if (response != null) {
+                        Object resultCodeObj = response.get("resultCode");
+                        int resultCode = resultCodeObj != null ? Integer.parseInt(resultCodeObj.toString()) : -1;
+                        
+                        System.out.println("Self-healing: MoMo Check for Order " + order.getOrderId() + " (" + order.getVnpTxnRef() + ") returned resultCode: " + resultCode);
+                        
+                        if (resultCode == 0) {
+                            System.out.println("Self-healing: MoMo confirmed SUCCESS. Updating order " + order.getOrderId());
+                            order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+                            
+                            String transId = (String) response.get("transId");
+                            if (transId != null) order.setVnpTransactionNo(transId);
+                            
+                            orderRepository.save(order);
+                            // Không gửi notification/email ở đây để tránh duplicate và circular dependency
+                            // Chỉ cần update DB để hiển thị trong history
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Self-healing failed for order " + order.getOrderId() + ": " + e.getMessage());
+                }
+            }
+        }
+        
+        List<OrderResponseDTO> result = orders.stream()
+            // Chỉ lấy các order đã thanh toán thành công (có vnpPayDate)
+            .filter(order -> {
+                boolean isPaid = order.getVnpPayDate() != null;
+                if (!isPaid) {
+                    System.out.println("Filtering out unpaid order ID: " + order.getOrderId());
+                }
+                return isPaid;
+            })
             .map(this::mapToDTO)
             .collect(Collectors.toList());
+            
+        System.out.println("Returning " + result.size() + " paid orders");
+        return result;
     }
     
     @Transactional(readOnly = true)

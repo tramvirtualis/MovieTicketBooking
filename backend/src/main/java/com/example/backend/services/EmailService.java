@@ -299,15 +299,19 @@ public class EmailService {
             
             // Embed QR code images inline using CID
             for (int i = 0; i < qrCodeBase64List.size(); i++) {
-                byte[] qrCodeBytes = Base64.getDecoder().decode(qrCodeBase64List.get(i));
-                helper.addInline(qrCodeCids.get(i), 
-                    () -> new java.io.ByteArrayInputStream(qrCodeBytes),
-                    "image/png");
+                String base64 = qrCodeBase64List.get(i);
+                if (base64 != null && !base64.isEmpty()) {
+                    byte[] qrCodeBytes = Base64.getDecoder().decode(base64);
+                    helper.addInline(qrCodeCids.get(i), 
+                        () -> new java.io.ByteArrayInputStream(qrCodeBytes),
+                        "image/png");
+                }
             }
             
             mailSender.send(message);
         } catch (Exception e) {
-            // Không throw exception để không ảnh hưởng đến flow thanh toán
+            System.err.println("Error sending email: " + e.getMessage());
+            e.printStackTrace();
         }
     }
     
@@ -317,19 +321,20 @@ public class EmailService {
     private String generateQRCode(Map<String, Object> data) {
         try {
             // Convert data to JSON string
-            // Sử dụng ObjectMapper với cấu hình để giữ thứ tự field (không sắp xếp alphabetically)
             ObjectMapper objectMapper = new ObjectMapper();
             objectMapper.configure(com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, false);
             String jsonData = objectMapper.writeValueAsString(data);
             
-            // Tạo QR code
+            System.out.println("Generating QR Code with data: " + jsonData);
+            
+            // Tạo QR code - Tăng kích thước lên 400x400 để đảm bảo chứa đủ dữ liệu
             QRCodeWriter qrCodeWriter = new QRCodeWriter();
             Map<EncodeHintType, Object> hints = new HashMap<>();
-            hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.H);
+            hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M); // Giảm xuống M để chứa nhiều dữ liệu hơn nếu cần
             hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
             hints.put(EncodeHintType.MARGIN, 1);
             
-            BitMatrix bitMatrix = qrCodeWriter.encode(jsonData, BarcodeFormat.QR_CODE, 300, 300, hints);
+            BitMatrix bitMatrix = qrCodeWriter.encode(jsonData, BarcodeFormat.QR_CODE, 400, 400, hints);
             
             // Convert to PNG
             ByteArrayOutputStream pngOutputStream = new ByteArrayOutputStream();
@@ -339,6 +344,8 @@ public class EmailService {
             // Convert to base64
             return Base64.getEncoder().encodeToString(pngData);
         } catch (Exception e) {
+            System.err.println("Error generating QR code: " + e.getMessage());
+            e.printStackTrace();
             return "";
         }
     }
