@@ -189,6 +189,7 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
           setImagePreview('');
         } else {
           showNotification(result.error || 'Cập nhật sản phẩm thất bại', 'error');
+          // Không đóng modal nếu có lỗi để người dùng có thể sửa lại
         }
       } else {
         // Create new item
@@ -250,10 +251,12 @@ function FoodBeverageManagement({ items: initialItems, onItemsChange }) {
         setDeleteConfirm(null);
         showNotification('Xóa sản phẩm thành công', 'success');
       } else {
+        setDeleteConfirm(null); // Đóng modal khi xóa thất bại
         showNotification(result.error || 'Xóa sản phẩm thất bại', 'error');
       }
     } catch (error) {
-      showNotification('Có lỗi xảy ra khi xóa sản phẩm', 'error');
+      setDeleteConfirm(null); // Đóng modal khi có lỗi
+      showNotification(error.message || 'Có lỗi xảy ra khi xóa sản phẩm', 'error');
     } finally {
       setLoading(false);
     }

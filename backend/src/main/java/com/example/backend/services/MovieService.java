@@ -107,19 +107,19 @@ public class MovieService {
             // Các trường như description, trailerURL, poster, actor, director có thể sửa được
             // Nhưng title, duration, releaseDate, ageRating, genre có thể ảnh hưởng đến vé đã đặt
             if (updateMovieDTO.getTitle() != null && !updateMovieDTO.getTitle().equals(movie.getTitle())) {
-                throw new RuntimeException("Không thể thay đổi tên phim vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+                throw new RuntimeException("Không thể thay đổi tên phim vì đã có vé đã được đặt.");
             }
             if (updateMovieDTO.getDuration() != null && !updateMovieDTO.getDuration().equals(movie.getDuration())) {
-                throw new RuntimeException("Không thể thay đổi thời lượng phim vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+                throw new RuntimeException("Không thể thay đổi thời lượng phim vì đã có vé đã được đặt.");
             }
             if (updateMovieDTO.getReleaseDate() != null && !updateMovieDTO.getReleaseDate().equals(movie.getReleaseDate())) {
-                throw new RuntimeException("Không thể thay đổi ngày phát hành vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+                throw new RuntimeException("Không thể thay đổi ngày phát hành vì đã có vé đã được đặt.");
             }
             if (updateMovieDTO.getAgeRating() != null && !updateMovieDTO.getAgeRating().equals(movie.getAgeRating())) {
-                throw new RuntimeException("Không thể thay đổi độ tuổi phim vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+                throw new RuntimeException("Không thể thay đổi độ tuổi phim vì đã có vé đã được đặt.");
             }
             if (updateMovieDTO.getGenre() != null && !updateMovieDTO.getGenre().equals(movie.getGenre())) {
-                throw new RuntimeException("Không thể thay đổi thể loại phim vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+                throw new RuntimeException("Không thể thay đổi thể loại phim vì đã có vé đã được đặt.");
             }
         }
         
@@ -258,7 +258,7 @@ public class MovieService {
         
         // Kiểm tra ràng buộc: không cho phép xóa nếu có vé đã thanh toán
         if (ticketRepository.existsPaidTicketsByMovieId(movieId)) {
-            throw new RuntimeException("Không thể xóa phim vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+            throw new RuntimeException("Không thể xóa phim vì đã có vé đã được đặt.");
         }
         
         String movieName = movie.getTitle();

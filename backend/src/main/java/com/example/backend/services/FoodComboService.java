@@ -57,6 +57,19 @@ public class FoodComboService {
         FoodCombo foodCombo = foodComboRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
         
+        // Kiểm tra ràng buộc: nếu có đơn hàng đã thanh toán, không cho phép thay đổi name và price
+        boolean hasPaidOrders = foodComboRepository.existsPaidOrderCombosByFoodComboId(id);
+        
+        if (hasPaidOrders) {
+            // Kiểm tra xem có thay đổi name hoặc price không
+            boolean nameChanged = !foodCombo.getName().equals(updateDTO.getName());
+            boolean priceChanged = foodCombo.getPrice().compareTo(updateDTO.getPrice()) != 0;
+            
+            if (nameChanged || priceChanged) {
+                throw new RuntimeException("Không thể thay đổi tên hoặc giá của đồ ăn vì đã có đơn hàng đã thanh toán sử dụng sản phẩm này. Chỉ có thể thay đổi mô tả và hình ảnh.");
+            }
+        }
+        
         foodCombo.setName(updateDTO.getName());
         foodCombo.setPrice(updateDTO.getPrice());
         foodCombo.setDescription(updateDTO.getDescription());
@@ -114,6 +127,11 @@ public class FoodComboService {
     public void deleteFoodCombo(Long id, String username) {
         FoodCombo foodCombo = foodComboRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
+        
+        // Kiểm tra ràng buộc: không cho phép xóa nếu có đơn hàng đã thanh toán sử dụng combo này
+        if (foodComboRepository.existsPaidOrderCombosByFoodComboId(id)) {
+            throw new RuntimeException("Không thể xóa đồ ăn vì đã có đơn hàng đã thanh toán sử dụng sản phẩm này. Vui lòng xóa các đơn hàng liên quan trước.");
+        }
         
         String foodComboName = foodCombo.getName();
         foodComboRepository.deleteById(id);

@@ -19,5 +19,9 @@ public interface FoodComboRepository extends JpaRepository<FoodCombo, Long> {
     // Chỉ lấy các FoodCombo không thuộc order nào (system food combos)
     @Query("SELECT fc FROM FoodCombo fc WHERE fc.orderCombo IS NULL")
     List<FoodCombo> findAllSystemFoodCombos();
+    
+    // Kiểm tra xem có OrderCombo nào đã thanh toán đang sử dụng FoodCombo này không
+    @Query("SELECT COUNT(oc) > 0 FROM OrderCombo oc JOIN oc.order o WHERE oc.foodCombo.foodComboId = :foodComboId AND o.vnpPayDate IS NOT NULL")
+    boolean existsPaidOrderCombosByFoodComboId(@Param("foodComboId") Long foodComboId);
 }
 

@@ -66,6 +66,11 @@ public class FoodComboController {
             FoodComboResponseDTO response = foodComboService.updateFoodCombo(id, updateDTO, username);
             return ResponseEntity.ok(createSuccessResponse("Cập nhật sản phẩm thành công", response));
         } catch (RuntimeException e) {
+            // Kiểm tra xem có phải lỗi ràng buộc không (thông báo dài hơn)
+            if (e.getMessage() != null && e.getMessage().contains("đã có đơn hàng")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage()));
+            }
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
@@ -130,6 +135,11 @@ public class FoodComboController {
             foodComboService.deleteFoodCombo(id, username);
             return ResponseEntity.ok(createSuccessResponse("Xóa sản phẩm thành công", null));
         } catch (RuntimeException e) {
+            // Kiểm tra xem có phải lỗi ràng buộc không (thông báo dài hơn)
+            if (e.getMessage() != null && e.getMessage().contains("đã có đơn hàng")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage()));
+            }
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
