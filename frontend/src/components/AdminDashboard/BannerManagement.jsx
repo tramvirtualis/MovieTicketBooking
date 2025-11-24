@@ -22,6 +22,8 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
   const [savingBanner, setSavingBanner] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [filterActive, setFilterActive] = useState('ALL'); // ALL, ACTIVE, INACTIVE
+  const [togglingBannerId, setTogglingBannerId] = useState(null);
 
   // Notification component
   const showNotification = (message, type = 'success') => {
@@ -49,7 +51,8 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
           const mappedBanners = (result.data || []).map(banner => ({
             id: banner.id,
             name: banner.name || '',
-            image: banner.image || ''
+            image: banner.image || '',
+            isActive: banner.isActive !== undefined ? banner.isActive : true
           }));
           setBanners(mappedBanners);
           if (onBannersChange) {
@@ -190,7 +193,8 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
           const mappedBanners = (reloadResult.data || []).map(banner => ({
             id: banner.id,
             name: banner.name || '',
-            image: banner.image || ''
+            image: banner.image || '',
+            isActive: banner.isActive !== undefined ? banner.isActive : true
           }));
           setBanners(mappedBanners);
           if (onBannersChange) {
@@ -243,7 +247,8 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
           const mappedBanners = (reloadResult.data || []).map(banner => ({
             id: banner.id,
             name: banner.name || '',
-            image: banner.image || ''
+            image: banner.image || '',
+            isActive: banner.isActive !== undefined ? banner.isActive : true
           }));
           setBanners(mappedBanners);
           if (onBannersChange) {
@@ -296,6 +301,45 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
     setShowModal(true);
   };
 
+  // Handle toggle active
+  const handleToggleActive = async (bannerId) => {
+    setTogglingBannerId(bannerId);
+    try {
+      const result = await bannerService.toggleBannerActive(bannerId);
+      if (result.success) {
+        // Reload banners
+        const reloadResult = await bannerService.getAllBanners();
+        if (reloadResult.success) {
+          const mappedBanners = (reloadResult.data || []).map(banner => ({
+            id: banner.id,
+            name: banner.name || '',
+            image: banner.image || '',
+            isActive: banner.isActive !== undefined ? banner.isActive : true
+          }));
+          setBanners(mappedBanners);
+          if (onBannersChange) {
+            onBannersChange(mappedBanners);
+          }
+        }
+        showNotification(result.message || 'Cập nhật trạng thái banner thành công', 'success');
+      } else {
+        showNotification(result.error || 'Không thể cập nhật trạng thái banner', 'error');
+      }
+    } catch (err) {
+      console.error('Error toggling banner active:', err);
+      showNotification(err.message || 'Không thể cập nhật trạng thái banner', 'error');
+    } finally {
+      setTogglingBannerId(null);
+    }
+  };
+
+  // Filter banners
+  const filteredBanners = banners.filter(banner => {
+    if (filterActive === 'ACTIVE') return banner.isActive === true;
+    if (filterActive === 'INACTIVE') return banner.isActive === false;
+    return true; // ALL
+  });
+
   return (
     <div className="banner-management">
       {/* Notification */}
@@ -325,6 +369,70 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
           <span>Thêm Banner</span>
         </button>
       </div>
+
+      {/* Filter */}
+      {banners.length > 0 && (
+        <div style={{ 
+          display: 'flex', 
+          gap: '12px', 
+          marginBottom: '24px',
+          alignItems: 'center',
+          flexWrap: 'wrap'
+        }}>
+          <span style={{ color: '#e6e1e2', fontSize: '14px', fontWeight: 500 }}>Lọc theo trạng thái:</span>
+          <button
+            onClick={() => setFilterActive('ALL')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: '1px solid',
+              borderColor: filterActive === 'ALL' ? '#e83b41' : 'rgba(255,255,255,0.2)',
+              background: filterActive === 'ALL' ? 'rgba(232, 59, 65, 0.2)' : 'transparent',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: filterActive === 'ALL' ? 600 : 400,
+              transition: 'all 0.2s'
+            }}
+          >
+            Tất cả ({banners.length})
+          </button>
+          <button
+            onClick={() => setFilterActive('ACTIVE')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: '1px solid',
+              borderColor: filterActive === 'ACTIVE' ? '#4caf50' : 'rgba(255,255,255,0.2)',
+              background: filterActive === 'ACTIVE' ? 'rgba(76, 175, 80, 0.2)' : 'transparent',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: filterActive === 'ACTIVE' ? 600 : 400,
+              transition: 'all 0.2s'
+            }}
+          >
+            Đang hiển thị ({banners.filter(b => b.isActive).length})
+          </button>
+          <button
+            onClick={() => setFilterActive('INACTIVE')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: '1px solid',
+              borderColor: filterActive === 'INACTIVE' ? '#ff9800' : 'rgba(255,255,255,0.2)',
+              background: filterActive === 'INACTIVE' ? 'rgba(255, 152, 0, 0.2)' : 'transparent',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: filterActive === 'INACTIVE' ? 600 : 400,
+              transition: 'all 0.2s'
+            }}
+          >
+            Đã ẩn ({banners.filter(b => !b.isActive).length})
+          </button>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -360,10 +468,45 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
                 Thêm Banner Đầu Tiên
               </button>
             </div>
+          ) : filteredBanners.length === 0 ? (
+            <div className="banner-management__empty">
+              <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+              </svg>
+              <h3>Không có banner nào</h3>
+              <p>Không tìm thấy banner với bộ lọc đã chọn</p>
+            </div>
           ) : (
             <div className="banner-grid">
-              {banners.map((banner) => (
-                <div key={banner.id} className="banner-card">
+              {filteredBanners.map((banner) => (
+                <div key={banner.id} className="banner-card" style={{
+                  opacity: banner.isActive ? 1 : 0.6,
+                  position: 'relative'
+                }}>
+                  {!banner.isActive && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '12px',
+                      background: 'rgba(0, 0, 0, 0.7)',
+                      color: '#ff9800',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      zIndex: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                      </svg>
+                      Đã ẩn
+                    </div>
+                  )}
                   <div className="banner-card__image-wrapper">
                     <img 
                       src={banner.image || '/placeholder-banner.jpg'} 
@@ -396,8 +539,63 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
                       </button>
                     </div>
                   </div>
-                  <div className="banner-card__info">
-                    <span className="banner-card__name">{banner.name || `Banner #${banner.id}`}</span>
+                  <div className="banner-card__info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                    <span className="banner-card__name" style={{ flex: 1 }}>{banner.name || `Banner #${banner.id}`}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{
+                        fontSize: '12px',
+                        color: banner.isActive ? '#4caf50' : '#999',
+                        fontWeight: 500,
+                        minWidth: '60px',
+                        textAlign: 'right'
+                      }}>
+                        {togglingBannerId === banner.id ? 'Đang xử lý...' : (banner.isActive ? 'Hiển thị' : 'Ẩn')}
+                      </span>
+                      <label style={{
+                        display: 'inline-block',
+                        position: 'relative',
+                        width: '48px',
+                        height: '26px',
+                        cursor: togglingBannerId === banner.id ? 'wait' : 'pointer',
+                        userSelect: 'none'
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={banner.isActive || false}
+                          onChange={() => handleToggleActive(banner.id)}
+                          disabled={togglingBannerId === banner.id}
+                          style={{
+                            opacity: 0,
+                            width: 0,
+                            height: 0
+                          }}
+                        />
+                        <span style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: banner.isActive ? '#4caf50' : '#666',
+                          borderRadius: '13px',
+                          transition: 'background 0.3s',
+                          pointerEvents: 'none'
+                        }}>
+                          <span style={{
+                            position: 'absolute',
+                            content: '""',
+                            height: '20px',
+                            width: '20px',
+                            left: banner.isActive ? 'calc(100% - 22px)' : '3px',
+                            bottom: '3px',
+                            background: '#fff',
+                            borderRadius: '50%',
+                            transition: 'left 0.3s',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }} />
+                        </span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               ))}

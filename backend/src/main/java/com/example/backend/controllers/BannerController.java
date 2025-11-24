@@ -134,11 +134,33 @@ public class BannerController {
         }
     }
     
+    @PutMapping("/api/admin/banners/{bannerId}/toggle-active")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> toggleBannerActive(@PathVariable Long bannerId,
+                                                HttpServletRequest request) {
+        try {
+            String username = getUsernameFromRequest(request);
+            BannerResponseDTO bannerResponse = bannerService.toggleBannerActive(bannerId, username);
+            return ResponseEntity.ok(
+                    createSuccessResponse(
+                            bannerResponse.getIsActive() ? "Kích hoạt banner thành công" : "Vô hiệu hóa banner thành công",
+                            bannerResponse
+                    )
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
     // ============ PUBLIC ENDPOINTS ============
     
     @GetMapping("/api/public/banners")
     public ResponseEntity<List<BannerResponseDTO>> getPublicBanners() {
-        List<BannerResponseDTO> banners = bannerService.getAllBanners();
+        List<BannerResponseDTO> banners = bannerService.getActiveBanners();
         return ResponseEntity.ok(banners);
     }
     

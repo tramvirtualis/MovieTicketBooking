@@ -64,6 +64,10 @@ public class BannerService {
             banner.setImage(updateDTO.getImage().trim());
         }
         
+        if (updateDTO.getIsActive() != null) {
+            banner.setIsActive(updateDTO.getIsActive());
+        }
+        
         Banner updatedBanner = bannerRepository.save(banner);
         
         // Log activity - username được truyền từ controller
@@ -76,6 +80,34 @@ public class BannerService {
                     updatedBanner.getId(),
                     updatedBanner.getName(),
                     "Cập nhật banner: " + updatedBanner.getName()
+                );
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to log banner activity: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
+        return convertToDTO(updatedBanner);
+    }
+    
+    @Transactional
+    public BannerResponseDTO toggleBannerActive(Long bannerId, String username) {
+        Banner banner = bannerRepository.findById(bannerId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy banner với ID: " + bannerId));
+        
+        banner.setIsActive(!banner.getIsActive());
+        Banner updatedBanner = bannerRepository.save(banner);
+        
+        // Log activity
+        if (username != null && !username.isEmpty()) {
+            try {
+                activityLogService.logActivity(
+                    username,
+                    Action.UPDATE,
+                    ObjectType.BANNER,
+                    updatedBanner.getId(),
+                    updatedBanner.getName(),
+                    (updatedBanner.getIsActive() ? "Kích hoạt" : "Vô hiệu hóa") + " banner: " + updatedBanner.getName()
                 );
             } catch (Exception e) {
                 System.err.println("ERROR: Failed to log banner activity: " + e.getMessage());
@@ -124,11 +156,18 @@ public class BannerService {
                 .collect(Collectors.toList());
     }
     
+    public List<BannerResponseDTO> getActiveBanners() {
+        return bannerRepository.findByIsActiveTrue().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+    
     private BannerResponseDTO convertToDTO(Banner banner) {
         return BannerResponseDTO.builder()
                 .id(banner.getId())
                 .name(banner.getName())
                 .image(banner.getImage())
+                .isActive(banner.getIsActive())
                 .build();
     }
 }

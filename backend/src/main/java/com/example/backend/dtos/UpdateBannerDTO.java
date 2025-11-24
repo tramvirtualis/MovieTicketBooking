@@ -20,5 +20,7 @@ public class UpdateBannerDTO {
 
     @Size(max = 2000, message = "URL ảnh không được vượt quá 2000 ký tự")
     private String image;
+
+    private Boolean isActive;
 }
 

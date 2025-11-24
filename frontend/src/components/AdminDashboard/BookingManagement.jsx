@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { getAllOrdersAdmin } from '../../services/customer';
+import { QRCodeSVG } from 'qrcode.react';
 
 // Booking Management Component
 function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies: moviesList, onOrdersChange }) {
@@ -70,12 +71,15 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                 roomId: firstTicket.roomId,
                 roomName: firstTicket.roomName,
                 showtime: firstTicket.showtimeStart,
+                showtimeId: firstTicket.showtimeId, // For QR code
+                roomType: firstTicket.roomType, // For QR code (2D, 3D, etc.)
                 seats: seats,
                 pricePerSeat: ticketGroup.length > 0 ? parseFloat(ticketGroup[0].price) || 0 : 0,
                 totalAmount: parseFloat(order.totalAmount) || totalAmount,
                 status: 'PAID', // All orders in DB are successful (status removed)
                 paymentMethod: order.paymentMethod || 'UNKNOWN',
-                combos: order.combos || []
+                combos: order.combos || [],
+                orderDate: order.orderDate // For food-only QR code
               });
             });
           } else if (hasCombos) {
@@ -102,7 +106,8 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
               totalAmount: parseFloat(order.totalAmount) || comboTotal,
               status: 'PAID',
               paymentMethod: order.paymentMethod || 'UNKNOWN',
-              combos: order.combos || []
+              combos: order.combos || [],
+              orderDate: order.orderDate // For food-only QR code
             });
           }
         });
@@ -554,6 +559,145 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                         {derivedStatus(selected) === 'ACTIVE' ? 'Còn hạn' : 'Hết hạn'}
                       </span>
                     </div>
+                  </div>
+                </div>
+                {/* QR Code Card */}
+                <div className="admin-card" style={{ gridColumn: '1 / -1' }}>
+                  <div className="admin-card__header">
+                    <h3 className="admin-card__title">Mã QR Code</h3>
+                  </div>
+                  <div className="admin-card__content" style={{ textAlign: 'center', padding: '24px' }}>
+                    {selected.orderType === 'FOOD_ONLY' ? (
+                      <>
+                        <div style={{ fontSize: '14px', color: '#666', marginBottom: '16px', fontWeight: 500 }}>
+                          Mã QR Code - Vui lòng quét tại rạp
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+                          <QRCodeSVG
+                            value={JSON.stringify({
+                              orderId: String(selected.bookingId || '').replace('ORD-', ''),
+                              type: 'FOOD_ORDER',
+                              orderDate: (() => {
+                                if (!selected.orderDate) return '';
+                                const date = new Date(selected.orderDate);
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const year = date.getFullYear();
+                                return `${day}/${month}/${year}`;
+                              })(),
+                              totalAmount: String(selected.totalAmount || '0'),
+                              foodItems: (selected.combos || []).map(combo => ({
+                                foodComboId: String(combo.foodComboId || combo.id || ''),
+                                name: String(combo.comboName || ''),
+                                quantity: combo.quantity || 0,
+                                price: String(combo.price || '0')
+                              }))
+                            })}
+                            size={200}
+                            level="M"
+                            includeMargin={true}
+                          />
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#999', fontWeight: 500 }}>
+                          Order ID: {selected.bookingId}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: '14px', color: '#666', marginBottom: '16px', fontWeight: 500 }}>
+                          Mã QR Code - Vui lòng quét tại rạp
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+                          <QRCodeSVG
+                            value={JSON.stringify((() => {
+                              // Create bookingId: orderId-showtimeId-yyyy-MM-dd'T'HH:mm:ss
+                              const orderIdNum = String(selected.bookingId || '').replace('ORD-', '');
+                              const showtimeId = selected.showtimeId || '';
+                              const showtimeStart = selected.showtime;
+                              
+                              let bookingId = '';
+                              if (showtimeStart && showtimeId) {
+                                const date = new Date(showtimeStart);
+                                const year = date.getFullYear();
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const hours = String(date.getHours()).padStart(2, '0');
+                                const minutes = String(date.getMinutes()).padStart(2, '0');
+                                const seconds = String(date.getSeconds()).padStart(2, '0');
+                                const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+                                bookingId = `${orderIdNum}-${showtimeId}-${formattedDate}`;
+                              } else {
+                                bookingId = `${orderIdNum}-${Date.now()}`;
+                              }
+                              
+                              // Format date: dd/MM/yyyy
+                              const formatDateForQR = (dateString) => {
+                                if (!dateString) return '';
+                                const date = new Date(dateString);
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const year = date.getFullYear();
+                                return `${day}/${month}/${year}`;
+                              };
+                              
+                              // Format time: HH:mm
+                              const formatTimeForQR = (dateString) => {
+                                if (!dateString) return '';
+                                const date = new Date(dateString);
+                                const hours = String(date.getHours()).padStart(2, '0');
+                                const minutes = String(date.getMinutes()).padStart(2, '0');
+                                return `${hours}:${minutes}`;
+                              };
+                              
+                              // Map room type (remove TYPE_ prefix if present)
+                              const mapRoomType = (roomType) => {
+                                if (!roomType) return '2D';
+                                return String(roomType).replace('TYPE_', '');
+                              };
+                              
+                              // Sort seats
+                              const sortedSeats = [...(selected.seats || [])].sort();
+                              
+                              // Create QR data object with exact order
+                              const qrData = {};
+                              qrData.bookingId = String(bookingId || '');
+                              qrData.orderId = String(orderIdNum || '');
+                              qrData.movie = String(selected.movieTitle || '');
+                              qrData.cinema = String(selected.cinemaName || '');
+                              qrData.date = formatDateForQR(showtimeStart);
+                              qrData.time = formatTimeForQR(showtimeStart);
+                              qrData.seats = sortedSeats;
+                              qrData.format = mapRoomType(selected.roomType);
+                              
+                              return qrData;
+                            })())}
+                            size={200}
+                            level="H"
+                            includeMargin={true}
+                          />
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#999', fontWeight: 500 }}>
+                          {(() => {
+                            const orderIdNum = String(selected.bookingId || '').replace('ORD-', '');
+                            const showtimeId = selected.showtimeId || '';
+                            const showtimeStart = selected.showtime;
+                            
+                            if (showtimeStart && showtimeId) {
+                              const date = new Date(showtimeStart);
+                              const year = date.getFullYear();
+                              const month = String(date.getMonth() + 1).padStart(2, '0');
+                              const day = String(date.getDate()).padStart(2, '0');
+                              const hours = String(date.getHours()).padStart(2, '0');
+                              const minutes = String(date.getMinutes()).padStart(2, '0');
+                              const seconds = String(date.getSeconds()).padStart(2, '0');
+                              const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+                              return `Booking ID: ${orderIdNum}-${showtimeId}-${formattedDate}`;
+                            }
+                            return `Order ID: ${orderIdNum}`;
+                          })()}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

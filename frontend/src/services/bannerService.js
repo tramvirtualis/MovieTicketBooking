@@ -172,6 +172,28 @@ export const bannerService = {
       };
     }
   },
+
+  /**
+   * Toggle active status của banner (Admin only)
+   * @param {number} bannerId - ID của banner
+   * @returns {Promise<Object>} Response từ server
+   */
+  toggleBannerActive: async (bannerId) => {
+    try {
+      const response = await axiosInstance.put(`/admin/banners/${bannerId}/toggle-active`);
+      return {
+        success: true,
+        data: response.data.data || response.data,
+        message: response.data.message || 'Cập nhật trạng thái banner thành công',
+      };
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Không thể cập nhật trạng thái banner';
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  },
 };
 
 export default bannerService;

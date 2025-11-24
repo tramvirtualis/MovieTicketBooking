@@ -16,4 +16,8 @@ public class Banner {
     private String name;
 
     private String image;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
 }

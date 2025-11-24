@@ -47,5 +47,16 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
            "WHERE t.seat.seatId = :seatId " +
            "AND t.order.vnpPayDate IS NOT NULL")
     boolean existsPaidTicketsBySeatId(@Param("seatId") Long seatId);
+    
+    /**
+     * Kiểm tra xem có vé đã thanh toán cho phim không
+     */
+    @Query("SELECT COUNT(t) > 0 FROM Ticket t " +
+           "JOIN t.showtime s " +
+           "JOIN s.movieVersion mv " +
+           "JOIN mv.movie m " +
+           "WHERE m.movieId = :movieId " +
+           "AND t.order.vnpPayDate IS NOT NULL")
+    boolean existsPaidTicketsByMovieId(@Param("movieId") Long movieId);
 }
 

@@ -101,6 +101,28 @@ public class MovieService {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy phim với ID: " + movieId));
         
+        // Kiểm tra ràng buộc: không cho phép sửa một số trường quan trọng nếu có vé đã thanh toán
+        if (ticketRepository.existsPaidTicketsByMovieId(movieId)) {
+            // Chỉ cho phép sửa các trường không ảnh hưởng đến vé đã đặt
+            // Các trường như description, trailerURL, poster, actor, director có thể sửa được
+            // Nhưng title, duration, releaseDate, ageRating, genre có thể ảnh hưởng đến vé đã đặt
+            if (updateMovieDTO.getTitle() != null && !updateMovieDTO.getTitle().equals(movie.getTitle())) {
+                throw new RuntimeException("Không thể thay đổi tên phim vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+            }
+            if (updateMovieDTO.getDuration() != null && !updateMovieDTO.getDuration().equals(movie.getDuration())) {
+                throw new RuntimeException("Không thể thay đổi thời lượng phim vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+            }
+            if (updateMovieDTO.getReleaseDate() != null && !updateMovieDTO.getReleaseDate().equals(movie.getReleaseDate())) {
+                throw new RuntimeException("Không thể thay đổi ngày phát hành vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+            }
+            if (updateMovieDTO.getAgeRating() != null && !updateMovieDTO.getAgeRating().equals(movie.getAgeRating())) {
+                throw new RuntimeException("Không thể thay đổi độ tuổi phim vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+            }
+            if (updateMovieDTO.getGenre() != null && !updateMovieDTO.getGenre().equals(movie.getGenre())) {
+                throw new RuntimeException("Không thể thay đổi thể loại phim vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+            }
+        }
+        
         if (updateMovieDTO.getTitle() != null) {
             movie.setTitle(updateMovieDTO.getTitle());
         }
@@ -159,8 +181,9 @@ public class MovieService {
             }
             movie.setStatus(updateMovieDTO.getStatus());
         } else {
-            // Nếu không có status trong DTO, tự động tính (nhưng không bao giờ tự động set ENDED)
-            MovieStatus calculatedStatus = calculateMovieStatus(movie);
+            // Nếu không có status trong DTO (bỏ đánh dấu ENDED), tính lại status từ showtime
+            // Bỏ qua logic giữ nguyên ENDED để cho phép bỏ đánh dấu
+            MovieStatus calculatedStatus = calculateMovieStatusWithoutPreservingEnded(movie);
             movie.setStatus(calculatedStatus);
         }
         
@@ -232,6 +255,11 @@ public class MovieService {
     public void deleteMovie(Long movieId, String username) {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy phim với ID: " + movieId));
+        
+        // Kiểm tra ràng buộc: không cho phép xóa nếu có vé đã thanh toán
+        if (ticketRepository.existsPaidTicketsByMovieId(movieId)) {
+            throw new RuntimeException("Không thể xóa phim vì đã có vé đã được đặt. Vui lòng xóa các suất chiếu và vé liên quan trước.");
+        }
         
         String movieName = movie.getTitle();
         
@@ -344,6 +372,50 @@ public class MovieService {
         }
         
         // Fallback
+        return MovieStatus.COMING_SOON;
+    }
+    
+    /**
+     * Tính status của phim dựa trên showtime mà KHÔNG giữ nguyên ENDED
+     * Dùng khi admin bỏ đánh dấu ENDED để tính lại status từ showtime
+     */
+    private MovieStatus calculateMovieStatusWithoutPreservingEnded(Movie movie) {
+        if (movie == null || movie.getMovieId() == null) {
+            return MovieStatus.COMING_SOON;
+        }
+        
+        // Lấy tất cả showtimes của phim
+        List<Showtime> showtimes = showtimeRepository.findAllByMovieId(movie.getMovieId());
+        
+        if (showtimes.isEmpty()) {
+            return MovieStatus.COMING_SOON;
+        }
+        
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Tìm showtime sớm nhất và muộn nhất
+        Optional<Showtime> earliestShowtime = showtimes.stream()
+                .min((s1, s2) -> s1.getStartTime().compareTo(s2.getStartTime()));
+        Optional<Showtime> latestShowtime = showtimes.stream()
+                .max((s1, s2) -> s1.getEndTime().compareTo(s2.getEndTime()));
+        
+        if (earliestShowtime.isPresent() && latestShowtime.isPresent()) {
+            LocalDateTime earliestStart = earliestShowtime.get().getStartTime();
+            LocalDateTime latestEnd = latestShowtime.get().getEndTime();
+            
+            if (now.isBefore(earliestStart)) {
+                // Tất cả showtime đều trong tương lai
+                return MovieStatus.COMING_SOON;
+            } else if (now.isAfter(latestEnd)) {
+                // Tất cả showtime đã kết thúc
+                // Nhưng không tự động set ENDED, để admin quyết định
+                return MovieStatus.NOW_SHOWING;
+            } else {
+                // Có showtime đang diễn ra hoặc sắp diễn ra
+                return MovieStatus.NOW_SHOWING;
+            }
+        }
+        
         return MovieStatus.COMING_SOON;
     }
     
