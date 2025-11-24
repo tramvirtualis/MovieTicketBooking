@@ -13,9 +13,11 @@ import com.example.backend.dtos.OrderResponseDTO;
 import com.example.backend.dtos.PriceDTO;
 import com.example.backend.entities.CinemaComplex;
 import com.example.backend.entities.CinemaRoom;
+import com.example.backend.entities.FoodCombo;
 import com.example.backend.entities.Movie;
 import com.example.backend.entities.MovieVersion;
 import com.example.backend.entities.Order;
+import com.example.backend.entities.OrderCombo;
 import com.example.backend.entities.Seat;
 import com.example.backend.entities.Showtime;
 import com.example.backend.repositories.OrderRepository;
@@ -178,26 +180,21 @@ public class OrderService {
         
         List<OrderComboDTO> combos = order.getOrderCombos() != null 
             ? order.getOrderCombos().stream()
-                .flatMap(oc -> {
-                    // Initialize foodCombos collection to avoid N+1
-                    if (oc.getFoodCombos() != null) {
-                        oc.getFoodCombos().size(); // Trigger lazy loading
+                .map(oc -> {
+                    // Reference đến FoodCombo gốc
+                    if (oc.getFoodCombo() != null) {
+                        FoodCombo fc = oc.getFoodCombo();
+                        OrderComboDTO combo = new OrderComboDTO();
+                        combo.setComboId(fc.getFoodComboId());
+                        combo.setComboName(fc.getName());
+                        combo.setComboImage(fc.getImage());
+                        combo.setQuantity(oc.getQuantity());
+                        combo.setPrice(oc.getPrice());
+                        return combo;
                     }
-                    // Each OrderCombo can have multiple FoodCombos
-                    if (oc.getFoodCombos() != null && !oc.getFoodCombos().isEmpty()) {
-                        return oc.getFoodCombos().stream()
-                            .map(fc -> {
-                                OrderComboDTO combo = new OrderComboDTO();
-                                combo.setComboId(fc.getFoodComboId());
-                                combo.setComboName(fc.getName());
-                                combo.setComboImage(fc.getImage());
-                                combo.setQuantity(oc.getQuantity());
-                                combo.setPrice(oc.getPrice());
-                                return combo;
-                            });
-                    }
-                    return java.util.stream.Stream.empty();
+                    return null;
                 })
+                .filter(combo -> combo != null)
                 .collect(Collectors.toList())
             : List.of();
         

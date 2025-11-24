@@ -1068,13 +1068,8 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
       <div className="cinema-management__header" style={{ marginBottom: '32px' }}>
         <div>
           <h2 style={{ margin: 0, color: '#fff', fontSize: '28px', fontWeight: 700, marginBottom: '8px' }}>
-            Quản lý cụm rạp
+            Quản lý rạp
           </h2>
-          <p style={{ margin: 0, color: '#c9c4c5', fontSize: '15px', lineHeight: 1.6 }}>
-            {cinemas && cinemas.length > 0 
-              ? `Bạn đang quản lý ${cinemas.length} cụm rạp${cinemas.length > 1 ? '' : ''}.`
-              : 'Chưa có cụm rạp nào được gán cho bạn. Vui lòng liên hệ admin để được gán cụm rạp.'}
-          </p>
         </div>
       </div>
       <div className="cinema-management__content">

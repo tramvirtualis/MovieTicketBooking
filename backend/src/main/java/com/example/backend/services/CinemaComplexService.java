@@ -8,6 +8,7 @@ import com.example.backend.entities.Movie;
 import com.example.backend.repositories.AddressRepository;
 import com.example.backend.repositories.CinemaComplexRepository;
 import com.example.backend.repositories.MovieRepository;
+import com.example.backend.repositories.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,7 @@ public class CinemaComplexService {
     private final AddressRepository addressRepository;
     private final MovieRepository movieRepository;
     private final ActivityLogService activityLogService;
+    private final TicketRepository ticketRepository;
     
     public List<CinemaComplexResponseDTO> getAllCinemaComplexes() {
         return cinemaComplexRepository.findAll().stream()
@@ -140,6 +142,12 @@ public class CinemaComplexService {
             .orElseThrow(() -> new RuntimeException("Không tìm thấy cụm rạp với ID: " + complexId));
         
         String complexName = complex.getName();
+        
+        // Ràng buộc: Không cho xóa cụm rạp nếu đã có đơn hàng thanh toán thành công
+        boolean hasPaidTickets = ticketRepository.existsPaidTicketsByComplexId(complexId);
+        if (hasPaidTickets) {
+            throw new RuntimeException("Không thể xóa cụm rạp vì đã có vé được đặt và thanh toán. Vui lòng liên hệ quản trị viên để xử lý.");
+        }
         
         // Xóa Address (cascade sẽ xử lý các quan hệ khác)
         if (complex.getAddress() != null) {

@@ -15,5 +15,37 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     
     @Query("SELECT t FROM Ticket t WHERE t.showtime.cinemaRoom.roomId = :roomId")
     List<Ticket> findByRoomId(@Param("roomId") Long roomId);
+    
+    /**
+     * Kiểm tra xem có vé đã thanh toán (có order với vnpPayDate != null) cho cụm rạp không
+     */
+    @Query("SELECT COUNT(t) > 0 FROM Ticket t " +
+           "WHERE t.showtime.cinemaRoom.cinemaComplex.complexId = :complexId " +
+           "AND t.order.vnpPayDate IS NOT NULL")
+    boolean existsPaidTicketsByComplexId(@Param("complexId") Long complexId);
+    
+    /**
+     * Kiểm tra xem có vé đã thanh toán cho phòng chiếu không
+     */
+    @Query("SELECT COUNT(t) > 0 FROM Ticket t " +
+           "WHERE t.showtime.cinemaRoom.roomId = :roomId " +
+           "AND t.order.vnpPayDate IS NOT NULL")
+    boolean existsPaidTicketsByRoomId(@Param("roomId") Long roomId);
+    
+    /**
+     * Kiểm tra xem có vé đã thanh toán cho suất chiếu không
+     */
+    @Query("SELECT COUNT(t) > 0 FROM Ticket t " +
+           "WHERE t.showtime.showtimeId = :showtimeId " +
+           "AND t.order.vnpPayDate IS NOT NULL")
+    boolean existsPaidTicketsByShowtimeId(@Param("showtimeId") Long showtimeId);
+    
+    /**
+     * Kiểm tra xem có vé đã thanh toán cho ghế không
+     */
+    @Query("SELECT COUNT(t) > 0 FROM Ticket t " +
+           "WHERE t.seat.seatId = :seatId " +
+           "AND t.order.vnpPayDate IS NOT NULL")
+    boolean existsPaidTicketsBySeatId(@Param("seatId") Long seatId);
 }
 

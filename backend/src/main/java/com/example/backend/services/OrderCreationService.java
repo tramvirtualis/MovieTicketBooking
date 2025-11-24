@@ -150,31 +150,16 @@ public class OrderCreationService {
             FoodCombo originalFoodCombo = foodComboOpt.get();
             System.out.println("Found FoodCombo: " + originalFoodCombo.getName() + ", Price: " + originalFoodCombo.getPrice());
             
-            // Tạo OrderCombo
+            // Tạo OrderCombo - chỉ reference đến FoodCombo gốc, không tạo FoodCombo mới
             OrderCombo orderCombo = OrderCombo.builder()
                     .order(order)
+                    .foodCombo(originalFoodCombo) // Reference đến FoodCombo gốc trong menu
                     .quantity(request.getQuantity())
                     .price(originalFoodCombo.getPrice().multiply(BigDecimal.valueOf(request.getQuantity())))
-                    .foodCombos(new ArrayList<>())
                     .build();
             
-            // Tạo FoodCombo mới cho order này (copy từ original nhưng set orderCombo)
-            // Tạo quantity số FoodCombo tương ứng với quantity của OrderCombo
-            for (int i = 0; i < request.getQuantity(); i++) {
-                FoodCombo foodCombo = FoodCombo.builder()
-                        .name(originalFoodCombo.getName())
-                        .price(originalFoodCombo.getPrice())
-                        .description(originalFoodCombo.getDescription())
-                        .image(originalFoodCombo.getImage())
-                        .orderCombo(orderCombo)
-                        .build();
-                
-                orderCombo.getFoodCombos().add(foodCombo);
-                System.out.println("  Added FoodCombo #" + (i + 1) + " to OrderCombo");
-            }
-            
             orderCombos.add(orderCombo);
-            System.out.println("Created OrderCombo with " + orderCombo.getFoodCombos().size() + " FoodCombos");
+            System.out.println("Created OrderCombo with FoodCombo ID: " + originalFoodCombo.getFoodComboId() + ", Quantity: " + request.getQuantity());
         }
         order.setOrderCombos(orderCombos);
         System.out.println("Total OrderCombos: " + orderCombos.size());
@@ -196,10 +181,10 @@ public class OrderCreationService {
         if (savedOrder.getOrderCombos() != null) {
             for (OrderCombo oc : savedOrder.getOrderCombos()) {
                 System.out.println("  OrderCombo ID: " + oc.getOrderComboId() + ", Quantity: " + oc.getQuantity());
-                if (oc.getFoodCombos() != null) {
-                    System.out.println("    FoodCombos count: " + oc.getFoodCombos().size());
+                if (oc.getFoodCombo() != null) {
+                    System.out.println("    FoodCombo ID: " + oc.getFoodCombo().getFoodComboId() + ", Name: " + oc.getFoodCombo().getName());
                 } else {
-                    System.out.println("    FoodCombos is null!");
+                    System.out.println("    FoodCombo is null!");
                 }
             }
         }

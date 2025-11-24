@@ -13,6 +13,7 @@ import com.example.backend.repositories.CinemaRoomRepository;
 import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.MovieVersionRepository;
 import com.example.backend.repositories.ShowtimeRepository;
+import com.example.backend.repositories.TicketRepository;
 import com.example.backend.entities.enums.Action;
 import com.example.backend.entities.enums.ObjectType;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class ShowtimeService {
     private final KieContainer kieContainer;
     private final ActivityLogService activityLogService;
     private final PriceService priceService;
+    private final TicketRepository ticketRepository;
     
     /**
      * Tìm hoặc tạo MovieVersion dựa trên movie, language và roomType
@@ -155,13 +157,38 @@ public class ShowtimeService {
         Showtime showtime = showtimeRepository.findByIdWithRelations(showtimeId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch chiếu với ID: " + showtimeId));
         
+        // Ràng buộc: Kiểm tra xem có vé đã thanh toán thành công không
+        boolean hasPaidTickets = ticketRepository.existsPaidTicketsByShowtimeId(showtimeId);
+        
         // Lấy roomId hiện tại từ showtime
         Long currentRoomId = showtime.getCinemaRoom().getRoomId();
         Long newRoomId = updateDTO.getCinemaRoomId();
+        boolean roomChanged = newRoomId != null && !currentRoomId.equals(newRoomId);
+        
+        // Kiểm tra xem thời gian có thay đổi không
+        boolean timeChanged = !showtime.getStartTime().equals(updateDTO.getStartTime()) || 
+                             !showtime.getEndTime().equals(updateDTO.getEndTime());
+        
+        // Kiểm tra xem phim có thay đổi không
+        Long currentMovieId = showtime.getMovieVersion().getMovie().getMovieId();
+        boolean movieChanged = !currentMovieId.equals(updateDTO.getMovieId());
+        
+        // Ràng buộc nghiệp vụ: Nếu đã có vé thanh toán, không cho thay đổi các thông tin quan trọng
+        if (hasPaidTickets) {
+            if (roomChanged) {
+                throw new RuntimeException("Không thể thay đổi phòng chiếu vì đã có vé được đặt và thanh toán. Vui lòng liên hệ quản trị viên để xử lý.");
+            }
+            if (timeChanged) {
+                throw new RuntimeException("Không thể thay đổi thời gian chiếu vì đã có vé được đặt và thanh toán. Vui lòng liên hệ quản trị viên để xử lý.");
+            }
+            if (movieChanged) {
+                throw new RuntimeException("Không thể thay đổi phim vì đã có vé được đặt và thanh toán. Vui lòng liên hệ quản trị viên để xử lý.");
+            }
+        }
         
         // Nếu có cinemaRoomId mới và khác với hiện tại, cần tìm CinemaRoom mới
         CinemaRoom cinemaRoom = showtime.getCinemaRoom();
-        if (newRoomId != null && !currentRoomId.equals(newRoomId)) {
+        if (roomChanged) {
             cinemaRoom = cinemaRoomRepository.findById(newRoomId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy phòng chiếu với ID: " + newRoomId));
         }
@@ -186,7 +213,7 @@ public class ShowtimeService {
         validateShowtimeWithDrools(showtimeId, roomIdToCheck, 
                                    updateDTO.getStartTime(), updateDTO.getEndTime());
         
-        // Cập nhật thông tin
+        // Cập nhật thông tin (chỉ cập nhật nếu chưa có vé thanh toán hoặc không thay đổi thông tin quan trọng)
         showtime.setMovieVersion(movieVersion);
         showtime.setCinemaRoom(cinemaRoom);
         showtime.setStartTime(updateDTO.getStartTime());
@@ -219,9 +246,11 @@ public class ShowtimeService {
         Showtime showtime = showtimeRepository.findByIdWithRelations(showtimeId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch chiếu với ID: " + showtimeId));
         
-        // Kiểm tra xem có vé nào đã được đặt chưa
-        if (showtime.getTickets() != null && !showtime.getTickets().isEmpty()) {
-            throw new RuntimeException("Không thể xóa lịch chiếu đã có vé được đặt");
+        // Ràng buộc: Kiểm tra xem có vé đã thanh toán thành công không
+        // Sử dụng TicketRepository để kiểm tra chính xác hơn (chỉ tính vé đã thanh toán)
+        boolean hasPaidTickets = ticketRepository.existsPaidTicketsByShowtimeId(showtimeId);
+        if (hasPaidTickets) {
+            throw new RuntimeException("Không thể xóa lịch chiếu vì đã có vé được đặt và thanh toán. Vui lòng liên hệ quản trị viên để xử lý.");
         }
         
         Movie movie = showtime.getMovieVersion().getMovie();

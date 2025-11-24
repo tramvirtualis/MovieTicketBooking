@@ -251,18 +251,20 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
           }
         }
 
+        setDeleteConfirm(null); // Đóng modal sau khi xóa thành công
         showNotification('Xóa banner thành công', 'success');
       } else {
+        setDeleteConfirm(null); // Đóng modal khi xóa thất bại
         setError(result.error || 'Không thể xóa banner');
         showNotification(result.error || 'Không thể xóa banner', 'error');
       }
     } catch (err) {
       console.error('Error deleting banner:', err);
+      setDeleteConfirm(null); // Đóng modal khi có lỗi
       setError(err.message || 'Không thể xóa banner');
       showNotification(err.message || 'Không thể xóa banner', 'error');
     } finally {
       setLoading(false);
-      setDeleteConfirm(null);
     }
   };
 

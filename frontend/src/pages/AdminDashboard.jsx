@@ -800,7 +800,7 @@ export default function AdminDashboard() {
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
               <circle cx="12" cy="10" r="3"/>
             </svg>
-            <span>Quản lý rạp</span>
+            <span>Quản lý cụm rạp</span>
           </button>
           <button
             className={`admin-nav-item ${activeSection === 'prices' ? 'admin-nav-item--active' : ''}`}
@@ -912,12 +912,7 @@ export default function AdminDashboard() {
             style={{ position: 'relative' }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <line x1="10" y1="9" x2="8" y2="9"/>
-              <line x1="10" y1="5" x2="8" y2="5"/>
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
             </svg>
             <span>Quản lý hoạt động</span>
             {hasNewActivity && activeSection !== 'activities' && (
@@ -957,7 +952,7 @@ export default function AdminDashboard() {
           <div className="admin-header__left">
             <h1 className="admin-header__title">
               {activeSection === 'movies' && 'Quản lý phim'}
-              {activeSection === 'cinemas' && 'Quản lý rạp'}
+              {activeSection === 'cinemas' && 'Quản lý cụm rạp'}
               {activeSection === 'bookings' && 'Quản lý đặt vé'}
               {activeSection === 'users' && 'Quản lý người dùng'}
               {activeSection === 'reviews' && 'Quản lý đánh giá'}

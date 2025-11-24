@@ -270,6 +270,35 @@ public class EmailService {
                 }
             }
             
+            // Nếu chỉ có đồ ăn (không có vé), tạo QR code cho đơn hàng đồ ăn
+            if (!hasTickets && hasCombos) {
+                // Tạo dữ liệu QR code cho đơn hàng đồ ăn
+                Map<String, Object> foodOrderQrData = new LinkedHashMap<>();
+                foodOrderQrData.put("orderId", order.getOrderId().toString());
+                foodOrderQrData.put("type", "FOOD_ORDER");
+                foodOrderQrData.put("orderDate", order.getOrderDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+                foodOrderQrData.put("totalAmount", order.getTotalAmount().toString());
+                
+                // Danh sách đồ ăn
+                List<Map<String, Object>> foodItems = new ArrayList<>();
+                for (OrderCombo combo : order.getOrderCombos()) {
+                    if (combo.getFoodCombo() != null) {
+                        Map<String, Object> foodItem = new LinkedHashMap<>();
+                        foodItem.put("foodComboId", combo.getFoodCombo().getFoodComboId().toString());
+                        foodItem.put("name", combo.getFoodCombo().getName());
+                        foodItem.put("quantity", combo.getQuantity());
+                        foodItem.put("price", combo.getFoodCombo().getPrice().toString());
+                        foodItems.add(foodItem);
+                    }
+                }
+                foodOrderQrData.put("foodItems", foodItems);
+                
+                // Tạo QR code
+                String foodOrderQrCode = generateQRCode(foodOrderQrData);
+                qrCodeBase64List.add(foodOrderQrCode);
+                System.out.println("Generated QR code for food-only order: " + order.getOrderId());
+            }
+            
             // Tạo HTML email với CID cho QR code
             List<String> qrCodeCids = new ArrayList<>();
             for (int i = 0; i < qrCodeBase64List.size(); i++) {
@@ -320,12 +349,17 @@ public class EmailService {
      */
     private String generateQRCode(Map<String, Object> data) {
         try {
-            // Convert data to JSON string
+            // Convert data to JSON string - COMPACT format (không có spaces, giống JSON.stringify)
             ObjectMapper objectMapper = new ObjectMapper();
             objectMapper.configure(com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, false);
+            objectMapper.configure(com.fasterxml.jackson.core.JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
+            // Tắt pretty printing để có format compact
+            objectMapper.configure(com.fasterxml.jackson.core.JsonGenerator.Feature.IGNORE_UNKNOWN, true);
             String jsonData = objectMapper.writeValueAsString(data);
             
-            System.out.println("Generating QR Code with data: " + jsonData);
+            System.out.println("=== Backend QR Code Data ===");
+            System.out.println("JSON: " + jsonData);
+            System.out.println("===========================");
             
             // Tạo QR code - Tăng kích thước lên 400x400 để đảm bảo chứa đủ dữ liệu
             QRCodeWriter qrCodeWriter = new QRCodeWriter();
@@ -642,18 +676,30 @@ public class EmailService {
             html.append("<h3 class=\"section-title\">🍿 Đồ ăn & Nước uống</h3>");
             
             for (OrderCombo combo : order.getOrderCombos()) {
-                if (combo.getFoodCombos() != null && !combo.getFoodCombos().isEmpty()) {
-                    FoodCombo food = combo.getFoodCombos().get(0);
+                if (combo.getFoodCombo() != null) {
+                    FoodCombo food = combo.getFoodCombo();
                     html.append("<div class=\"food-item\">");
                     html.append("<div class=\"food-name\">").append(escapeHtml(food.getName())).append("</div>");
                     html.append("<div class=\"food-details\">");
                     html.append("Số lượng: ").append(combo.getQuantity());
-                    html.append(" | Đơn giá: ").append(formatPrice(combo.getPrice()));
-                    BigDecimal totalCombo = combo.getPrice().multiply(BigDecimal.valueOf(combo.getQuantity()));
+                    html.append(" | Đơn giá: ").append(formatPrice(food.getPrice()));
+                    BigDecimal totalCombo = food.getPrice().multiply(BigDecimal.valueOf(combo.getQuantity()));
                     html.append(" | Thành tiền: ").append(formatPrice(totalCombo));
                     html.append("</div>");
                     html.append("</div>");
                 }
+            }
+            
+            // Nếu chỉ có đồ ăn (không có vé), thêm QR code cho đơn hàng đồ ăn
+            if (!hasTickets && !qrCodeCids.isEmpty()) {
+                String foodQrCid = qrCodeCids.get(0); // QR code đầu tiên là cho đơn hàng đồ ăn
+                html.append("<div class=\"qr-section\" style=\"margin-top: 20px; padding-top: 20px; border-top: 2px dashed #ddd;\">");
+                html.append("<div class=\"qr-label\">Mã QR Code - Vui lòng quét tại rạp</div>");
+                html.append("<div class=\"qr-code\">");
+                html.append("<img src=\"cid:").append(foodQrCid).append("\" alt=\"QR Code\" />");
+                html.append("</div>");
+                html.append("<div class=\"booking-id\">Order ID: ").append(order.getOrderId()).append("</div>");
+                html.append("</div>");
             }
             
             html.append("</div>");

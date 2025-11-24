@@ -84,6 +84,7 @@ export default function BookingHistory() {
               itemsByShowtime[key] = {
                 id: `${order.orderId}-${key}`,
                 orderId: order.orderId,
+                showtimeId: item.showtimeId, // Lưu showtimeId để tạo bookingId
                 movie: {
                   movieId: item.movieId,
                   title: item.movieTitle,
@@ -100,7 +101,7 @@ export default function BookingHistory() {
                   minute: '2-digit',
                   hour12: false
                 }),
-                format: item.roomType || 'STANDARD',
+                format: (item.roomType || 'STANDARD').replace('TYPE_', ''), // Map roomType giống backend
                 seats: [],
                 price: 0,
                 showtimeStart: showtimeStart,
@@ -188,6 +189,80 @@ export default function BookingHistory() {
       style: 'currency',
       currency: 'VND',
     }).format(price);
+  };
+
+  // Map room type format (giống backend: roomType.name().replace("TYPE_", ""))
+  const mapRoomType = (roomType) => {
+    if (!roomType) return '2D';
+    // Chuyển đổi từ TYPE_2D, TYPE_3D, etc. thành 2D, 3D (giống backend)
+    return roomType.replace('TYPE_', '');
+  };
+
+  // Format date cho QR code (giống backend: dd/MM/yyyy)
+  const formatDateForQR = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  // Format time cho QR code (giống backend: HH:mm)
+  const formatTimeForQR = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  // Tạo booking ID giống backend format: orderId-showtimeId-yyyy-MM-dd'T'HH:mm:ss
+  const createBookingId = (orderId, showtimeId, showtimeStart) => {
+    if (!showtimeStart || !showtimeId) {
+      return `${orderId}-${showtimeId || 'unknown'}-${Date.now()}`;
+    }
+    const date = new Date(showtimeStart);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    return `${orderId}-${showtimeId}-${formattedDate}`;
+  };
+
+  // Tạo QR data với format giống backend (thứ tự: bookingId, orderId, movie, cinema, date, time, seats, format)
+  const createQRData = (booking) => {
+    // Tạo bookingId nếu chưa có hoặc không đúng format
+    let bookingId = booking.id;
+    if (booking.orderId && booking.showtimeId && booking.showtimeStart) {
+      bookingId = createBookingId(booking.orderId, booking.showtimeId, booking.showtimeStart);
+    }
+    
+    // Đảm bảo seats được sort (giống backend) và là array
+    const sortedSeats = [...(booking.seats || [])].sort();
+    
+    // Tạo object với thứ tự CHÍNH XÁC giống backend
+    // Thứ tự: bookingId, orderId, movie, cinema, date, time, seats, format
+    const qrData = {};
+    qrData.bookingId = String(bookingId || '');
+    qrData.orderId = String(booking.orderId || '');
+    qrData.movie = String(booking.movie?.title || '');
+    qrData.cinema = String(booking.cinema || '');
+    qrData.date = formatDateForQR(booking.showtimeStart);
+    qrData.time = formatTimeForQR(booking.showtimeStart);
+    qrData.seats = sortedSeats; // Array
+    qrData.format = mapRoomType(booking.format);
+    
+    // Log để debug
+    const jsonString = JSON.stringify(qrData);
+    console.log('=== Frontend QR Code Data ===');
+    console.log('JSON:', jsonString);
+    console.log('============================');
+    
+    return qrData;
   };
 
   return (
@@ -547,15 +622,7 @@ export default function BookingHistory() {
                   border: '1px solid #eee'
                 }}>
                   <QRCodeSVG
-                    value={JSON.stringify({
-                      bookingId: selectedBooking.id,
-                      movie: selectedBooking.movie.title,
-                      cinema: selectedBooking.cinema,
-                      date: selectedBooking.date,
-                      time: selectedBooking.time,
-                      seats: selectedBooking.seats,
-                      format: selectedBooking.format
-                    })}
+                    value={JSON.stringify(createQRData(selectedBooking))}
                     size={200}
                     level="H"
                     includeMargin={true}

@@ -168,11 +168,13 @@ function ManagerActivityManagement({ managerUsername, onNewActivity }) {
         setDeleteConfirm(null);
         showNotification('Xóa hoạt động thành công', 'success');
       } else {
+        setDeleteConfirm(null); // Đóng modal khi xóa thất bại
         showNotification(result.error || 'Không thể xóa hoạt động', 'error');
       }
     } catch (error) {
       console.error('Error deleting manager activity:', error);
-      showNotification('Có lỗi xảy ra khi xóa hoạt động', 'error');
+      setDeleteConfirm(null); // Đóng modal khi có lỗi
+      showNotification(error.message || 'Có lỗi xảy ra khi xóa hoạt động', 'error');
     } finally {
       setIsDeleting(false);
     }

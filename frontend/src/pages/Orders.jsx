@@ -380,7 +380,7 @@ export default function Orders() {
                             setShowTicketModal(true);
                           }}
                         >
-                          Xem lại vé
+                          Xem chi tiết
                         </button>
                       </div>
                     </div>

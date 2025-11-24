@@ -2,10 +2,18 @@ package com.example.backend.controllers;
 
 import com.example.backend.dtos.PriceDTO;
 import com.example.backend.dtos.UpdatePricesRequestDTO;
+import com.example.backend.entities.enums.Action;
+import com.example.backend.entities.enums.ObjectType;
 import com.example.backend.entities.enums.RoomType;
 import com.example.backend.entities.enums.SeatType;
+import com.example.backend.services.ActivityLogService;
 import com.example.backend.services.PriceService;
+import com.example.backend.utils.JwtUtils;
+import com.example.backend.utils.SecurityUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,6 +32,8 @@ import java.util.Map;
 public class PriceController {
     
     private final PriceService priceService;
+    private final ActivityLogService activityLogService;
+    private final JwtUtils jwtUtils;
     
     // ============ PUBLIC ENDPOINTS ============
     
@@ -61,7 +71,8 @@ public class PriceController {
     
     @PutMapping("/api/admin/prices")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> updatePrices(@RequestBody Map<String, Object> requestBody) {
+    public ResponseEntity<?> updatePrices(@RequestBody Map<String, Object> requestBody,
+                                          HttpServletRequest request) {
         try {
             // Log incoming request for debugging
             System.out.println("=== RECEIVED UPDATE PRICES REQUEST ===");
@@ -97,7 +108,7 @@ public class PriceController {
             System.out.println("Number of prices: " + pricesList.size());
             
             // Convert to UpdatePricesRequestDTO with proper enum conversion
-            UpdatePricesRequestDTO request = new UpdatePricesRequestDTO();
+            UpdatePricesRequestDTO updateRequest = new UpdatePricesRequestDTO();
             List<PriceDTO> priceDTOs = new java.util.ArrayList<>();
             
             for (int i = 0; i < pricesList.size(); i++) {
@@ -196,11 +207,82 @@ public class PriceController {
                         .body(createErrorResponse("Không có dữ liệu giá hợp lệ để lưu"));
             }
             
-            request.setPrices(priceDTOs);
+            updateRequest.setPrices(priceDTOs);
+            
+            // Lấy username từ JWT token (giống VoucherController)
+            String username = getUsernameFromRequest(request);
+            System.out.println("=== PRICE UPDATE ===");
+            System.out.println("Username from request: " + (username != null ? username : "NULL"));
             
             System.out.println("Calling priceService.updatePrices with " + priceDTOs.size() + " items");
-            List<PriceDTO> updatedPrices = priceService.updatePrices(request);
+            List<PriceDTO> updatedPrices = priceService.updatePrices(updateRequest);
             System.out.println("Service returned " + updatedPrices.size() + " prices");
+            
+            // Log activity SAU KHI cập nhật giá thành công
+            System.out.println("=== PRICE UPDATE ACTIVITY LOG ===");
+            System.out.println("Username: " + (username != null ? username : "NULL"));
+            if (username != null && !username.isEmpty()) {
+                try {
+                    // Tạo mô tả chi tiết về các giá đã cập nhật
+                    StringBuilder description = new StringBuilder("Cập nhật bảng giá: ");
+                    int count = 0;
+                    for (PriceDTO priceDTO : priceDTOs) {
+                        if (count > 0) description.append(", ");
+                        description.append(priceDTO.getRoomType())
+                                   .append(" - ")
+                                   .append(priceDTO.getSeatType())
+                                   .append(" = ")
+                                   .append(priceDTO.getPrice());
+                        count++;
+                        if (count >= 3) { // Giới hạn hiển thị 3 giá đầu tiên
+                            description.append("...");
+                            break;
+                        }
+                    }
+                    if (priceDTOs.size() > 3) {
+                        description.append(" (tổng cộng ").append(priceDTOs.size()).append(" giá)");
+                    }
+                    
+                    System.out.println("About to log activity:");
+                    System.out.println("  - Username: " + username);
+                    System.out.println("  - Action: UPDATE");
+                    System.out.println("  - ObjectType: PRICE");
+                    System.out.println("  - ObjectId: 0L (no specific ID for price table)");
+                    System.out.println("  - ObjectName: Bảng giá");
+                    System.out.println("  - Description: " + description.toString());
+                    
+                    // Gọi logActivity - sử dụng 0L thay vì null để tránh vấn đề với database constraint
+                    System.out.println("Calling activityLogService.logActivity with:");
+                    System.out.println("  username=" + username);
+                    System.out.println("  action=UPDATE");
+                    System.out.println("  objectType=PRICE");
+                    System.out.println("  objectId=0L");
+                    System.out.println("  objectName=Bảng giá");
+                    System.out.println("  description=" + description.toString());
+                    
+                    activityLogService.logActivity(
+                        username,
+                        Action.UPDATE,
+                        ObjectType.PRICE,
+                        0L, // Sử dụng 0L thay vì null vì cập nhật nhiều giá (không có ID cụ thể)
+                        "Bảng giá",
+                        description.toString()
+                    );
+                    
+                    System.out.println("✓ Activity logged successfully - method returned without exception");
+                } catch (Exception e) {
+                    System.err.println("✗ ERROR: Failed to log price activity");
+                    System.err.println("  Exception type: " + e.getClass().getName());
+                    System.err.println("  Exception message: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            } else {
+                System.err.println("✗ WARNING: Username is null or empty, cannot log activity");
+                System.err.println("  This might be because:");
+                System.err.println("  1. JWT token is missing from request");
+                System.err.println("  2. JWT token is invalid");
+                System.err.println("  3. JWT token does not contain username");
+            }
             
             return ResponseEntity.ok(
                     createSuccessResponse("Cập nhật bảng giá thành công", updatedPrices)
@@ -287,6 +369,21 @@ public class PriceController {
         response.put("success", false);
         response.put("message", message);
         return response;
+    }
+    
+    private String getUsernameFromRequest(HttpServletRequest request) {
+        try {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                if (jwtUtils.validateJwtToken(token)) {
+                    return jwtUtils.getUsernameFromJwtToken(token);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting username from request: " + e.getMessage());
+        }
+        return null;
     }
 }
 

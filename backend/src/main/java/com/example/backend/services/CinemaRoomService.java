@@ -116,32 +116,45 @@ public class CinemaRoomService {
         // Kiểm tra nếu số hàng/cột thay đổi
         boolean rowsOrColsChanged = currentRows != updateDTO.getRows() || currentCols != updateDTO.getCols();
         
-        // Nếu số hàng/cột thay đổi, kiểm tra xem có đặt chỗ không
-        if (rowsOrColsChanged) {
-            boolean hasBookings = ticketRepository.existsByRoomId(roomId);
-            if (hasBookings) {
-                throw new RuntimeException("Không thể chỉnh sửa số hàng/cột khi phòng chiếu đã có đặt chỗ");
-            }
+        // Kiểm tra xem loại phòng có thay đổi không
+        boolean roomTypeChanged = !room.getRoomType().equals(updateDTO.getRoomType());
+        
+        // Ràng buộc: Kiểm tra xem có vé đã thanh toán hay không
+        boolean hasPaidTickets = ticketRepository.existsPaidTicketsByRoomId(roomId);
+        
+        // Ràng buộc nghiệp vụ:
+        // 1. Nếu đã có vé thanh toán, không cho thay đổi số hàng/cột (sẽ ảnh hưởng đến layout ghế)
+        if (hasPaidTickets && rowsOrColsChanged) {
+            throw new RuntimeException("Không thể thay đổi số hàng/cột của phòng chiếu vì đã có vé được đặt và thanh toán. Vui lòng liên hệ quản trị viên để xử lý.");
+        }
+        
+        // 2. Nếu đã có vé thanh toán, không cho thay đổi loại phòng (ảnh hưởng đến giá vé)
+        if (hasPaidTickets && roomTypeChanged) {
+            throw new RuntimeException("Không thể thay đổi loại phòng chiếu vì đã có vé được đặt và thanh toán. Vui lòng liên hệ quản trị viên để xử lý.");
         }
         
         // Cập nhật thông tin phòng
         room.setRoomName(updateDTO.getRoomName());
-        room.setRoomType(updateDTO.getRoomType());
         
-        // Nếu số hàng/cột thay đổi, xóa ghế cũ và tạo lại ghế mới
-        if (rowsOrColsChanged) {
-            // Xóa ghế cũ (clear và xóa trong database)
-            if (!room.getSeatLayout().isEmpty()) {
-                seatRepository.deleteAll(room.getSeatLayout());
-                room.getSeatLayout().clear();
+        // Chỉ cho phép thay đổi rows/cols/roomType nếu chưa có vé thanh toán
+        if (!hasPaidTickets) {
+            room.setRoomType(updateDTO.getRoomType());
+        
+            // Nếu số hàng/cột thay đổi, xóa ghế cũ và tạo lại ghế mới
+            if (rowsOrColsChanged) {
+                // Xóa ghế cũ (clear và xóa trong database)
+                if (!room.getSeatLayout().isEmpty()) {
+                    seatRepository.deleteAll(room.getSeatLayout());
+                    room.getSeatLayout().clear();
+                }
+                // Tạo ghế mới
+                List<Seat> newSeats = generateSeats(updateDTO.getRows(), updateDTO.getCols(), room);
+                room.setSeatLayout(newSeats);
+            } else if (room.getSeatLayout().isEmpty()) {
+                // Nếu chưa có ghế, tạo mới
+                List<Seat> seats = generateSeats(updateDTO.getRows(), updateDTO.getCols(), room);
+                room.setSeatLayout(seats);
             }
-            // Tạo ghế mới
-            List<Seat> newSeats = generateSeats(updateDTO.getRows(), updateDTO.getCols(), room);
-            room.setSeatLayout(newSeats);
-        } else if (room.getSeatLayout().isEmpty()) {
-            // Nếu chưa có ghế, tạo mới
-            List<Seat> seats = generateSeats(updateDTO.getRows(), updateDTO.getCols(), room);
-            room.setSeatLayout(seats);
         }
         
         CinemaRoom savedRoom = cinemaRoomRepository.save(room);
@@ -165,6 +178,12 @@ public class CinemaRoomService {
         CinemaRoom room = cinemaRoomRepository.findById(roomId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy phòng chiếu với ID: " + roomId));
         
+        // Ràng buộc: Không cho xóa phòng chiếu nếu đã có vé thanh toán thành công
+        boolean hasPaidTickets = ticketRepository.existsPaidTicketsByRoomId(roomId);
+        if (hasPaidTickets) {
+            throw new RuntimeException("Không thể xóa phòng chiếu vì đã có vé được đặt và thanh toán. Vui lòng liên hệ quản trị viên để xử lý.");
+        }
+        
         cinemaRoomRepository.delete(room);
         logRoomActivity(username, Action.DELETE, room, "Xóa phòng chiếu " + room.getRoomName());
     }
@@ -173,6 +192,13 @@ public class CinemaRoomService {
     public SeatResponseDTO updateSeatType(Long seatId, SeatType newType, String username) {
         Seat seat = seatRepository.findById(seatId)
             .orElseThrow(() -> new RuntimeException("Không tìm thấy ghế với ID: " + seatId));
+        
+        // Ràng buộc: Không cho thay đổi loại ghế nếu đã có vé thanh toán
+        // (Có thể cho phép thay đổi nhưng cần cảnh báo vì ảnh hưởng đến giá vé đã bán)
+        boolean hasPaidTickets = ticketRepository.existsPaidTicketsBySeatId(seatId);
+        if (hasPaidTickets) {
+            throw new RuntimeException("Không thể thay đổi loại ghế vì đã có vé được đặt và thanh toán cho ghế này. Vui lòng liên hệ quản trị viên để xử lý.");
+        }
         
         seat.setType(newType);
         Seat savedSeat = seatRepository.save(seat);

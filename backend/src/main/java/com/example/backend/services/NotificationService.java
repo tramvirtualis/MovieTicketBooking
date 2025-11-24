@@ -72,9 +72,14 @@ public class NotificationService {
             notification.setIsRead(false);
             
             // Gửi qua WebSocket
-            String destination = "/queue/notifications/" + userId;
-            messagingTemplate.convertAndSend(destination, notification);
-            log.info("Notification sent via WebSocket to user {}: {}", userId, notification.getType());
+            try {
+                String destination = "/queue/notifications/" + userId;
+                messagingTemplate.convertAndSend(destination, notification);
+                log.info("Notification sent via WebSocket to user {}: {}", userId, notification.getType());
+            } catch (Exception wsError) {
+                log.error("Error sending notification via WebSocket to user {}: {}", userId, wsError.getMessage(), wsError);
+                // Không throw exception, vì notification đã được lưu vào DB
+            }
         } catch (Exception e) {
             log.error("Error sending notification to user {}: {}", userId, e.getMessage(), e);
         }

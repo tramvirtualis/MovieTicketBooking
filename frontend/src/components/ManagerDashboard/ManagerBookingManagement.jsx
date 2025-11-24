@@ -15,6 +15,7 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
   const [sortField, setSortField] = useState('bookingId');
   const [sortOrder, setSortOrder] = useState('asc');
   const [selected, setSelected] = useState(null);
+  const [orderTypeFilter, setOrderTypeFilter] = useState('ALL'); // ALL, TICKET, FOOD_ONLY
   
   // Load orders from backend
   useEffect(() => {
@@ -26,11 +27,14 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
         console.log('Loaded orders from backend:', ordersData);
         
         // Map backend format to frontend format
-        // Backend returns OrderResponseDTO with items (tickets) array
-        // Frontend expects one booking per ticket
+        // Backend returns OrderResponseDTO with items (tickets) array and combos (food) array
+        // Frontend expects one booking per ticket group OR one booking for food-only orders
         const mappedOrders = [];
         ordersData.forEach(order => {
-          if (order.items && order.items.length > 0) {
+          const hasTickets = order.items && order.items.length > 0;
+          const hasCombos = order.combos && order.combos.length > 0;
+          
+          if (hasTickets) {
             // Group tickets by showtime to create booking records
             const ticketsByShowtime = {};
             order.items.forEach(item => {
@@ -53,6 +57,7 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
               
               mappedOrders.push({
                 bookingId: order.orderId,
+                orderType: 'TICKET', // TICKET or FOOD_ONLY
                 user: {
                   name: order.userName || 'N/A',
                   email: order.userEmail || '',
@@ -69,8 +74,35 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
                 pricePerSeat: ticketGroup.length > 0 ? parseFloat(ticketGroup[0].price) || 0 : 0,
                 totalAmount: parseFloat(order.totalAmount) || totalAmount,
                 status: 'PAID', // All orders in DB are successful
-                paymentMethod: order.paymentMethod || 'UNKNOWN'
+                paymentMethod: order.paymentMethod || 'UNKNOWN',
+                combos: order.combos || []
               });
+            });
+          } else if (hasCombos) {
+            // Food-only order (no tickets)
+            const comboTotal = order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0);
+            
+            mappedOrders.push({
+              bookingId: order.orderId,
+              orderType: 'FOOD_ONLY',
+              user: {
+                name: order.userName || 'N/A',
+                email: order.userEmail || '',
+                phone: order.userPhone || ''
+              },
+              movieId: null,
+              movieTitle: null,
+              cinemaComplexId: null,
+              cinemaName: null,
+              roomId: null,
+              roomName: null,
+              showtime: order.orderDate, // Use order date for food-only orders
+              seats: [],
+              pricePerSeat: 0,
+              totalAmount: parseFloat(order.totalAmount) || comboTotal,
+              status: 'PAID',
+              paymentMethod: order.paymentMethod || 'UNKNOWN',
+              combos: order.combos || []
             });
           }
         });
@@ -126,17 +158,22 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
           return false;
         }
       }
+      // Filter by order type
+      if (orderTypeFilter === 'TICKET' && order.orderType !== 'TICKET') return false;
+      if (orderTypeFilter === 'FOOD_ONLY' && order.orderType !== 'FOOD_ONLY') return false;
+      
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const matches = 
           (order.user?.name || '').toLowerCase().includes(term) ||
           (order.user?.phone || '').includes(term) ||
           (order.movieTitle || '').toLowerCase().includes(term) ||
-          (order.cinemaName || '').toLowerCase().includes(term);
+          (order.cinemaName || '').toLowerCase().includes(term) ||
+          (order.orderType === 'FOOD_ONLY' && 'đồ ăn'.includes(term));
         if (!matches) return false;
       }
-      if (filterCinema && order.cinemaComplexId !== Number(filterCinema)) return false;
-      if (filterMovie && order.movieId !== Number(filterMovie)) return false;
+      if (filterCinema && order.cinemaComplexId && order.cinemaComplexId !== Number(filterCinema)) return false;
+      if (filterMovie && order.movieId && order.movieId !== Number(filterMovie)) return false;
       if (filterStatus) {
         const orderDate = new Date(order.showtime);
         const now = new Date();
@@ -212,6 +249,9 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
   };
 
   const derivedStatus = (order) => {
+    if (order.orderType === 'FOOD_ONLY') {
+      return 'ACTIVE'; // Food orders are always active
+    }
     const orderDate = new Date(order.showtime);
     const now = new Date();
     return orderDate > now && order.status === 'PAID' ? 'ACTIVE' : 'EXPIRED';
@@ -219,23 +259,94 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
 
   const statusColor = (status) => status === 'ACTIVE' ? '#4caf50' : '#9e9e9e';
 
+  // Count orders by type
+  const ticketOrdersCount = orders.filter(o => o.orderType === 'TICKET').length;
+  const foodOrdersCount = orders.filter(o => o.orderType === 'FOOD_ONLY').length;
+  const allOrdersCount = orders.length;
+
   return (
     <div className="admin-card">
       <div className="admin-card__header">
-        <h2 className="admin-card__title">Quản lý đặt vé</h2>
+        <h2 className="admin-card__title">Quản lý đặt vé & đồ ăn</h2>
+        
+        {/* Order Type Tabs */}
+        <div style={{ 
+          display: 'flex', 
+          gap: '8px', 
+          marginBottom: '16px',
+          borderBottom: '2px solid #333',
+          paddingBottom: '8px'
+        }}>
+          <button
+            onClick={() => setOrderTypeFilter('ALL')}
+            style={{
+              padding: '8px 16px',
+              border: 'none',
+              background: orderTypeFilter === 'ALL' ? '#e83b41' : 'transparent',
+              color: orderTypeFilter === 'ALL' ? '#fff' : '#9e9e9e',
+              borderRadius: '6px 6px 0 0',
+              cursor: 'pointer',
+              fontWeight: orderTypeFilter === 'ALL' ? 600 : 400,
+              transition: 'all 0.2s',
+              borderBottom: orderTypeFilter === 'ALL' ? '2px solid #e83b41' : '2px solid transparent',
+              marginBottom: orderTypeFilter === 'ALL' ? '-2px' : '0'
+            }}
+          >
+            Tất cả ({allOrdersCount})
+          </button>
+          <button
+            onClick={() => setOrderTypeFilter('TICKET')}
+            style={{
+              padding: '8px 16px',
+              border: 'none',
+              background: orderTypeFilter === 'TICKET' ? '#e83b41' : 'transparent',
+              color: orderTypeFilter === 'TICKET' ? '#fff' : '#9e9e9e',
+              borderRadius: '6px 6px 0 0',
+              cursor: 'pointer',
+              fontWeight: orderTypeFilter === 'TICKET' ? 600 : 400,
+              transition: 'all 0.2s',
+              borderBottom: orderTypeFilter === 'TICKET' ? '2px solid #e83b41' : '2px solid transparent',
+              marginBottom: orderTypeFilter === 'TICKET' ? '-2px' : '0'
+            }}
+          >
+            🎬 Đơn vé ({ticketOrdersCount})
+          </button>
+          <button
+            onClick={() => setOrderTypeFilter('FOOD_ONLY')}
+            style={{
+              padding: '8px 16px',
+              border: 'none',
+              background: orderTypeFilter === 'FOOD_ONLY' ? '#e83b41' : 'transparent',
+              color: orderTypeFilter === 'FOOD_ONLY' ? '#fff' : '#9e9e9e',
+              borderRadius: '6px 6px 0 0',
+              cursor: 'pointer',
+              fontWeight: orderTypeFilter === 'FOOD_ONLY' ? 600 : 400,
+              transition: 'all 0.2s',
+              borderBottom: orderTypeFilter === 'FOOD_ONLY' ? '2px solid #e83b41' : '2px solid transparent',
+              marginBottom: orderTypeFilter === 'FOOD_ONLY' ? '-2px' : '0'
+            }}
+          >
+            🍿 Đơn đồ ăn ({foodOrdersCount})
+          </button>
+        </div>
+
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <div className="movie-search">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <input className="movie-search__input" placeholder="Tìm tên KH, sđt, phim, rạp..." value={searchTerm} onChange={(e)=>setSearchTerm(e.target.value)} />
           </div>
-          <select className="movie-filter" value={filterCinema} onChange={(e)=>setFilterCinema(e.target.value)}>
-            <option value="">Tất cả rạp</option>
-            {scopedCinemas.map(c => <option key={c.complexId} value={c.complexId}>#{c.complexId} - {c.name}</option>)}
-          </select>
-          <select className="movie-filter" value={filterMovie} onChange={(e)=>setFilterMovie(e.target.value)}>
-            <option value="">Tất cả phim</option>
-            {(movies || []).map(m => <option key={m.movieId} value={m.movieId}>{m.title}</option>)}
-          </select>
+          {orderTypeFilter !== 'FOOD_ONLY' && (
+            <>
+              <select className="movie-filter" value={filterCinema} onChange={(e)=>setFilterCinema(e.target.value)}>
+                <option value="">Tất cả rạp</option>
+                {scopedCinemas.map(c => <option key={c.complexId} value={c.complexId}>#{c.complexId} - {c.name}</option>)}
+              </select>
+              <select className="movie-filter" value={filterMovie} onChange={(e)=>setFilterMovie(e.target.value)}>
+                <option value="">Tất cả phim</option>
+                {(movies || []).map(m => <option key={m.movieId} value={m.movieId}>{m.title}</option>)}
+              </select>
+            </>
+          )}
           <select className="movie-filter" value={filterStatus} onChange={(e)=>setFilterStatus(e.target.value)}>
             <option value="">Tất cả trạng thái</option>
             <option value="ACTIVE">Còn hạn</option>
@@ -274,7 +385,11 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
         ) : sorted.length === 0 ? (
           <div className="movie-empty">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-            <p>Không có đơn đặt vé</p>
+            <p>
+              {orderTypeFilter === 'TICKET' ? 'Không có đơn đặt vé' : 
+               orderTypeFilter === 'FOOD_ONLY' ? 'Không có đơn đồ ăn' : 
+               'Không có đơn hàng nào'}
+            </p>
           </div>
         ) : (
           <div className="admin-table">
@@ -312,18 +427,54 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
                       <div className="movie-table-rating">{o.user?.email} • {o.user?.phone}</div>
                     </td>
                     <td>
-                      <div className="movie-table-title">{o.movieTitle}</div>
-                      <div className="movie-table-rating">{o.cinemaName} • {o.roomName}</div>
+                      {o.orderType === 'FOOD_ONLY' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ 
+                            fontSize: '20px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '6px',
+                            background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+                            color: '#fff'
+                          }}>🍿</span>
+                          <div>
+                            <div className="movie-table-title" style={{ color: '#fbbf24', fontWeight: 600 }}>Đơn hàng đồ ăn</div>
+                            <div className="movie-table-rating">
+                              {o.combos && o.combos.length > 0 
+                                ? `${o.combos.length} combo${o.combos.length > 1 ? 's' : ''} • ${o.combos.reduce((sum, c) => sum + (c.quantity || 0), 0)} sản phẩm`
+                                : 'Không có thông tin'}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="movie-table-title">{o.movieTitle}</div>
+                          <div className="movie-table-rating">{o.cinemaName} • {o.roomName}</div>
+                        </>
+                      )}
                     </td>
-                    <td>{new Date(o.showtime).toLocaleString('vi-VN')}</td>
                     <td>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {o.seats.map(s => (
-                          <span key={s} className="badge-rating" style={{ background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
-                            {s}
-                          </span>
-                        ))}
-                      </div>
+                      {o.orderType === 'FOOD_ONLY' ? (
+                        <div style={{ color: '#9e9e9e' }}>—</div>
+                      ) : (
+                        new Date(o.showtime).toLocaleString('vi-VN')
+                      )}
+                    </td>
+                    <td>
+                      {o.orderType === 'FOOD_ONLY' ? (
+                        <div style={{ color: '#9e9e9e' }}>—</div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {o.seats.map(s => (
+                            <span key={s} className="badge-rating" style={{ background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div className="movie-table-title">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(o.totalAmount)}</div>
@@ -365,22 +516,67 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
                   <div className="admin-card__content">
                     <div className="movie-table-title">{selected.user?.name}</div>
                     <div className="movie-table-rating">{selected.user?.email} • {selected.user?.phone}</div>
-                    <div style={{ marginTop: 8 }}>{selected.movieTitle} • {selected.cinemaName} • {selected.roomName}</div>
-                    <div>Suất: {new Date(selected.showtime).toLocaleString('vi-VN')}</div>
+                    {selected.orderType === 'FOOD_ONLY' ? (
+                      <div style={{ marginTop: 8 }}>
+                        <strong>🍿 Đơn hàng đồ ăn</strong>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ marginTop: 8 }}>{selected.movieTitle} • {selected.cinemaName} • {selected.roomName}</div>
+                        <div>Suất: {new Date(selected.showtime).toLocaleString('vi-VN')}</div>
+                      </>
+                    )}
+                    <div style={{ marginTop: 8 }}>Ngày đặt: {new Date(selected.showtime).toLocaleString('vi-VN')}</div>
                   </div>
                 </div>
                 <div className="admin-card">
-                  <div className="admin-card__header"><h3 className="admin-card__title">Ghế & Thanh toán</h3></div>
+                  <div className="admin-card__header">
+                    <h3 className="admin-card__title">
+                      {selected.orderType === 'FOOD_ONLY' ? 'Đồ ăn & Thanh toán' : 'Ghế & Thanh toán'}
+                    </h3>
+                  </div>
                   <div className="admin-card__content">
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                      {selected.seats.map(s => (
-                        <span key={s} className="badge-rating" style={{ background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                    <div>Giá vé: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.pricePerSeat)} / ghế</div>
-                    <div>Tổng: <strong>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.totalAmount)}</strong> • {selected.paymentMethod}</div>
+                    {selected.orderType === 'FOOD_ONLY' ? (
+                      <>
+                        {selected.combos && selected.combos.length > 0 ? (
+                          <div style={{ marginBottom: 12 }}>
+                            {selected.combos.map((combo, idx) => (
+                              <div key={idx} style={{ marginBottom: 8, padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+                                <div style={{ fontWeight: 600 }}>{combo.comboName}</div>
+                                <div style={{ fontSize: '14px', color: '#666' }}>
+                                  Số lượng: {combo.quantity} × {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(combo.price / combo.quantity)} = {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(combo.price)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ color: '#9e9e9e' }}>Không có thông tin đồ ăn</div>
+                        )}
+                        <div>Tổng: <strong>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.totalAmount)}</strong> • {selected.paymentMethod}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                          {selected.seats.map(s => (
+                            <span key={s} className="badge-rating" style={{ background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                        <div>Giá vé: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.pricePerSeat)} / ghế</div>
+                        {selected.combos && selected.combos.length > 0 && (
+                          <div style={{ marginTop: 8, marginBottom: 8 }}>
+                            <div style={{ fontWeight: 600, marginBottom: 4 }}>🍿 Đồ ăn kèm:</div>
+                            {selected.combos.map((combo, idx) => (
+                              <div key={idx} style={{ fontSize: '14px', color: '#666', marginLeft: 12 }}>
+                                {combo.comboName} × {combo.quantity}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div>Tổng: <strong>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.totalAmount)}</strong> • {selected.paymentMethod}</div>
+                      </>
+                    )}
                     <div style={{ marginTop: 8 }}>
                       Trạng thái:{' '}
                       <span className="movie-status-badge" style={{ backgroundColor: statusColor(derivedStatus(selected)) }}>

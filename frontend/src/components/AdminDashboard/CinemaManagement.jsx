@@ -370,10 +370,12 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
         setDeleteConfirm(null);
         showNotification('Xóa cụm rạp thành công', 'success');
       } else {
+        setDeleteConfirm(null); // Đóng modal khi xóa thất bại
         showNotification(result.error || 'Xóa cụm rạp thất bại', 'error');
       }
     } catch (error) {
-      showNotification('Có lỗi xảy ra khi xóa cụm rạp', 'error');
+      setDeleteConfirm(null); // Đóng modal khi có lỗi
+      showNotification(error.message || 'Có lỗi xảy ra khi xóa cụm rạp', 'error');
     } finally {
       setLoading(false);
     }
@@ -620,10 +622,12 @@ function CinemaManagement({ cinemas: initialCinemasList, onCinemasChange }) {
         setDeleteConfirm(null);
         showNotification('Xóa phòng chiếu thành công', 'success');
       } else {
+        setDeleteConfirm(null); // Đóng modal khi xóa thất bại
         showNotification(result.error || 'Xóa phòng chiếu thất bại', 'error');
       }
     } catch (error) {
-      showNotification('Có lỗi xảy ra khi xóa phòng chiếu', 'error');
+      setDeleteConfirm(null); // Đóng modal khi có lỗi
+      showNotification(error.message || 'Có lỗi xảy ra khi xóa phòng chiếu', 'error');
     } finally {
       setLoading(false);
     }

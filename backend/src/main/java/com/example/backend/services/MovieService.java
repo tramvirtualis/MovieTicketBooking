@@ -19,6 +19,7 @@ import com.example.backend.entities.enums.RoomType;
 import com.example.backend.repositories.MovieRepository;
 import com.example.backend.repositories.MovieVersionRepository;
 import com.example.backend.repositories.ShowtimeRepository;
+import com.example.backend.repositories.TicketRepository;
 import com.example.backend.entities.Showtime;
 
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class MovieService {
     private final MovieRepository movieRepository;
     private final MovieVersionRepository movieVersionRepository;
     private final ShowtimeRepository showtimeRepository;
+    private final TicketRepository ticketRepository;
     private final ActivityLogService activityLogService;
     
     
@@ -131,6 +133,30 @@ public class MovieService {
         }
         // Cho phép admin cập nhật status thủ công (đặc biệt là ENDED)
         if (updateMovieDTO.getStatus() != null) {
+            // Kiểm tra ràng buộc khi đánh dấu phim đã kết thúc
+            if (updateMovieDTO.getStatus() == MovieStatus.ENDED) {
+                // Lấy tất cả showtimes của phim
+                List<Showtime> allShowtimes = showtimeRepository.findAllByMovieId(movieId);
+                LocalDateTime now = LocalDateTime.now();
+                
+                // Kiểm tra xem còn có suất chiếu trong tương lai không
+                boolean hasFutureShowtime = allShowtimes.stream()
+                        .anyMatch(st -> st.getStartTime().isAfter(now));
+                
+                if (hasFutureShowtime) {
+                    throw new RuntimeException("Không thể đánh dấu phim đã kết thúc vì còn có suất chiếu trong tương lai. Vui lòng xóa hoặc cập nhật các suất chiếu trước.");
+                }
+                
+                // Kiểm tra xem còn có vé đã thanh toán cho các suất chiếu trong tương lai không
+                // (Chỉ kiểm tra các showtime trong tương lai)
+                boolean hasPaidTicketsForFuture = allShowtimes.stream()
+                        .filter(st -> st.getStartTime().isAfter(now))
+                        .anyMatch(st -> ticketRepository.existsPaidTicketsByShowtimeId(st.getShowtimeId()));
+                
+                if (hasPaidTicketsForFuture) {
+                    throw new RuntimeException("Không thể đánh dấu phim đã kết thúc vì còn có vé đã được đặt cho các suất chiếu trong tương lai. Vui lòng đợi các suất chiếu hoàn tất trước.");
+                }
+            }
             movie.setStatus(updateMovieDTO.getStatus());
         } else {
             // Nếu không có status trong DTO, tự động tính (nhưng không bao giờ tự động set ENDED)

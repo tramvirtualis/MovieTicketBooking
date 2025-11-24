@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,6 +28,9 @@ import com.example.backend.repositories.ManagerRepository;
 import com.example.backend.services.CinemaComplexService;
 import com.example.backend.services.MovieService;
 import com.example.backend.services.OrderService;
+import com.example.backend.services.CustomerService;
+import com.example.backend.repositories.UserRepository;
+import com.example.backend.repositories.ManagerRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -42,6 +47,8 @@ public class ManagerController {
     private final ManagerRepository managerRepository;
     private final MovieService movieService;
     private final OrderService orderService;
+    private final CustomerService customerService;
+    private final UserRepository userRepository;
     
     @GetMapping("/cinema-complex")
     public ResponseEntity<?> getManagerCinemaComplex() {
@@ -270,5 +277,108 @@ public class ManagerController {
         response.put("success", false);
         response.put("message", message);
         return response;
+    }
+    
+    // ============ PASSWORD MANAGEMENT ENDPOINTS ============
+    
+    private Long getCurrentManagerId() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        Optional<Manager> managerOpt = managerRepository.findByUsername(username);
+        if (managerOpt.isPresent()) {
+            return managerOpt.get().getUserId();
+        }
+        throw new RuntimeException("Không tìm thấy manager với username: " + username);
+    }
+    
+    @GetMapping("/password/check")
+    public ResponseEntity<?> checkPassword() {
+        try {
+            Long userId = getCurrentManagerId();
+            boolean hasPassword = customerService.hasPassword(userId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("hasPassword", hasPassword);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    @PutMapping("/password/update")
+    public ResponseEntity<?> updatePassword(@RequestBody Map<String, String> request) {
+        try {
+            System.out.println("=== Manager Update Password ===");
+            Long userId = getCurrentManagerId();
+            System.out.println("User ID: " + userId);
+            String oldPassword = request.get("oldPassword");
+            String newPassword = request.get("newPassword");
+            String confirmPassword = request.get("confirmPassword");
+            System.out.println("Old password provided: " + (oldPassword != null && !oldPassword.isEmpty()));
+            System.out.println("New password provided: " + (newPassword != null && !newPassword.isEmpty()));
+            System.out.println("Confirm password provided: " + (confirmPassword != null && !confirmPassword.isEmpty()));
+
+            // Validate input
+            if (oldPassword == null || oldPassword.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Vui lòng nhập mật khẩu cũ"));
+            }
+            if (newPassword == null || newPassword.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Vui lòng nhập mật khẩu mới"));
+            }
+            if (confirmPassword == null || confirmPassword.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Vui lòng xác nhận mật khẩu mới"));
+            }
+            if (!newPassword.equals(confirmPassword)) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Mật khẩu mới và xác nhận mật khẩu không khớp"));
+            }
+
+            customerService.updatePassword(userId, oldPassword, newPassword);
+            System.out.println("Password updated successfully");
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Đổi mật khẩu thành công");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            System.err.println("Error updating password: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/password/create")
+    public ResponseEntity<?> createPassword(@RequestBody Map<String, String> request) {
+        try {
+            Long userId = getCurrentManagerId();
+            String newPassword = request.get("newPassword");
+            String confirmPassword = request.get("confirmPassword");
+
+            // Validate input
+            if (newPassword == null || newPassword.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Vui lòng nhập mật khẩu mới"));
+            }
+            if (confirmPassword == null || confirmPassword.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Vui lòng xác nhận mật khẩu mới"));
+            }
+            if (!newPassword.equals(confirmPassword)) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Mật khẩu mới và xác nhận mật khẩu không khớp"));
+            }
+
+            customerService.createPassword(userId, newPassword);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Tạo mật khẩu thành công");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        }
     }
 }

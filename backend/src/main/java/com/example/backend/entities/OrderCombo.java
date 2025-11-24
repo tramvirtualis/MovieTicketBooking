@@ -20,8 +20,9 @@ public class OrderCombo {
     @JoinColumn(name = "order_id")
     private Order order;
 
-    @OneToMany(mappedBy = "orderCombo", cascade = CascadeType.ALL)
-    private List<FoodCombo> foodCombos;
+    @ManyToOne
+    @JoinColumn(name = "food_combo_id")
+    private FoodCombo foodCombo; // Reference đến FoodCombo gốc trong menu
 
     private Integer quantity;
     private BigDecimal price;

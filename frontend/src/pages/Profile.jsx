@@ -828,8 +828,8 @@ export default function Profile() {
                     </div>
                   ) : (
                     <>
-                      {/* Main Statistics - 3 columns */}
-                      <div className="profile-stats-grid" style={{ marginBottom: '32px' }}>
+                      {/* Main Statistics - 2 columns */}
+                      <div className="profile-stats-grid" style={{ marginBottom: '32px', gridTemplateColumns: 'repeat(2, 1fr)' }}>
                         {/* Tổng chi tiêu */}
                         <div className="profile-stat-card">
                           <div className="profile-stat-card__icon text-[#ffd159]">
@@ -843,20 +843,6 @@ export default function Profile() {
                               {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(expenseStats.totalSpent)}
                             </div>
                             <div className="profile-stat-card__label">Tổng chi tiêu</div>
-                          </div>
-                        </div>
-
-                        {/* Tổng số vé */}
-                        <div className="profile-stat-card">
-                          <div className="profile-stat-card__icon text-[#2196f3]">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
-                              <path d="M6 9v6M18 9v6"/>
-                            </svg>
-                          </div>
-                          <div className="profile-stat-card__content">
-                            <div className="profile-stat-card__value">{expenseStats.totalTickets}</div>
-                            <div className="profile-stat-card__label">Tổng số vé đã mua</div>
                           </div>
                         </div>
 

@@ -27,7 +27,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "ORDER BY o.orderDate DESC")
     List<Order> findByUserUserIdWithDetails(@Param("userId") Long userId);
     
-    // Get all orders for admin
+    // Get all orders for admin (including food-only orders)
     @Query("SELECT DISTINCT o FROM Order o " +
            "LEFT JOIN FETCH o.tickets t " +
            "LEFT JOIN FETCH t.showtime s " +
@@ -38,11 +38,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "LEFT JOIN FETCH cr.cinemaComplex cc " +
            "LEFT JOIN FETCH cc.address a " +
            "LEFT JOIN FETCH o.user u " +
+           "WHERE o.vnpPayDate IS NOT NULL " +
            "ORDER BY o.orderDate DESC")
     List<Order> findAllWithDetails();
     
-    // Get orders by cinema complex ID for manager (only paid orders with tickets)
+    // Get orders by cinema complex ID for manager (including food-only orders)
     // Note: orderCombos will be loaded lazily in service layer to avoid MultipleBagFetchException
+    // Food-only orders (no tickets) are shown to all managers since they're not tied to a specific cinema
     @Query("SELECT DISTINCT o FROM Order o " +
            "LEFT JOIN FETCH o.tickets t " +
            "LEFT JOIN FETCH t.showtime s " +
@@ -53,9 +55,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "LEFT JOIN FETCH cr.cinemaComplex cc " +
            "LEFT JOIN FETCH cc.address a " +
            "LEFT JOIN FETCH o.user u " +
-           "WHERE cc.complexId = :complexId " +
-           "AND o.vnpPayDate IS NOT NULL " +
-           "AND EXISTS (SELECT 1 FROM Ticket t2 WHERE t2.order = o) " +
+           "WHERE o.vnpPayDate IS NOT NULL " +
+           "AND (cc.complexId = :complexId OR NOT EXISTS (SELECT 1 FROM Ticket t2 WHERE t2.order = o)) " +
            "ORDER BY o.orderDate DESC")
     List<Order> findByCinemaComplexIdWithDetails(@Param("complexId") Long complexId);
     

@@ -124,7 +124,6 @@ function ActivityManagement({ onNewActivity }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterActor, setFilterActor] = useState('');
   const [filterAction, setFilterAction] = useState('');
   const [filterObjectType, setFilterObjectType] = useState('');
   const [filterDateRange, setFilterDateRange] = useState('all');
@@ -143,7 +142,6 @@ function ActivityManagement({ onNewActivity }) {
       setLoading(true);
       try {
         const filters = {
-          username: filterActor || undefined,
           action: filterAction || undefined,
           objectType: filterObjectType || undefined,
           days: filterDateRange !== 'all' ? parseInt(filterDateRange) : undefined
@@ -180,7 +178,7 @@ function ActivityManagement({ onNewActivity }) {
     };
 
     loadActivities();
-  }, [filterActor, filterAction, filterObjectType, filterDateRange]);
+  }, [filterAction, filterObjectType, filterDateRange]);
 
   // Subscribe to WebSocket for real-time updates
   useEffect(() => {
@@ -286,7 +284,7 @@ function ActivityManagement({ onNewActivity }) {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterActor, filterAction, filterObjectType, filterDateRange]);
+  }, [searchTerm, filterAction, filterObjectType, filterDateRange]);
 
   // Show notification
   const showNotification = (message, type = 'success') => {
@@ -330,11 +328,13 @@ function ActivityManagement({ onNewActivity }) {
         setDeleteConfirm(null);
         showNotification('Xóa hoạt động thành công', 'success');
       } else {
+        setDeleteConfirm(null); // Đóng modal khi xóa thất bại
         showNotification(result.error || 'Không thể xóa hoạt động', 'error');
       }
     } catch (error) {
       console.error('Error deleting activity:', error);
-      showNotification('Có lỗi xảy ra khi xóa hoạt động', 'error');
+      setDeleteConfirm(null); // Đóng modal khi có lỗi
+      showNotification(error.message || 'Có lỗi xảy ra khi xóa hoạt động', 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -496,16 +496,6 @@ function ActivityManagement({ onNewActivity }) {
           </div>
 
           <select
-            value={filterActor}
-            onChange={(e) => setFilterActor(e.target.value)}
-            className="movie-filter"
-          >
-            <option value="">Tất cả vai trò</option>
-            <option value="ADMIN">Quản trị viên</option>
-            <option value="MANAGER">Quản lý rạp</option>
-          </select>
-
-          <select
             value={filterAction}
             onChange={(e) => setFilterAction(e.target.value)}
             className="movie-filter"
@@ -530,6 +520,7 @@ function ActivityManagement({ onNewActivity }) {
             <option value="VOUCHER">Voucher</option>
             <option value="BANNER">Banner</option>
             <option value="FOOD">Đồ ăn</option>
+            <option value="PRICE">Bảng giá</option>
           </select>
 
           <select
@@ -565,7 +556,7 @@ function ActivityManagement({ onNewActivity }) {
               <polyline points="10 9 9 9 8 9"/>
             </svg>
             <p>
-              {searchTerm || filterActor || filterAction || filterObjectType || filterDateRange !== 'all'
+              {searchTerm || filterAction || filterObjectType || filterDateRange !== 'all'
                 ? 'Không tìm thấy hoạt động nào phù hợp với bộ lọc'
                 : 'Chưa có hoạt động nào'}
             </p>

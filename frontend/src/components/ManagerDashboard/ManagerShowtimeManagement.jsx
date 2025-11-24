@@ -1575,15 +1575,16 @@ export default function ManagerShowtimeManagement({ complexId }) {
       const result = await showtimeService.deleteShowtime(deleteConfirm.id);
       if (result.success) {
         setShowtimes(showtimes.filter(st => st.showtimeId !== deleteConfirm.id));
+        setDeleteConfirm(null); // Đóng modal sau khi xóa thành công
         showNotification('Xóa lịch chiếu thành công', 'success');
       } else {
+        setDeleteConfirm(null); // Đóng modal khi xóa thất bại
         showNotification(result.error || 'Xóa lịch chiếu thất bại', 'error');
       }
     } catch (error) {
       console.error('Error deleting showtime:', error);
-      showNotification('Có lỗi xảy ra khi xóa lịch chiếu', 'error');
-    } finally {
-      setDeleteConfirm(null);
+      setDeleteConfirm(null); // Đóng modal khi có lỗi
+      showNotification(error.message || 'Có lỗi xảy ra khi xóa lịch chiếu', 'error');
     }
   }
 }

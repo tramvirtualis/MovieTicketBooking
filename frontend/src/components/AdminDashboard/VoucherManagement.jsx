@@ -438,13 +438,16 @@ function VoucherManagement({ vouchers: initialVouchersList, users: usersList, on
             console.error('Failed to save vouchers to localStorage', e);
           }
         }
+        setDeleteConfirm(null); // Đóng modal sau khi xóa thành công
         showNotification('Xóa voucher thành công', 'success');
       } else {
+        setDeleteConfirm(null); // Đóng modal khi xóa thất bại
         setError(result.error);
         showNotification(result.error, 'error');
       }
     } catch (err) {
       const errorMsg = err.message || 'Không thể xóa voucher';
+      setDeleteConfirm(null); // Đóng modal khi có lỗi
       setError(errorMsg);
       showNotification(errorMsg, 'error');
     } finally {

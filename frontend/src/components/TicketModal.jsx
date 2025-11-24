@@ -48,11 +48,11 @@ const TicketModal = ({ order, isOpen, onClose }) => {
     });
   };
 
-  // Map room type format (giống backend)
+  // Map room type format (giống backend: roomType.name().replace("TYPE_", ""))
   const mapRoomType = (roomType) => {
     if (!roomType) return '2D';
-    // Chuyển đổi từ TYPE_2D, TYPE_3D, etc. thành 2D, 3D
-    return roomType.replace('TYPE_', '').replace('STANDARD', '2D');
+    // Chuyển đổi từ TYPE_2D, TYPE_3D, etc. thành 2D, 3D (giống backend)
+    return roomType.replace('TYPE_', '');
   };
 
   // Tạo booking ID cho QR code (giống backend format: orderId-showtimeId-yyyy-MM-dd'T'HH:mm:ss)
@@ -172,16 +172,24 @@ const TicketModal = ({ order, isOpen, onClose }) => {
               return `${hours}:${minutes}`;
             };
             
-            const qrData = {
-              bookingId: bookingId,
-              orderId: orderIdNum,
-              movie: item.movie.title,
-              cinema: item.cinema,
-              date: formatDateForQR(showtimeStart),
-              time: formatTimeForQR(showtimeStart),
-              seats: item.seats.sort(), // Sort seats giống backend
-              format: mapRoomType(item.showtime.format)
-            };
+            // Tạo QR data với format giống backend (thứ tự: bookingId, orderId, movie, cinema, date, time, seats, format)
+            const sortedSeats = [...(item.seats || [])].sort();
+            
+            // Tạo object với thứ tự CHÍNH XÁC giống backend
+            const qrData = {};
+            qrData.bookingId = String(bookingId || '');
+            qrData.orderId = String(orderIdNum || '');
+            qrData.movie = String(item.movie?.title || '');
+            qrData.cinema = String(item.cinema || '');
+            qrData.date = formatDateForQR(showtimeStart);
+            qrData.time = formatTimeForQR(showtimeStart);
+            qrData.seats = sortedSeats; // Array
+            qrData.format = mapRoomType(item.showtime.format);
+            
+            // Log để debug
+            console.log('=== TicketModal QR Code Data ===');
+            console.log('JSON:', JSON.stringify(qrData));
+            console.log('================================');
 
             return (
               <div key={item.id || index} style={{
@@ -360,6 +368,63 @@ const TicketModal = ({ order, isOpen, onClose }) => {
                   </div>
                 </div>
               ))}
+
+              {/* QR Code for food-only orders */}
+              {!hasTickets && (
+                <div style={{
+                  marginTop: '20px',
+                  paddingTop: '20px',
+                  borderTop: '2px dashed #ddd',
+                  textAlign: 'center'
+                }}>
+                  <div style={{
+                    fontSize: '14px',
+                    color: '#333',
+                    marginBottom: '12px',
+                    fontWeight: 600
+                  }}>
+                    Mã QR Code - Vui lòng quét tại rạp
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    marginBottom: '12px'
+                  }}>
+                    <QRCodeSVG
+                      value={JSON.stringify({
+                        orderId: String(order.orderId || '').replace('ORD-', ''),
+                        type: 'FOOD_ORDER',
+                        orderDate: formatDate(order.orderDate),
+                        totalAmount: String(order.totalAmount || '0'),
+                        foodItems: order.foodItems.map(item => {
+                          // Parse comboId from id (format: "f{comboId}") or use comboId directly
+                          let comboId = item.comboId;
+                          if (!comboId && item.id) {
+                            const idStr = String(item.id);
+                            comboId = idStr.startsWith('f') ? idStr.substring(1) : idStr;
+                          }
+                          return {
+                            foodComboId: String(comboId || ''),
+                            name: String(item.comboName || item.name || ''),
+                            quantity: item.quantity || 0,
+                            price: String(item.price || '0')
+                          };
+                        })
+                      })}
+                      size={200}
+                      level="M"
+                      includeMargin={true}
+                    />
+                  </div>
+                  <div style={{
+                    fontSize: '12px',
+                    color: '#555',
+                    fontWeight: 500
+                  }}>
+                    Order ID: {order.orderId}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

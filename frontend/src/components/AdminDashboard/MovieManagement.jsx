@@ -41,9 +41,11 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
   // Notification component
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
+    // Hiển thị lâu hơn cho lỗi để người dùng có thời gian đọc
+    const duration = type === 'error' ? 6000 : 3000;
     setTimeout(() => {
       setNotification(null);
-    }, 3000);
+    }, duration);
   };
 
   // Use mapping functions from movieService
@@ -370,10 +372,12 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
         setDeleteConfirm(null);
         showNotification(result.message || 'Xóa phim thành công', 'success');
       } else {
+        setDeleteConfirm(null); // Đóng modal khi xóa thất bại
         setError(result.error);
         showNotification(result.error || 'Có lỗi xảy ra', 'error');
       }
     } catch (err) {
+      setDeleteConfirm(null); // Đóng modal khi có lỗi
       setError(err.message || 'Có lỗi xảy ra');
       showNotification(err.message || 'Có lỗi xảy ra', 'error');
     } finally {
@@ -409,74 +413,18 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
 
   return (
     <>
-      {/* Notification Toast */}
-      {notification && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          zIndex: 10000,
-          padding: '16px 20px',
-          borderRadius: '12px',
-          background: notification.type === 'success' 
-            ? 'rgba(76, 175, 80, 0.95)' 
-            : 'rgba(244, 67, 54, 0.95)',
-          color: '#fff',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          minWidth: '300px',
-          maxWidth: '500px',
-          animation: 'slideInRight 0.3s ease-out',
-          border: `1px solid ${notification.type === 'success' ? 'rgba(76, 175, 80, 1)' : 'rgba(244, 67, 54, 1)'}`
-        }}>
-          <div style={{
-            width: '24px',
-            height: '24px',
-            borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.2)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0
-          }}>
-            {notification.type === 'success' ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            )}
-          </div>
-          <div style={{ flex: 1, fontSize: '14px', fontWeight: 500 }}>
-            {notification.message}
-          </div>
-          <button
-            onClick={() => setNotification(null)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#fff',
-              cursor: 'pointer',
-              padding: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              opacity: 0.8
-            }}
-            onMouseOver={(e) => e.target.style.opacity = '1'}
-            onMouseOut={(e) => e.target.style.opacity = '0.8'}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-      )}
+      <style>{`
+        @keyframes slideInDown {
+          from {
+            transform: translateY(-100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
     <div className="movie-management">
       {/* Error message - Improved UI */}
       {error && (
@@ -851,6 +799,72 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
               </button>
             </div>
             <div className="movie-modal__content">
+              {/* Notification Toast - Hiển thị trong modal */}
+              {notification && (
+                <div style={{
+                  position: 'sticky',
+                  top: '0',
+                  zIndex: 1000,
+                  padding: '16px 20px',
+                  marginBottom: '20px',
+                  borderRadius: '12px',
+                  background: notification.type === 'success' 
+                    ? 'rgba(76, 175, 80, 0.98)' 
+                    : 'rgba(244, 67, 54, 0.98)',
+                  color: '#fff',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  border: `2px solid ${notification.type === 'success' ? 'rgba(76, 175, 80, 1)' : 'rgba(244, 67, 54, 1)'}`,
+                  animation: 'slideInDown 0.3s ease-out'
+                }}>
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    {notification.type === 'success' ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    )}
+                  </div>
+                  <div style={{ flex: 1, fontSize: '15px', fontWeight: 500, lineHeight: '1.5' }}>
+                    {notification.message}
+                  </div>
+                  <button
+                    onClick={() => setNotification(null)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      opacity: 0.8
+                    }}
+                    onMouseOver={(e) => e.target.style.opacity = '1'}
+                    onMouseOut={(e) => e.target.style.opacity = '0.8'}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
               {enumsLoading ? (
                 <div style={{ 
                   padding: '40px 20px', 
