@@ -472,4 +472,94 @@ public class CustomerController {
                     .body(createErrorResponse("Lỗi khi xóa ảnh: " + e.getMessage()));
         }
     }
+
+    // ============ PASSWORD ENDPOINTS ============
+
+    @GetMapping("/password/check")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> checkPassword() {
+        try {
+            Long userId = getCurrentCustomerId();
+            boolean hasPassword = customerService.hasPassword(userId);
+            System.out.println("Password check API for user " + userId + ": hasPassword = " + hasPassword);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("hasPassword", hasPassword);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    @PutMapping("/password/update")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> updatePassword(@RequestBody Map<String, String> request) {
+        try {
+            Long userId = getCurrentCustomerId();
+            String oldPassword = request.get("oldPassword");
+            String newPassword = request.get("newPassword");
+            String confirmPassword = request.get("confirmPassword");
+
+            // Validate input
+            if (oldPassword == null || oldPassword.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Vui lòng nhập mật khẩu cũ"));
+            }
+            if (newPassword == null || newPassword.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Vui lòng nhập mật khẩu mới"));
+            }
+            if (confirmPassword == null || confirmPassword.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Vui lòng xác nhận mật khẩu mới"));
+            }
+            if (!newPassword.equals(confirmPassword)) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Mật khẩu mới và xác nhận mật khẩu không khớp"));
+            }
+
+            customerService.updatePassword(userId, oldPassword, newPassword);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Đổi mật khẩu thành công");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/password/create")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> createPassword(@RequestBody Map<String, String> request) {
+        try {
+            Long userId = getCurrentCustomerId();
+            String newPassword = request.get("newPassword");
+            String confirmPassword = request.get("confirmPassword");
+
+            // Validate input
+            if (newPassword == null || newPassword.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Vui lòng nhập mật khẩu mới"));
+            }
+            if (confirmPassword == null || confirmPassword.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Vui lòng xác nhận mật khẩu mới"));
+            }
+            if (!newPassword.equals(confirmPassword)) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Mật khẩu mới và xác nhận mật khẩu không khớp"));
+            }
+
+            customerService.createPassword(userId, newPassword);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Tạo mật khẩu thành công");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        }
+    }
 }

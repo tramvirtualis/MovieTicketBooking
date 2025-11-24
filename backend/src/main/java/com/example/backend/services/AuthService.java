@@ -321,15 +321,42 @@ public class AuthService {
     }
 
     public LoginResponseDTO login(String username, String password) throws Exception {
-
+        // Hỗ trợ đăng nhập bằng username hoặc email
         Optional<User> userOpt = userRepository.findByUsername(username);
+        
+        // Nếu không tìm thấy bằng username, thử tìm bằng email (chỉ cho Customer)
+        if (userOpt.isEmpty()) {
+            Optional<Customer> customerOpt = customerRepository.findByEmail(username);
+            if (customerOpt.isPresent()) {
+                Customer customer = customerOpt.get();
+                userOpt = userRepository.findById(customer.getUserId());
+            }
+        }
+        
         if (userOpt.isEmpty()) {
             throw new Exception("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
         User user = userOpt.get();
+        
+        System.out.println("=== Login Debug ===");
+        System.out.println("Login attempt for: " + username);
+        System.out.println("User ID: " + user.getUserId());
+        System.out.println("User has password: " + (user.getPassword() != null && !user.getPassword().trim().isEmpty()));
+        if (user.getPassword() != null) {
+            System.out.println("Password length: " + user.getPassword().length());
+        }
+        System.out.println("=========================");
+        
+        // Kiểm tra user có password không
+        if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
+            throw new Exception("Tài khoản này chưa có mật khẩu. Vui lòng đăng nhập bằng Google hoặc tạo mật khẩu mới.");
+        }
 
-        if (!passwordEncoder.matches(password, user.getPassword())) {
+        boolean passwordMatches = passwordEncoder.matches(password, user.getPassword());
+        System.out.println("Password matches: " + passwordMatches);
+        
+        if (!passwordMatches) {
             throw new Exception("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
@@ -495,7 +522,7 @@ public class AuthService {
                 .email(email)
                 .username(username)
                 .name(name)
-                .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .password(null) // User đăng nhập bằng Google không có password, sẽ tạo sau nếu cần
                 .status(true)
                 .build();
 

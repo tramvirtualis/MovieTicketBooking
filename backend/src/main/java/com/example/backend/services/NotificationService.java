@@ -257,16 +257,50 @@ public class NotificationService {
         }
         
         log.info("Creating NEW notification for order {} and user {}", orderId, userId);
+        
+        // Load order để kiểm tra xem có tickets hay chỉ có combos
+        Optional<Order> orderOpt = orderRepository.findById(orderId);
+        boolean hasTickets = false;
+        boolean hasCombos = false;
+        
+        if (orderOpt.isPresent()) {
+            Order order = orderOpt.get();
+            hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
+            hasCombos = order.getOrderCombos() != null && !order.getOrderCombos().isEmpty();
+        }
+        
+        // Xác định title và message dựa trên loại order
+        String title;
+        String message;
+        
+        if (hasTickets && hasCombos) {
+            // Có cả vé và đồ ăn
+            title = "Đặt hàng thành công";
+            message = "Bạn đã đặt vé và đồ ăn thành công! Mã đơn hàng: #" + orderId + ", Tổng tiền: " + totalAmount;
+        } else if (hasTickets) {
+            // Chỉ có vé
+            title = "Đặt vé thành công";
+            message = "Bạn đã đặt vé thành công! Mã đơn hàng: #" + orderId + ", Tổng tiền: " + totalAmount;
+        } else if (hasCombos) {
+            // Chỉ có đồ ăn
+            title = "Đặt đồ ăn thành công";
+            message = "Bạn đã đặt đồ ăn thành công! Mã đơn hàng: #" + orderId + ", Tổng tiền: " + totalAmount;
+        } else {
+            // Fallback (không nên xảy ra)
+            title = "Đặt hàng thành công";
+            message = "Bạn đã đặt hàng thành công! Mã đơn hàng: #" + orderId + ", Tổng tiền: " + totalAmount;
+        }
+        
         // Tạo notification mới
         NotificationDTO notification = NotificationDTO.builder()
                 .type("BOOKING_SUCCESS")
-                .title("Đặt vé thành công")
-                .message("Bạn đã đặt vé thành công! Mã đơn hàng: #" + orderId + ", Tổng tiền: " + totalAmount)
+                .title(title)
+                .message(message)
                 .timestamp(LocalDateTime.now().toString())
                 .data(java.util.Map.of("orderId", orderId, "totalAmount", totalAmount))
                 .build();
         sendNotificationToUser(userId, notification);
-        log.info("Notification created and sent for order {} and user {}", orderId, userId);
+        log.info("Notification created and sent for order {} and user {} with title: {}", orderId, userId, title);
     }
     
     /**

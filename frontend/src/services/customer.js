@@ -167,3 +167,46 @@ export const updateOldOrders = async () => {
     throw err;
   }
 };
+
+export const checkPassword = async () => {
+  try {
+    const res = await axiosInstance.get('/customer/password/check');
+    if (res.data.success) {
+      return res.data.hasPassword;
+    }
+    throw new Error(res.data.message || 'Kiểm tra mật khẩu thất bại');
+  } catch (err) {
+    throw err;
+  }
+};
+
+export const updatePassword = async (oldPassword, newPassword, confirmPassword) => {
+  try {
+    const res = await axiosInstance.put('/customer/password/update', {
+      oldPassword,
+      newPassword,
+      confirmPassword
+    });
+    if (res.data.success) {
+      return true;
+    }
+    throw new Error(res.data.message || 'Đổi mật khẩu thất bại');
+  } catch (err) {
+    throw err;
+  }
+};
+
+export const createPassword = async (newPassword, confirmPassword) => {
+  try {
+    const res = await axiosInstance.post('/customer/password/create', {
+      newPassword,
+      confirmPassword
+    });
+    if (res.data.success) {
+      return true;
+    }
+    throw new Error(res.data.message || 'Tạo mật khẩu thất bại');
+  } catch (err) {
+    throw err;
+  }
+};

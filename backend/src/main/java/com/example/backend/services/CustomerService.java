@@ -17,6 +17,7 @@ import com.example.backend.repositories.VoucherRepository;
 import com.example.backend.services.MovieService;
 import com.example.backend.services.CloudinaryService;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,7 @@ public class CustomerService {
     private final MovieService movieService;
     private final NotificationService notificationService;
     private final CloudinaryService cloudinaryService;
+    private final PasswordEncoder passwordEncoder;
 
     // Constructor injection with @Lazy for MovieService to avoid circular dependency
     public CustomerService(
@@ -48,7 +50,8 @@ public class CustomerService {
             OrderRepository orderRepository,
             @Lazy MovieService movieService,
             NotificationService notificationService,
-            CloudinaryService cloudinaryService) {
+            CloudinaryService cloudinaryService,
+            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
         this.customerRepository = customerRepository;
@@ -58,6 +61,7 @@ public class CustomerService {
         this.movieService = movieService;
         this.notificationService = notificationService;
         this.cloudinaryService = cloudinaryService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public Customer updateProfile(Long userId, UpdateCustomerProfileRequestDTO req) throws Exception {
@@ -344,5 +348,107 @@ public class CustomerService {
         // Kiểm tra bằng movieId
         return customer.getFavorites().stream()
                 .anyMatch(m -> m.getMovieId().equals(movieId));
+    }
+
+    // ============ PASSWORD MANAGEMENT METHODS ============
+
+    @Transactional(readOnly = true)
+    public boolean hasPassword(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng với ID: " + userId));
+        
+        String password = user.getPassword();
+        // Kiểm tra kỹ: password phải không null, không empty, và không chỉ là whitespace
+        boolean hasPwd = password != null && !password.trim().isEmpty();
+        
+        System.out.println("=== Password Check Debug ===");
+        System.out.println("User ID: " + userId);
+        System.out.println("Password value: '" + password + "'");
+        System.out.println("Password is null: " + (password == null));
+        System.out.println("Password is empty: " + (password != null && password.isEmpty()));
+        System.out.println("Password is blank: " + (password != null && password.trim().isEmpty()));
+        System.out.println("hasPassword result: " + hasPwd);
+        System.out.println("===========================");
+        
+        return hasPwd;
+    }
+
+    @Transactional
+    public void updatePassword(Long userId, String oldPassword, String newPassword) throws Exception {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new Exception("Không tìm thấy người dùng"));
+
+        // Kiểm tra user đã có mật khẩu chưa
+        if (user.getPassword() == null || user.getPassword().isEmpty()) {
+            throw new Exception("Bạn chưa có mật khẩu. Vui lòng tạo mật khẩu mới.");
+        }
+
+        // Kiểm tra mật khẩu cũ
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            throw new Exception("Mật khẩu cũ không đúng");
+        }
+
+        // Validate mật khẩu mới - giống ràng buộc đăng ký
+        if (newPassword == null || newPassword.isEmpty()) {
+            throw new Exception("Mật khẩu mới không được để trống");
+        }
+        if (newPassword.length() < 8 || newPassword.length() > 32) {
+            throw new Exception("Mật khẩu mới phải từ 8 đến 32 ký tự");
+        }
+        if (!newPassword.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$")) {
+            throw new Exception("Mật khẩu mới phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số");
+        }
+
+        // Kiểm tra mật khẩu mới phải khác mật khẩu cũ
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            throw new Exception("Mật khẩu mới phải khác mật khẩu cũ");
+        }
+
+        // Cập nhật mật khẩu mới
+        String encodedPassword = passwordEncoder.encode(newPassword);
+        user.setPassword(encodedPassword);
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void createPassword(Long userId, String newPassword) throws Exception {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new Exception("Không tìm thấy người dùng"));
+
+        // Kiểm tra user chưa có mật khẩu
+        if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+            throw new Exception("Bạn đã có mật khẩu. Vui lòng sử dụng chức năng đổi mật khẩu.");
+        }
+
+        // Validate mật khẩu mới - giống ràng buộc đăng ký
+        if (newPassword == null || newPassword.isEmpty()) {
+            throw new Exception("Mật khẩu không được để trống");
+        }
+        if (newPassword.length() < 8 || newPassword.length() > 32) {
+            throw new Exception("Mật khẩu phải từ 8 đến 32 ký tự");
+        }
+        if (!newPassword.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$")) {
+            throw new Exception("Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số");
+        }
+
+        // Tạo mật khẩu mới
+        String encodedPassword = passwordEncoder.encode(newPassword);
+        System.out.println("=== Creating Password Debug ===");
+        System.out.println("User ID: " + userId);
+        System.out.println("New password (plain): " + newPassword.substring(0, Math.min(3, newPassword.length())) + "***");
+        System.out.println("Encoded password length: " + encodedPassword.length());
+        System.out.println("Encoded password starts with: " + encodedPassword.substring(0, Math.min(10, encodedPassword.length())));
+        
+        user.setPassword(encodedPassword);
+        User savedUser = userRepository.save(user);
+        userRepository.flush(); // Đảm bảo lưu ngay vào database
+        
+        // Verify password was saved
+        User verifyUser = userRepository.findById(userId).orElse(null);
+        if (verifyUser != null) {
+            System.out.println("Password saved: " + (verifyUser.getPassword() != null && !verifyUser.getPassword().isEmpty()));
+            System.out.println("Saved password matches: " + passwordEncoder.matches(newPassword, verifyUser.getPassword()));
+        }
+        System.out.println("===============================");
     }
 }

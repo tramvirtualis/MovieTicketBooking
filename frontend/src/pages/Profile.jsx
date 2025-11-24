@@ -6,7 +6,7 @@ import interstellar from '../assets/images/interstellar.jpg';
 import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
 import driveMyCar from '../assets/images/drive-my-car.jpg';
-import { updateCustomerProfile, uploadAvatar, getExpenseStatistics, getCurrentProfile, updateOldOrders } from '../services/customer.js';
+import { updateCustomerProfile, uploadAvatar, getExpenseStatistics, getCurrentProfile, updateOldOrders, checkPassword, updatePassword, createPassword } from '../services/customer.js';
 import { customerVoucherService } from '../services/customerVoucherService';
 
 const PROVINCES = [
@@ -85,6 +85,14 @@ export default function Profile() {
     lastThreeMonthsSpent: 0
   });
   const [loadingExpenseStats, setLoadingExpenseStats] = useState(false);
+  const [hasPassword, setHasPassword] = useState(null);
+  const [loadingPasswordCheck, setLoadingPasswordCheck] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
 
   // Load user profile from API
   useEffect(() => {
@@ -180,13 +188,50 @@ export default function Profile() {
   // Read tab from URL query parameter on mount
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
-    if (tabFromUrl && ['overview', 'vouchers', 'expenses'].includes(tabFromUrl)) {
+    if (tabFromUrl && ['overview', 'vouchers', 'expenses', 'password'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     } else {
       // If no tab in URL, default to overview (but don't add ?tab=overview to URL)
       setActiveTab('overview');
     }
   }, []); // Only run on mount
+
+  // Load password status when password tab is active
+  useEffect(() => {
+    const loadPasswordStatus = async () => {
+      if (activeTab === 'password') {
+        setLoadingPasswordCheck(true);
+        setPasswordMessage({ type: '', text: '' }); // Clear previous messages
+        try {
+          const hasPwd = await checkPassword();
+          console.log('=== Password Check Frontend ===');
+          console.log('Raw result:', hasPwd);
+          console.log('Type:', typeof hasPwd);
+          console.log('Is true?', hasPwd === true);
+          console.log('Is false?', hasPwd === false);
+          console.log('Boolean conversion:', Boolean(hasPwd));
+          const isTrue = hasPwd === true || hasPwd === 'true' || hasPwd === 1;
+          console.log('Final hasPassword value:', isTrue);
+          console.log('==============================');
+          setHasPassword(isTrue);
+        } catch (error) {
+          console.error('Error checking password status:', error);
+          // Set to false nếu có lỗi (giả sử chưa có mật khẩu để hiển thị form tạo)
+          setHasPassword(false);
+        } finally {
+          setLoadingPasswordCheck(false);
+        }
+      }
+    };
+    
+    // Only run if activeTab is password
+    if (activeTab === 'password') {
+      loadPasswordStatus();
+    } else {
+      // Reset khi chuyển tab khác
+      setHasPassword(null);
+    }
+  }, [activeTab]);
 
   // Load vouchers from API
   useEffect(() => {
@@ -293,6 +338,68 @@ export default function Profile() {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('tab', tab);
       setSearchParams(newSearchParams, { replace: true });
+    }
+  };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setPasswordMessage({ type: '', text: '' });
+
+    // Validation regex giống đăng ký
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
+
+    try {
+      if (hasPassword === true) {
+        // Update password
+        if (!passwordForm.oldPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+          setPasswordMessage({ type: 'error', text: 'Vui lòng điền đầy đủ thông tin' });
+          return;
+        }
+        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+          setPasswordMessage({ type: 'error', text: 'Mật khẩu mới và xác nhận mật khẩu không khớp' });
+          return;
+        }
+        if (passwordForm.newPassword.length < 8 || passwordForm.newPassword.length > 32) {
+          setPasswordMessage({ type: 'error', text: 'Mật khẩu mới phải từ 8 đến 32 ký tự' });
+          return;
+        }
+        if (!passwordRegex.test(passwordForm.newPassword)) {
+          setPasswordMessage({ type: 'error', text: 'Mật khẩu mới phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số' });
+          return;
+        }
+        // Kiểm tra mật khẩu mới phải khác mật khẩu cũ (backend cũng check nhưng check ở frontend để UX tốt hơn)
+        if (passwordForm.oldPassword === passwordForm.newPassword) {
+          setPasswordMessage({ type: 'error', text: 'Mật khẩu mới phải khác mật khẩu cũ' });
+          return;
+        }
+        await updatePassword(passwordForm.oldPassword, passwordForm.newPassword, passwordForm.confirmPassword);
+        setPasswordMessage({ type: 'success', text: 'Đổi mật khẩu thành công!' });
+        setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      } else {
+        // Create password
+        if (!passwordForm.newPassword || !passwordForm.confirmPassword) {
+          setPasswordMessage({ type: 'error', text: 'Vui lòng điền đầy đủ thông tin' });
+          return;
+        }
+        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+          setPasswordMessage({ type: 'error', text: 'Mật khẩu và xác nhận mật khẩu không khớp' });
+          return;
+        }
+        if (passwordForm.newPassword.length < 8 || passwordForm.newPassword.length > 32) {
+          setPasswordMessage({ type: 'error', text: 'Mật khẩu phải từ 8 đến 32 ký tự' });
+          return;
+        }
+        if (!passwordRegex.test(passwordForm.newPassword)) {
+          setPasswordMessage({ type: 'error', text: 'Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số' });
+          return;
+        }
+        await createPassword(passwordForm.newPassword, passwordForm.confirmPassword);
+        setPasswordMessage({ type: 'success', text: 'Tạo mật khẩu thành công!' });
+        setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+        setHasPassword(true); // Update state after creating password
+      }
+    } catch (error) {
+      setPasswordMessage({ type: 'error', text: error.message || 'Có lỗi xảy ra' });
     }
   };
   
@@ -553,6 +660,12 @@ export default function Profile() {
               >
                 Chi tiêu
               </button>
+              <button
+                className={`profile-tab ${activeTab === 'password' ? 'profile-tab--active' : ''}`}
+                onClick={() => handleTabChange('password')}
+              >
+                Cập nhật mật khẩu
+              </button>
             </div>
 
             {/* Tab Content */}
@@ -791,6 +904,124 @@ export default function Profile() {
                       </div>
                     </>
                   )}
+                </div>
+              )}
+
+              {activeTab === 'password' && (
+                <div>
+                  <div className="profile-section">
+                    <h2 className="profile-section__title">Cập nhật mật khẩu</h2>
+                    
+                    {loadingPasswordCheck ? (
+                      <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
+                        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#ffd159] mb-5"></div>
+                        <p className="text-base m-0">Đang kiểm tra trạng thái mật khẩu...</p>
+                      </div>
+                    ) : hasPassword === null ? (
+                      <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
+                        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#ffd159] mb-5"></div>
+                        <p className="text-base m-0">Đang kiểm tra trạng thái mật khẩu...</p>
+                      </div>
+                    ) : (
+                      <div className="max-w-md mx-auto">
+                        {hasPassword === false && (
+                          <div className="mb-6 p-4 bg-gradient-to-r from-[#ffd159]/10 to-[#ffd159]/5 border border-[#ffd159]/30 rounded-lg">
+                            <div className="flex items-start gap-3">
+                              <svg className="w-6 h-6 text-[#ffd159] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <div>
+                                <p className="text-[#ffd159] font-semibold mb-1">Bạn chưa có mật khẩu</p>
+                                <p className="text-[#c9c4c5] text-sm">
+                                  Bạn đang đăng nhập bằng tài khoản Google. Tạo mật khẩu để bảo vệ tài khoản tốt hơn và có thể đăng nhập bằng email/mật khẩu.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <form onSubmit={handlePasswordSubmit} className="space-y-6">
+                          {passwordMessage.text && (
+                            <div className={`p-4 rounded-lg font-semibold ${
+                              passwordMessage.type === 'success' 
+                                ? 'bg-green-500/20 border border-green-500/50 text-green-400' 
+                                : 'bg-red-500/20 border border-red-500/50 text-red-400'
+                            }`}>
+                              {passwordMessage.text}
+                            </div>
+                          )}
+
+                          {hasPassword === true && (
+                            <div>
+                              <label className="block text-sm font-semibold text-[#c9c4c5] mb-2">
+                                Mật khẩu cũ
+                              </label>
+                              <input
+                                type="password"
+                                value={passwordForm.oldPassword}
+                                onChange={(e) => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })}
+                                className="w-full px-4 py-3 bg-[#2d2627] border border-[#4a3f41] rounded-lg text-white placeholder-[#6b6264] focus:outline-none focus:border-[#e83b41] transition-colors"
+                                placeholder="Nhập mật khẩu cũ"
+                                required
+                              />
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-sm font-semibold text-[#c9c4c5] mb-2">
+                              {hasPassword === true ? 'Mật khẩu mới' : 'Mật khẩu'} <span className="text-[#6b6264] text-xs">(8-32 ký tự, có chữ hoa, chữ thường, số)</span>
+                            </label>
+                            <input
+                              type="password"
+                              value={passwordForm.newPassword}
+                              onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                              className="w-full px-4 py-3 bg-[#2d2627] border border-[#4a3f41] rounded-lg text-white placeholder-[#6b6264] focus:outline-none focus:border-[#e83b41] transition-colors"
+                              placeholder={hasPassword === true ? "Nhập mật khẩu mới (8-32 ký tự, có chữ hoa, chữ thường, số)" : "Nhập mật khẩu (8-32 ký tự, có chữ hoa, chữ thường, số)"}
+                              required
+                              minLength={8}
+                              maxLength={32}
+                              pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,32}$"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-semibold text-[#c9c4c5] mb-2">
+                              Xác nhận {hasPassword === true ? 'mật khẩu mới' : 'mật khẩu'}
+                            </label>
+                            <input
+                              type="password"
+                              value={passwordForm.confirmPassword}
+                              onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                              className="w-full px-4 py-3 bg-[#2d2627] border border-[#4a3f41] rounded-lg text-white placeholder-[#6b6264] focus:outline-none focus:border-[#e83b41] transition-colors"
+                              placeholder={hasPassword === true ? "Nhập lại mật khẩu mới" : "Nhập lại mật khẩu"}
+                              required
+                              minLength={8}
+                              maxLength={32}
+                            />
+                          </div>
+
+                          <div className="flex justify-center pt-4">
+                            <button
+                              type="submit"
+                              className="btn btn--primary"
+                              style={{ 
+                                minWidth: '220px',
+                                padding: '14px 32px',
+                                textAlign: 'center',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '14px',
+                                fontWeight: '600'
+                              }}
+                            >
+                              {hasPassword === true ? 'Đổi mật khẩu' : 'Tạo mật khẩu'}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
