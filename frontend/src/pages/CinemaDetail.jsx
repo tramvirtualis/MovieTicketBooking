@@ -166,8 +166,8 @@ export default function CinemaDetail() {
         console.log('Now showing movies count:', nowShowing.length);
         console.log('Now showing movies:', nowShowing.map(m => ({ id: m.movieId, title: m.title })));
 
-        // Coming soon: movies that are in the cinema's movie list but don't have future showtimes
-        // OR movies with release date in the future
+        // Coming soon: movies that have NOT been shown at this cinema yet (no past showtimes)
+        // Only show movies that have never had a showtime at this cinema
         const comingSoon = allMovies.filter(m => {
           if (!m || !m.movieId) return false;
           const movieIdNum = Number(m.movieId);
@@ -177,19 +177,17 @@ export default function CinemaDetail() {
             return false;
           }
           
-          // If movie has showtimes but all are in the past, and release date is in future
-          if (allMovieIds.has(movieIdNum) && !nowShowingMovieIds.has(movieIdNum)) {
-            const releaseDate = m.releaseDate ? new Date(m.releaseDate) : null;
-            return releaseDate && releaseDate > now;
+          // Only show as "coming soon" if the movie has NEVER been shown at this cinema
+          // If movie has any showtime history at this cinema (even if all are in the past), don't show as coming soon
+          if (allMovieIds.has(movieIdNum)) {
+            // Movie has been shown at this cinema before, so it's not "coming soon"
+            return false;
           }
           
-          // If movie doesn't have any showtimes yet, check release date
-          if (!allMovieIds.has(movieIdNum)) {
-            const releaseDate = m.releaseDate ? new Date(m.releaseDate) : null;
-            return releaseDate && releaseDate > now;
-          }
-          
-          return false;
+          // Movie has never been shown at this cinema - check if it's scheduled to be shown
+          // (This would require checking if movie is in the cinema's movie list)
+          // For now, we'll show movies that haven't been shown yet
+          return true;
         });
 
         console.log('Coming soon movies count:', comingSoon.length);
@@ -453,15 +451,6 @@ export default function CinemaDetail() {
                         <div className="cinema-movie-card__rating-desc">
                           {formatAgeRating(movie.ageRating)}: Phim dành cho khán giả từ đủ {formatAgeRating(movie.ageRating).replace('T', '')} tuổi trở lên ({formatAgeRating(movie.ageRating).replace('T', '')}+)
                         </div>
-                        {movie.releaseDate && (
-                          <div style={{ marginTop: '12px', color: '#ffd159', fontWeight: 600 }}>
-                            Khởi chiếu: {new Date(movie.releaseDate).toLocaleDateString('vi-VN', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric'
-                            })}
-                          </div>
-                        )}
                         {movie.description && (
                           <div className="cinema-movie-card__description" style={{ marginTop: '12px', color: '#c9c4c5', fontSize: '14px', lineHeight: '1.6' }}>
                             {movie.description}

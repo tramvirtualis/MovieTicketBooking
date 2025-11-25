@@ -57,16 +57,32 @@ const formatDiscountType = (type) => {
   return type;
 };
 
-const isVoucherActive = (voucher) => {
+const getVoucherStatus = (voucher) => {
   const now = Date.now();
-  const start = new Date(voucher.startDate).getTime();
+  const start = new Date(voucher.startDate + 'T00:00:00').getTime();
   const end = new Date(voucher.endDate + 'T23:59:59').getTime();
-  return now >= start && now <= end;
+  
+  if (now < start) {
+    return 'upcoming'; // Chưa bắt đầu
+  } else if (now >= start && now <= end) {
+    return 'active'; // Đang hoạt động
+  } else {
+    return 'expired'; // Đã hết hạn
+  }
+};
+
+const isVoucherActive = (voucher) => {
+  return getVoucherStatus(voucher) === 'active';
 };
 
 const getDaysLeft = (voucher) => {
   const end = new Date(voucher.endDate + 'T23:59:59').getTime();
   return Math.max(0, Math.ceil((end - Date.now()) / (1000 * 60 * 60 * 24)));
+};
+
+const getDaysUntilStart = (voucher) => {
+  const start = new Date(voucher.startDate + 'T00:00:00').getTime();
+  return Math.max(0, Math.ceil((start - Date.now()) / (1000 * 60 * 60 * 24)));
 };
 
 export default function Events() {
@@ -118,15 +134,20 @@ export default function Events() {
         setSavedVouchers(savedSet);
         setUsedVouchers(usedSet);
 
-        // Map vouchers with status
-        const mappedVouchers = publicVouchers.map((voucher) => {
-          const active = isVoucherActive(voucher);
-          return {
-            ...voucher,
-            active,
-            daysLeft: getDaysLeft(voucher)
-          };
-        });
+        // Map vouchers with status and filter out expired ones
+        const mappedVouchers = publicVouchers
+          .map((voucher) => {
+            const status = getVoucherStatus(voucher);
+            const active = status === 'active';
+            return {
+              ...voucher,
+              active,
+              status, // 'upcoming', 'active', 'expired'
+              daysLeft: getDaysLeft(voucher),
+              daysUntilStart: getDaysUntilStart(voucher)
+            };
+          })
+          .filter((voucher) => voucher.status !== 'expired'); // Ẩn các voucher đã hết hạn
 
         console.log('Events: Mapped vouchers:', mappedVouchers.length);
         setVouchers(mappedVouchers);
@@ -198,7 +219,6 @@ export default function Events() {
           </div>
           <a href="/profile?tab=vouchers" className="events-hero__cta">
             <span className="events-hero__cta-text">Voucher của tôi</span>
-            <span className="events-hero__cta-count">{savedVouchers.size} voucher đã lưu</span>
           </a>
         </header>
 
@@ -257,7 +277,11 @@ export default function Events() {
                       <div className="voucher-panel__footer-info">
                         <span className="voucher-panel__code">{voucher.code}</span>
                         <span className="voucher-panel__days">
-                          {voucher.active ? `${voucher.daysLeft} ngày còn lại` : 'Đã hết hạn'}
+                          {voucher.status === 'upcoming' 
+                            ? `Bắt đầu sau ${voucher.daysUntilStart} ngày`
+                            : voucher.status === 'active'
+                            ? `${voucher.daysLeft} ngày còn lại`
+                            : 'Đã hết hạn'}
                         </span>
                       </div>
                       <button

@@ -12,6 +12,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { getAllOrdersManager } from '../../services/customer';
+import showtimeService from '../../services/showtimeService';
 
 // Manager Reports Component (for single cinema complex)
 function ManagerReports({ orders: initialOrders, movies, cinemas, managerComplexIds }) {
@@ -19,6 +20,7 @@ function ManagerReports({ orders: initialOrders, movies, cinemas, managerComplex
   const [selectedMovie, setSelectedMovie] = useState('all');
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [allShowtimes, setAllShowtimes] = useState([]);
   
   // Load orders from backend
   useEffect(() => {
@@ -91,6 +93,50 @@ function ManagerReports({ orders: initialOrders, movies, cinemas, managerComplex
     loadOrders();
   }, []);
 
+  // Load all showtimes to check which movies are actually showing
+  useEffect(() => {
+    const loadShowtimes = async () => {
+      if (!movies || movies.length === 0) return;
+      
+      try {
+        // Check showtimes for the next 7 days to see which movies are actually showing
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date();
+          date.setDate(date.getDate() + i);
+          dates.push(date.toISOString().split('T')[0]);
+        }
+        
+        const showtimesPromises = movies.flatMap(movie => 
+          dates.map(async (date) => {
+            try {
+              const result = await showtimeService.getPublicShowtimes(movie.movieId, null, date);
+              if (result.success && result.data) {
+                return result.data.map(st => ({
+                  ...st,
+                  movieId: movie.movieId
+                }));
+              }
+              return [];
+            } catch (err) {
+              // Silently fail for individual requests
+              return [];
+            }
+          })
+        );
+        
+        const showtimesArrays = await Promise.all(showtimesPromises);
+        const allShowtimesData = showtimesArrays.flat();
+        setAllShowtimes(allShowtimesData);
+      } catch (err) {
+        console.error('Error loading showtimes:', err);
+        setAllShowtimes([]);
+      }
+    };
+    
+    loadShowtimes();
+  }, [movies]);
+
   // Manager chỉ quản lý 1 rạp duy nhất
   const managedCinema = useMemo(() => {
     return (cinemas || []).find(c => managerComplexIds.includes(c.complexId));
@@ -155,7 +201,23 @@ function ManagerReports({ orders: initialOrders, movies, cinemas, managerComplex
   const summaryStats = useMemo(() => {
     const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
     const totalTickets = filteredOrders.reduce((sum, order) => sum + (order.seats?.length || 0), 0);
-    const activeMovies = (movies || []).filter(m => m.status === 'NOW_SHOWING').length;
+    
+    // Active movies - count movies that have showtimes in the future or currently showing
+    const now = new Date();
+    const activeMovies = (movies || []).filter(m => {
+      // Check if movie has any showtime that is in the future or currently showing
+      const movieShowtimes = allShowtimes.filter(st => st.movieId === m.movieId);
+      if (movieShowtimes.length === 0) return false;
+      
+      // Check if any showtime is in the future or currently showing
+      return movieShowtimes.some(st => {
+        const startTime = new Date(st.startTime);
+        const endTime = new Date(st.endTime);
+        // Showtime is active if it hasn't ended yet
+        return endTime > now;
+      });
+    }).length;
+    
     const totalBookings = filteredOrders.length;
 
     return {
@@ -164,7 +226,7 @@ function ManagerReports({ orders: initialOrders, movies, cinemas, managerComplex
       activeMovies,
       totalBookings
     };
-  }, [filteredOrders, movies]);
+  }, [filteredOrders, movies, allShowtimes]);
 
   const revenueByMovie = useMemo(() => {
     const movieRevenue = {};

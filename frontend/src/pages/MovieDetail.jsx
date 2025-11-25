@@ -47,6 +47,7 @@ export default function MovieDetail() {
     showtimes: {}
   });
   const [loadingShowtimes, setLoadingShowtimes] = useState(false);
+  const [hasShowtimes, setHasShowtimes] = useState(false);
   
   // Set movieId in bookingOptions when movie is loaded
   useEffect(() => {
@@ -55,8 +56,43 @@ export default function MovieDetail() {
         ...prev,
         movieId: movie.movieId
       }));
+      // Check if movie has showtimes
+      checkMovieShowtimes(movie.movieId);
     }
   }, [movie]);
+
+  // Check if movie has available showtimes
+  const checkMovieShowtimes = async (movieId) => {
+    if (!movieId) {
+      setHasShowtimes(false);
+      return;
+    }
+
+    try {
+      const listings = await scheduleService.getListings({
+        date: undefined, // Get all showtimes
+        movieId: movieId,
+        cinemaId: undefined
+      });
+
+      if (Array.isArray(listings) && listings.length > 0) {
+        // Check if there are any future showtimes
+        const now = new Date();
+        const hasFutureShowtime = listings.some(item => {
+          const startTime = item.startTime || item.startDateTime;
+          if (!startTime) return false;
+          const showtimeDate = new Date(startTime);
+          return showtimeDate >= now;
+        });
+        setHasShowtimes(hasFutureShowtime);
+      } else {
+        setHasShowtimes(false);
+      }
+    } catch (err) {
+      console.error('[MovieDetail] Error checking showtimes:', err);
+      setHasShowtimes(false);
+    }
+  };
 
   // Load movie data from API
   useEffect(() => {
@@ -796,7 +832,7 @@ export default function MovieDetail() {
                     </svg>
                   </div>
                   <div>
-                    <div className="movie-info-card__label">Ngày khởi chiếu</div>
+                    <div className="movie-info-card__label">Ngày phát hành</div>
                     <div className="movie-info-card__value">{movie.release || 'N/A'}</div>
                   </div>
                 </div>
@@ -847,7 +883,7 @@ export default function MovieDetail() {
 
               {/* Action Buttons */}
               <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
-                {movie.status !== 'ENDED' && (
+                {movie.status !== 'ENDED' && hasShowtimes && (
                   <button className="btn btn--primary" onClick={() => setShowBooking(true)} style={{ fontSize: '16px', padding: '14px 24px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
@@ -1056,10 +1092,25 @@ export default function MovieDetail() {
         movieTitle={movie.title || movie.originalTitle || ''}
         onShowtimeClick={(bookingUrl) => {
           console.log('[MovieDetail] Showtime clicked, booking URL:', bookingUrl);
-          setPendingBookingUrl(bookingUrl);
-          setAgeConfirmed(false);
-          setShowAgeConfirmModal(true);
-          setShowBooking(false); // Đóng modal chọn suất
+          // Nếu phim là P (mọi độ tuổi), bỏ qua modal xác nhận độ tuổi
+          if (movie.rating === 'P') {
+            // Convert hash URL (#booking?params) to path URL (/booking?params)
+            let bookingPath = bookingUrl;
+            if (bookingPath.startsWith('#')) {
+              bookingPath = bookingPath.replace('#', '');
+            }
+            if (bookingPath.startsWith('booking')) {
+              bookingPath = '/' + bookingPath;
+            }
+            navigate(bookingPath);
+            setShowBooking(false); // Đóng modal chọn suất
+          } else {
+            // Phim có độ tuổi giới hạn, cần xác nhận
+            setPendingBookingUrl(bookingUrl);
+            setAgeConfirmed(false);
+            setShowAgeConfirmModal(true);
+            setShowBooking(false); // Đóng modal chọn suất
+          }
         }}
         onFiltersChange={loadShowtimes}
         options={{

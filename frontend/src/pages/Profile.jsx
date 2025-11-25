@@ -49,22 +49,6 @@ const favoriteMovies = [
   { id: 4, title: 'Drive My Car', poster: driveMyCar, addedDate: '2024-07-05' },
 ];
 
-const recentBookings = [
-  {
-    id: 1,
-    movie: 'Inception',
-    cinema: 'Cinestar Quốc Thanh',
-    date: '07/11/2025',
-    status: 'completed',
-  },
-  {
-    id: 2,
-    movie: 'Interstellar',
-    cinema: 'Cinestar Hai Bà Trưng',
-    date: '10/11/2025',
-    status: 'upcoming',
-  },
-];
 
 export default function Profile() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -706,29 +690,6 @@ export default function Profile() {
                     <button className="btn btn--primary mt-5" onClick={() => setIsEditing(true)}>
                       Chỉnh sửa thông tin
                     </button>
-                  </div>
-
-                  {/* Recent Bookings */}
-                  <div className="profile-section">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="profile-section__title">Đặt vé gần đây</h2>
-                      <a href="/booking-history" className="profile-section__link">Xem tất cả</a>
-                    </div>
-                    <div className="profile-bookings-list">
-                      {recentBookings.map((booking) => (
-                        <div key={booking.id} className="profile-booking-item">
-                          <div>
-                            <div className="profile-booking-item__title">{booking.movie}</div>
-                            <div className="profile-booking-item__meta">
-                              {booking.cinema} • {booking.date}
-                            </div>
-                          </div>
-                          <span className={`booking-status booking-status--${booking.status}`}>
-                            {booking.status === 'completed' ? 'Đã xem' : 'Sắp chiếu'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 </div>
               )}
