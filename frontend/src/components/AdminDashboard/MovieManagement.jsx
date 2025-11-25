@@ -422,6 +422,74 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
 
   return (
     <>
+      {/* Notification Toast - Hiển thị bên ngoài modal (sau khi modal đóng) */}
+      {notification && !showModal && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 10000,
+          padding: '16px 20px',
+          borderRadius: '12px',
+          background: notification.type === 'success' 
+            ? 'rgba(76, 175, 80, 0.95)' 
+            : 'rgba(244, 67, 54, 0.95)',
+          color: '#fff',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          minWidth: '300px',
+          maxWidth: '500px',
+          animation: 'slideInRight 0.3s ease-out'
+        }}>
+          <div style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            {notification.type === 'success' ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            )}
+          </div>
+          <span style={{ flex: 1, fontSize: '15px', fontWeight: 500, lineHeight: '1.5' }}>{notification.message}</span>
+          <button
+            onClick={() => setNotification(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#fff',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: 0.8,
+              transition: 'opacity 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.8'}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      )}
+
       <style>{`
         @keyframes slideInDown {
           from {
@@ -430,6 +498,16 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
           }
           to {
             transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
             opacity: 1;
           }
         }

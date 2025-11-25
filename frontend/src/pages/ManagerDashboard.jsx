@@ -34,7 +34,7 @@ export default function ManagerDashboard() {
   const managerComplexIds = cinemaComplexId ? [cinemaComplexId] : [];
 
   // State management
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const [activeSection, setActiveSection] = useState('movies');
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [cinemas, setCinemas] = useState([]);

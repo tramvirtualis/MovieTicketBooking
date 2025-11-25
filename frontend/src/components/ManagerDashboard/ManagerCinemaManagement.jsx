@@ -1041,7 +1041,7 @@ function ManagerCinemaManagement({ cinemas: initialCinemasList, onCinemasChange,
         <div className="seat-layout__legend">
           <div className="seat-legend">
             <div className="seat-legend__item">
-              <div className="seat-legend__color" style={{ backgroundColor: getSeatColor('NORMAL') }}>N</div>
+              <div className="seat-legend__color" style={{ backgroundColor: getSeatColor('NORMAL') }}></div>
               <span>Thường - Click để đổi</span>
             </div>
             <div className="seat-legend__item">

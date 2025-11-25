@@ -15,6 +15,9 @@ import {
   Cell
 } from 'recharts';
 import { getAllOrdersAdmin } from '../../services/customer';
+import showtimeService from '../../services/showtimeService';
+import { userService } from '../../services/userService';
+import { voucherService } from '../../services/voucherService';
 
 // Reports Component
 function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
@@ -23,6 +26,9 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
   const [selectedMovie, setSelectedMovie] = useState('all');
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [allShowtimes, setAllShowtimes] = useState([]);
+  const [actualUsers, setActualUsers] = useState(users || []);
+  const [actualVouchers, setActualVouchers] = useState(vouchers || []);
   
   // Load orders from backend
   useEffect(() => {
@@ -98,6 +104,126 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
     loadOrders();
   }, []);
 
+  // Load all showtimes to check which movies are actually showing
+  useEffect(() => {
+    const loadShowtimes = async () => {
+      if (!movies || movies.length === 0) return;
+      
+      try {
+        // Check showtimes for the next 7 days to see which movies are actually showing
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date();
+          date.setDate(date.getDate() + i);
+          dates.push(date.toISOString().split('T')[0]);
+        }
+        
+        const showtimesPromises = movies.flatMap(movie => 
+          dates.map(async (date) => {
+            try {
+              const result = await showtimeService.getPublicShowtimes(movie.movieId, null, date);
+              if (result.success && result.data) {
+                return result.data.map(st => ({
+                  ...st,
+                  movieId: movie.movieId
+                }));
+              }
+              return [];
+            } catch (err) {
+              // Silently fail for individual requests
+              return [];
+            }
+          })
+        );
+        
+        const showtimesArrays = await Promise.all(showtimesPromises);
+        const allShowtimesData = showtimesArrays.flat();
+        setAllShowtimes(allShowtimesData);
+      } catch (err) {
+        console.error('Error loading showtimes:', err);
+        setAllShowtimes([]);
+      }
+    };
+    
+    loadShowtimes();
+  }, [movies]);
+
+  // Load users from API if not provided or empty
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const result = await userService.getAllUsers();
+        if (result.success && result.data) {
+          console.log('Reports: Loaded users:', result.data.length);
+          console.log('Reports: User roles:', result.data.map(u => ({ userId: u.userId, username: u.username, role: u.role })));
+          setActualUsers(result.data);
+        } else {
+          setActualUsers(users || []);
+        }
+      } catch (err) {
+        console.error('Error loading users:', err);
+        setActualUsers(users || []);
+      }
+    };
+    
+    loadUsers();
+  }, [users]);
+
+  // Load vouchers from API if not provided or empty
+  useEffect(() => {
+    const loadVouchers = async () => {
+      try {
+        const result = await voucherService.getAllVouchers();
+        if (result.success && result.data) {
+          // Map vouchers from backend format and calculate status
+          const mappedVouchers = (result.data || []).map(voucher => {
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            
+            // Parse dates from backend (LocalDateTime format: "2024-01-01T00:00:00" or ISO string)
+            const startDateStr = voucher.startDate ? (typeof voucher.startDate === 'string' ? voucher.startDate.split('T')[0] : voucher.startDate) : null;
+            const endDateStr = voucher.endDate ? (typeof voucher.endDate === 'string' ? voucher.endDate.split('T')[0] : voucher.endDate) : null;
+            
+            const startDate = startDateStr ? new Date(startDateStr) : null;
+            const endDate = endDateStr ? new Date(endDateStr) : null;
+            
+            let status = 'expired'; // 'upcoming', 'active', 'expired'
+            if (startDate && endDate) {
+              startDate.setHours(0, 0, 0, 0);
+              endDate.setHours(23, 59, 59, 999);
+              
+              if (now < startDate) {
+                status = 'upcoming';
+              } else if (now >= startDate && now <= endDate) {
+                status = 'active';
+              } else {
+                status = 'expired';
+              }
+            }
+            
+            return {
+              ...voucher,
+              startDate: startDateStr || '',
+              endDate: endDateStr || '',
+              status: status
+            };
+          });
+          
+          console.log('Reports: Loaded vouchers:', mappedVouchers.length);
+          console.log('Reports: Voucher statuses:', mappedVouchers.map(v => ({ code: v.code, status: v.status, startDate: v.startDate, endDate: v.endDate })));
+          setActualVouchers(mappedVouchers);
+        } else {
+          setActualVouchers(vouchers || []);
+        }
+      } catch (err) {
+        console.error('Error loading vouchers:', err);
+        setActualVouchers(vouchers || []);
+      }
+    };
+    
+    loadVouchers();
+  }, [vouchers]);
+
   // Calculate date range based on timeRange
   const dateRange = useMemo(() => {
     const endDate = new Date();
@@ -121,9 +247,11 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
   // Filter orders based on filters
   const filteredOrders = useMemo(() => {
     return (orders || []).filter(order => {
-      if (order.status !== 'PAID') return false;
+      // All orders from backend are already paid (filtered by backend)
+      // So we don't need to check status here
       
-      const orderDate = new Date(order.showtime);
+      // Use orderDate if available, otherwise use showtime
+      const orderDate = order.orderDate ? new Date(order.orderDate) : new Date(order.showtime);
       if (orderDate < dateRange.startDate || orderDate > dateRange.endDate) return false;
       
       if (selectedCinema !== 'all' && order.cinemaComplexId !== Number(selectedCinema)) return false;
@@ -135,22 +263,93 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
 
   // Summary Statistics
   const summaryStats = useMemo(() => {
-    const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-    const totalTickets = filteredOrders.reduce((sum, order) => sum + (order.seats?.length || 0), 0);
-    const activeMovies = (movies || []).filter(m => m.status === 'NOW_SHOWING').length;
-    const registeredCustomers = (users || []).filter(u => {
-      return u.role !== 'ADMIN' && u.role !== 'MANAGER';
+    // Calculate revenue - use totalAmount from orders
+    // Group by orderId to avoid double counting (one order can have multiple booking records)
+    const uniqueOrders = new Map();
+    filteredOrders.forEach(order => {
+      const orderId = order.orderId || order.bookingId;
+      if (!uniqueOrders.has(orderId)) {
+        uniqueOrders.set(orderId, {
+          totalAmount: order.totalAmount || 0,
+          ticketCount: order.seats?.length || 0
+        });
+      } else {
+        // If order already exists, only add tickets (revenue already counted)
+        uniqueOrders.get(orderId).ticketCount += order.seats?.length || 0;
+      }
+    });
+    
+    const totalRevenue = Array.from(uniqueOrders.values()).reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalTickets = Array.from(uniqueOrders.values()).reduce((sum, order) => sum + order.ticketCount, 0);
+    
+    // Active movies - count movies that have showtimes in the future or currently showing
+    const now = new Date();
+    const activeMovies = (movies || []).filter(m => {
+      // Check if movie has any showtime that is in the future or currently showing
+      const movieShowtimes = allShowtimes.filter(st => st.movieId === m.movieId);
+      if (movieShowtimes.length === 0) return false;
+      
+      // Check if any showtime is in the future or currently showing
+      return movieShowtimes.some(st => {
+        const startTime = new Date(st.startTime);
+        const endTime = new Date(st.endTime);
+        // Showtime is active if it hasn't ended yet
+        return endTime > now;
+      });
     }).length;
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const activeVouchers = (vouchers || []).filter(v => {
-      const start = new Date(v.startDate);
-      const end = new Date(v.endDate);
+    // Registered customers - count users with role USER (not ADMIN or MANAGER)
+    const customerUsers = actualUsers.filter(u => {
+      const role = (u.role || '').toString().toUpperCase().trim();
+      const isCustomer = role === 'USER' || role === 'CUSTOMER';
+      return isCustomer;
+    });
+    
+    console.log('Reports: Total users:', actualUsers.length);
+    console.log('Reports: Customer users:', customerUsers.length);
+    console.log('Reports: User roles breakdown:', actualUsers.reduce((acc, u) => {
+      const role = (u.role || '').toString().toUpperCase().trim();
+      acc[role] = (acc[role] || 0) + 1;
+      return acc;
+    }, {}));
+    
+    const registeredCustomers = customerUsers.length;
+    
+    // Active vouchers - vouchers that are currently valid (check status field)
+    const activeVouchersList = actualVouchers.filter(v => {
+      // Check if voucher has status field and it's 'active'
+      if (v.status) {
+        const status = typeof v.status === 'string' ? v.status.toLowerCase() : v.status;
+        return status === 'active' || status === 'available';
+      }
+      
+      // Fallback: if no status, calculate from dates
+      if (!v.startDate || !v.endDate) return false;
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const startDateStr = typeof v.startDate === 'string' ? v.startDate.split('T')[0] : v.startDate;
+      const endDateStr = typeof v.endDate === 'string' ? v.endDate.split('T')[0] : v.endDate;
+      
+      const start = new Date(startDateStr);
+      const end = new Date(endDateStr);
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
-      return start <= today && today <= end && v.status;
-    }).length;
+      
+      return start <= today && today <= end;
+    });
+    
+    console.log('Reports: Total vouchers:', actualVouchers.length);
+    console.log('Reports: Active vouchers:', activeVouchersList.length);
+    console.log('Reports: Voucher details:', actualVouchers.map(v => ({ 
+      code: v.code, 
+      status: v.status, 
+      startDate: v.startDate, 
+      endDate: v.endDate 
+    })));
+    
+    const activeVouchers = activeVouchersList.length;
 
     return {
       totalRevenue,
@@ -159,7 +358,7 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
       registeredCustomers,
       activeVouchers
     };
-  }, [filteredOrders, movies, users, vouchers]);
+  }, [filteredOrders, movies, actualUsers, actualVouchers, allShowtimes]);
 
   // Revenue by Movie
   const revenueByMovie = useMemo(() => {
@@ -245,12 +444,14 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
   const dailyRevenue = useMemo(() => {
     const daily = {};
     const days = [];
-    for (let i = 29; i >= 0; i--) {
+    const daysCount = timeRange === '7' ? 7 : timeRange === '90' ? 90 : timeRange === 'all' ? 365 : 30;
+    
+    for (let i = daysCount - 1; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       date.setHours(0, 0, 0, 0);
       const dateStr = date.toISOString().split('T')[0];
-      daily[dateStr] = 0;
+      daily[dateStr] = { revenue: 0, orderIds: new Set() };
       days.push({
         date: dateStr,
         displayDate: date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
@@ -258,17 +459,29 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
       });
     }
     
+    // Group orders by orderId to avoid double counting
+    const ordersByDate = {};
     filteredOrders.forEach(order => {
-      const orderDate = new Date(order.showtime);
+      // Use orderDate if available, otherwise use showtime
+      const orderDate = order.orderDate ? new Date(order.orderDate) : new Date(order.showtime);
       orderDate.setHours(0, 0, 0, 0);
       const dateStr = orderDate.toISOString().split('T')[0];
-      if (daily[dateStr] !== undefined) {
-        daily[dateStr] += order.totalAmount || 0;
+      const orderId = order.orderId || order.bookingId;
+      
+      if (daily[dateStr]) {
+        if (!ordersByDate[dateStr]) {
+          ordersByDate[dateStr] = {};
+        }
+        // Only count each order once per day
+        if (!ordersByDate[dateStr][orderId]) {
+          ordersByDate[dateStr][orderId] = order.totalAmount || 0;
+          daily[dateStr].revenue += order.totalAmount || 0;
+        }
       }
     });
     
-    return days.map(d => ({ ...d, revenue: daily[d.date] || 0 }));
-  }, [filteredOrders]);
+    return days.map(d => ({ ...d, revenue: daily[d.date]?.revenue || 0 }));
+  }, [filteredOrders, timeRange]);
 
   // Top 5 Movies by Ticket Count
   const top5Movies = useMemo(() => {
@@ -395,27 +608,10 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between',
-        marginBottom: '8px'
-      }}>
-        <div>
-          <h1 style={{ 
-            fontSize: '28px', 
-            fontWeight: 700, 
-            color: '#fff',
-            marginBottom: '8px'
-          }}>
-            Báo cáo & Thống kê
-          </h1>
-          <p style={{ color: '#c9c4c5', fontSize: '14px' }}>
-            Tổng quan hiệu suất kinh doanh và xu hướng doanh thu
-          </p>
-        </div>
-      </div>
+      {/* Description */}
+      <p style={{ color: '#c9c4c5', fontSize: '14px', marginBottom: '8px' }}>
+        Tổng quan hiệu suất kinh doanh và xu hướng doanh thu
+      </p>
 
       {/* Filters */}
       <div className="admin-card">

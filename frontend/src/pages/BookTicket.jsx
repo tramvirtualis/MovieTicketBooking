@@ -782,7 +782,7 @@ export default function BookTicket() {
         <div className="seat-layout__legend">
           <div className="seat-legend">
             <div className="seat-legend__item">
-              <div className="seat-legend__color" style={{ backgroundColor: '#4a90e2' }}>N</div>
+              <div className="seat-legend__color" style={{ backgroundColor: '#4a90e2' }}></div>
               <span>Thường</span>
             </div>
             <div className="seat-legend__item">

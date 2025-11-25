@@ -620,8 +620,7 @@ const initialUsers = [
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { enums } = useEnums(); // Fetch enums from API
-  const [activeSection, setActiveSection] = useState('dashboard');
-  const [showReportsModal, setShowReportsModal] = useState(false);
+  const [activeSection, setActiveSection] = useState('movies');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [hasNewActivity, setHasNewActivity] = useState(false);
   const [movies, setMovies] = useState(initialMovies);
@@ -869,8 +868,8 @@ export default function AdminDashboard() {
             <span>Quản lý banner</span>
           </button>
           <button
-            className={`admin-nav-item ${showReportsModal ? 'admin-nav-item--active' : ''}`}
-            onClick={() => setShowReportsModal(true)}
+            className={`admin-nav-item ${activeSection === 'reports' ? 'admin-nav-item--active' : ''}`}
+            onClick={() => setActiveSection('reports')}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -961,6 +960,7 @@ export default function AdminDashboard() {
               {activeSection === 'foodbeverages' && 'Quản lý đồ ăn & nước uống'}
               {activeSection === 'banners' && 'Quản lý banner'}
               {activeSection === 'activities' && 'Quản lý hoạt động'}
+              {activeSection === 'reports' && 'Báo cáo & Thống kê'}
             </h1>
           </div>
           <div className="admin-header__right">
@@ -1063,67 +1063,18 @@ export default function AdminDashboard() {
           {activeSection === 'showtimes' && (
             <AdminShowtimeView />
           )}
+
+          {activeSection === 'reports' && (
+            <Reports 
+              orders={orders}
+              movies={movies}
+              cinemas={cinemas}
+              vouchers={vouchers}
+              users={users}
+            />
+          )}
         </main>
       </div>
-
-      {/* Reports Modal */}
-      {showReportsModal && (
-        <div 
-          className="movie-modal-overlay" 
-          onClick={() => setShowReportsModal(false)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 10000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-            overflow: 'auto'
-          }}
-        >
-          <div 
-            className="movie-modal" 
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: '95vw',
-              maxHeight: '95vh',
-              width: '100%',
-              overflow: 'auto',
-              backgroundColor: '#1a1517',
-              borderRadius: '16px',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
-            }}
-          >
-            <div className="movie-modal__header" style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#1a1517' }}>
-              <h2>Báo cáo & Thống kê</h2>
-              <button 
-                className="movie-modal__close" 
-                onClick={() => setShowReportsModal(false)}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </div>
-            <div className="movie-modal__content" style={{ padding: '24px', maxHeight: 'calc(95vh - 80px)', overflow: 'auto' }}>
-              <Reports 
-                orders={orders}
-                movies={movies}
-                cinemas={cinemas}
-                vouchers={vouchers}
-                users={users}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
