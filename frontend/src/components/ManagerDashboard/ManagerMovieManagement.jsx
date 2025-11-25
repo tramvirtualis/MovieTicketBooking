@@ -48,9 +48,11 @@ function ManagerMovieManagement({ complexId }) {
           director: movie.director
         }));
         
-        // Filter out movies that are already in complex
+        // Filter out movies that are already in complex and movies that are ENDED
         const complexMovieIds = new Set(complexMovies.map(m => m.movieId));
-        movies = movies.filter(m => !complexMovieIds.has(m.movieId));
+        movies = movies.filter(m => 
+          !complexMovieIds.has(m.movieId) && m.status !== 'ENDED'
+        );
         
         setAllMovies(movies);
       } else {
@@ -380,21 +382,26 @@ function ManagerMovieManagement({ complexId }) {
                   overflowY: 'auto',
                   padding: '10px'
                 }}>
-                  {allMovies.map((movie) => (
+                  {allMovies.map((movie) => {
+                    const isEnded = movie.status === 'ENDED';
+                    return (
                     <div
                       key={movie.movieId}
-                      onClick={() => handleAddMovie(movie)}
+                      onClick={() => !isEnded && handleAddMovie(movie)}
                       style={{
-                        cursor: 'pointer',
+                        cursor: isEnded ? 'not-allowed' : 'pointer',
                         background: '#2d2627',
                         borderRadius: '12px',
                         overflow: 'hidden',
                         border: '2px solid #4a3f41',
-                        transition: 'all 0.2s'
+                        transition: 'all 0.2s',
+                        opacity: isEnded ? 0.6 : 1
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = '#e83b41';
-                        e.currentTarget.style.transform = 'translateY(-4px)';
+                        if (!isEnded) {
+                          e.currentTarget.style.borderColor = '#e83b41';
+                          e.currentTarget.style.transform = 'translateY(-4px)';
+                        }
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.borderColor = '#4a3f41';
@@ -433,16 +440,21 @@ function ManagerMovieManagement({ complexId }) {
                           <span style={{
                             padding: '2px 8px',
                             borderRadius: '8px',
-                            backgroundColor: movie.status === 'NOW_SHOWING' ? '#4caf50' : '#ff9800',
+                            backgroundColor: movie.status === 'NOW_SHOWING' ? '#4caf50' : 
+                                           movie.status === 'COMING_SOON' ? '#ff9800' : 
+                                           '#9e9e9e',
                             color: '#fff',
                             fontSize: '11px'
                           }}>
-                            {movie.status === 'NOW_SHOWING' ? 'Đang chiếu' : 'Sắp chiếu'}
+                            {movie.status === 'NOW_SHOWING' ? 'Đang chiếu' : 
+                             movie.status === 'COMING_SOON' ? 'Sắp chiếu' : 
+                             'Đã kết thúc'}
                           </span>
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
