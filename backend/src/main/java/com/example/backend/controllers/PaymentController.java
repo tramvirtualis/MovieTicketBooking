@@ -104,6 +104,19 @@ public class PaymentController {
             // Lấy booking info từ request
             Map<String, Object> bookingInfo = (Map<String, Object>) request.get("bookingInfo");
             
+            System.out.println("=== Parsing Booking Info ===");
+            System.out.println("bookingInfo: " + bookingInfo);
+            if (bookingInfo != null) {
+                System.out.println("bookingInfo.containsKey('showtimeId'): " + bookingInfo.containsKey("showtimeId"));
+                System.out.println("bookingInfo.containsKey('seatIds'): " + bookingInfo.containsKey("seatIds"));
+                if (bookingInfo.containsKey("showtimeId")) {
+                    System.out.println("showtimeId value: " + bookingInfo.get("showtimeId") + " (type: " + (bookingInfo.get("showtimeId") != null ? bookingInfo.get("showtimeId").getClass().getName() : "null") + ")");
+                }
+                if (bookingInfo.containsKey("seatIds")) {
+                    System.out.println("seatIds value: " + bookingInfo.get("seatIds"));
+                }
+            }
+            
             // Parse booking info
             Long showtimeId = null;
             List<String> seatIds = List.of();
@@ -112,19 +125,60 @@ public class PaymentController {
             Voucher voucher = null;
             
             if (bookingInfo != null) {
-                showtimeId = bookingInfo.get("showtimeId") != null ? 
-                    Long.parseLong(bookingInfo.get("showtimeId").toString()) : null;
+                // Parse seatIds trước để kiểm tra xem có đặt vé phim không
                 seatIds = bookingInfo.get("seatIds") != null ?
                     (List<String>) bookingInfo.get("seatIds") : List.of();
+                
+                System.out.println("Parsed seatIds: " + seatIds + " (size: " + (seatIds != null ? seatIds.size() : 0) + ")");
+                
+                // CHỈ parse showtimeId nếu:
+                // 1. bookingInfo có key "showtimeId" VÀ
+                // 2. Có seats (tức là có đặt vé phim)
+                boolean hasSeats = seatIds != null && !seatIds.isEmpty();
+                boolean hasShowtimeIdKey = bookingInfo.containsKey("showtimeId");
+                
+                System.out.println("hasSeats: " + hasSeats + ", hasShowtimeIdKey: " + hasShowtimeIdKey);
+                
+                if (hasSeats && hasShowtimeIdKey) {
+                    // Có seats VÀ có showtimeId key -> cần parse showtimeId
+                    Object showtimeIdObj = bookingInfo.get("showtimeId");
+                    if (showtimeIdObj != null) {
+                        String showtimeIdStr = showtimeIdObj.toString().trim();
+                        if (!showtimeIdStr.isEmpty() && !showtimeIdStr.equalsIgnoreCase("null")) {
+                            try {
+                                showtimeId = Long.parseLong(showtimeIdStr);
+                                System.out.println("Parsed showtimeId: " + showtimeId);
+                            } catch (NumberFormatException e) {
+                                System.err.println("Invalid showtimeId format: " + showtimeIdStr + ", treating as null");
+                                showtimeId = null;
+                            }
+                        } else {
+                            showtimeId = null;
+                            System.out.println("showtimeId is empty or 'null' string, setting to null");
+                        }
+                    } else {
+                        showtimeId = null;
+                        System.out.println("showtimeIdObj is null, setting showtimeId to null");
+                    }
+                } else {
+                    // Không có seats HOẶC không có showtimeId key -> không cần showtimeId (chỉ đặt đồ ăn)
+                    showtimeId = null;
+                    System.out.println("Food-only order: hasSeats=" + hasSeats + ", hasShowtimeIdKey=" + hasShowtimeIdKey + " -> showtimeId = null");
+                }
+                
                 foodComboMaps = bookingInfo.get("foodCombos") != null ?
                     (List<Map<String, Object>>) bookingInfo.get("foodCombos") : List.of();
                 voucherCode = bookingInfo.get("voucherCode") != null ?
                     bookingInfo.get("voucherCode").toString() : null;
                 
+                System.out.println("Final parsed values - showtimeId: " + showtimeId + ", seatIds size: " + (seatIds != null ? seatIds.size() : 0) + ", foodCombos size: " + (foodComboMaps != null ? foodComboMaps.size() : 0));
+                
                 // Lấy voucher nếu có
                 if (voucherCode != null && !voucherCode.isEmpty()) {
                     voucher = voucherRepository.findByCode(voucherCode).orElse(null);
                 }
+            } else {
+                System.out.println("bookingInfo is null - food-only order");
             }
             
             // Check for duplicate order trong vòng 10 giây gần đây (tránh double-click và race condition)
@@ -254,6 +308,18 @@ public class PaymentController {
                 })
                 .filter(req -> req != null)
                 .toList();
+            
+            // Final validation: Nếu không có seats, thì showtimeId phải là null
+            // (Tránh trường hợp có showtimeId nhưng không có seats - chỉ đặt đồ ăn)
+            if ((seatIds == null || seatIds.isEmpty()) && showtimeId != null) {
+                System.out.println("WARNING: showtimeId is " + showtimeId + " but no seats found. Setting showtimeId to null for food-only order.");
+                showtimeId = null;
+            }
+            
+            System.out.println("=== Creating Order ===");
+            System.out.println("showtimeId: " + showtimeId);
+            System.out.println("seatIds: " + seatIds);
+            System.out.println("foodComboRequests size: " + foodComboRequests.size());
             
             // Tạo Order trực tiếp
             Order order = orderCreationService.createOrder(

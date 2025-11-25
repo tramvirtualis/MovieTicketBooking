@@ -99,14 +99,14 @@ public class FoodComboService {
     
     public List<FoodComboResponseDTO> getAllFoodCombos() {
         // Chỉ lấy các FoodCombo của hệ thống (không thuộc order nào)
-        return foodComboRepository.findAllSystemFoodCombos().stream()
+        return foodComboRepository.findAll().stream()
             .map(this::mapToDTO)
             .collect(Collectors.toList());
     }
     
     public List<FoodComboResponseDTO> getAvailableFoodCombos() {
         // Chỉ lấy các FoodCombo của hệ thống (không thuộc order nào)
-        return foodComboRepository.findAllSystemFoodCombos().stream()
+        return foodComboRepository.findAll().stream()
             .map(this::mapToDTO)
             .collect(Collectors.toList());
     }

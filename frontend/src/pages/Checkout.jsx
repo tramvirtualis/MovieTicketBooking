@@ -70,6 +70,7 @@ export default function Checkout() {
       setCartData(JSON.parse(savedCart));
     }
     // Chỉ set bookingData nếu thực sự có booking (có showtimeId và seats)
+    // Nếu chỉ có cart (đồ ăn) mà không có booking hợp lệ, thì không set bookingData
     if (savedBooking) {
       try {
         const booking = JSON.parse(savedBooking);
@@ -86,16 +87,19 @@ export default function Checkout() {
           setBookingData(booking);
         } else {
           console.warn('Booking không hợp lệ - showtimeId:', showtimeId, 'seats:', booking.seats);
-          // KHÔNG xóa pendingBooking nếu chỉ thiếu showtimeId (có thể là do format cũ)
-          // Chỉ xóa nếu thực sự không có seats
-          if (!booking.seats || !Array.isArray(booking.seats) || booking.seats.length === 0) {
-            localStorage.removeItem('pendingBooking');
-          }
+          // Xóa pendingBooking nếu không hợp lệ (không có seats hoặc không có showtimeId)
+          // Đây có thể là dữ liệu cũ từ lần đặt vé trước, cần xóa để tránh nhầm lẫn
+          localStorage.removeItem('pendingBooking');
+          console.log('Removed invalid pendingBooking from localStorage');
         }
       } catch (e) {
         console.error('Failed to parse booking data:', e);
         localStorage.removeItem('pendingBooking');
       }
+    } else {
+      // Không có savedBooking -> chỉ có đồ ăn, đảm bảo bookingData là null
+      console.log('No savedBooking found - food-only order');
+      setBookingData(null);
     }
     
     // Load customer info from localStorage (saved when login)
@@ -194,30 +198,44 @@ export default function Checkout() {
         
         // Chuẩn bị booking info để gửi lên server
         // CHỈ gửi booking info nếu thực sự có đặt vé phim (có showtimeId và seats)
-        const bookingInfo = bookingData && bookingData.showtimeId && bookingData.seats && bookingData.seats.length > 0 ? {
-          showtimeId: bookingData.showtimeId,
-          seatIds: bookingData.seats,
-          foodCombos: cartData?.items?.map(item => ({
-            foodComboId: item.id?.replace('fc_', '') || item.foodComboId,
-            quantity: item.quantity || 1
-          })) || [],
-          voucherCode: selectedVoucher?.code || null
-        } : {
-          // Nếu chỉ có đồ ăn, không gửi showtimeId và seatIds
-          showtimeId: null,
-          seatIds: [],
-          foodCombos: cartData?.items?.map(item => ({
-            foodComboId: item.id?.replace('fc_', '') || item.foodComboId,
-            quantity: item.quantity || 1
-          })) || [],
-          voucherCode: selectedVoucher?.code || null
-        };
+        const hasValidBooking = bookingData && 
+          bookingData.showtimeId && 
+          bookingData.seats && 
+          Array.isArray(bookingData.seats) && 
+          bookingData.seats.length > 0;
+        
+        console.log('Checkout - hasValidBooking:', hasValidBooking);
+        console.log('Checkout - bookingData:', bookingData);
+        console.log('Checkout - cartData:', cartData);
+        
+        // Tạo bookingInfo - CHỈ thêm showtimeId và seatIds nếu có đặt vé phim
+        const bookingInfo = {};
+        
+        if (hasValidBooking) {
+          // Có đặt vé phim -> gửi showtimeId và seatIds
+          bookingInfo.showtimeId = bookingData.showtimeId;
+          bookingInfo.seatIds = bookingData.seats;
+          console.log('Checkout - Adding showtimeId and seatIds to bookingInfo');
+        } else {
+          // Chỉ có đồ ăn -> KHÔNG gửi showtimeId và seatIds
+          console.log('Checkout - Food-only order, NOT sending showtimeId or seatIds');
+        }
+        
+        // Luôn gửi foodCombos và voucherCode
+        bookingInfo.foodCombos = cartData?.items?.map(item => ({
+          foodComboId: item.id?.replace('fc_', '') || item.foodComboId,
+          quantity: item.quantity || 1
+        })) || [];
+        bookingInfo.voucherCode = selectedVoucher?.code || null;
         
         console.log('Creating ZaloPay order:', {
           amount,
           description,
           orderId,
-          bookingInfo
+          bookingInfo,
+          hasShowtimeId: 'showtimeId' in bookingInfo,
+          showtimeIdValue: bookingInfo.showtimeId,
+          hasSeatIds: 'seatIds' in bookingInfo
         });
         
         const result = await paymentService.createZaloPayOrder(
@@ -264,14 +282,21 @@ export default function Checkout() {
     // Thanh toán qua MoMo
     if (paymentMethod === 'MOMO') {
       try {
+        // Chỉ gửi showtimeId và seatIds nếu thực sự có đặt vé phim
+        const hasValidBooking = bookingData && 
+          bookingData.showtimeId && 
+          bookingData.seats && 
+          Array.isArray(bookingData.seats) && 
+          bookingData.seats.length > 0;
+        
         const payload = {
           amount: totalAmount,
           voucherId: selectedVoucher?.voucherId || null,
           voucherCode: selectedVoucher?.code || null,
           orderDescription: 'Thanh toán đơn hàng tại Cinesmart',
-          // Gửi bookingInfo giống ZaloPay
-          showtimeId: bookingData?.showtimeId || null,
-          seatIds: bookingData?.seats || [],
+          // CHỈ gửi showtimeId và seatIds nếu có đặt vé phim
+          showtimeId: hasValidBooking ? bookingData.showtimeId : null,
+          seatIds: hasValidBooking ? bookingData.seats : [],
           foodCombos: cartData?.items?.map(item => ({
             foodComboId: item.id?.replace('fc_', '') || item.foodComboId,
             quantity: item.quantity || 1

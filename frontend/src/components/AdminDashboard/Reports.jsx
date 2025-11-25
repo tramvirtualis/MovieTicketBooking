@@ -41,7 +41,10 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
         // Map backend format to frontend format (same as BookingManagement)
         const mappedOrders = [];
         ordersData.forEach(order => {
-          if (order.items && order.items.length > 0) {
+          const hasTickets = order.items && order.items.length > 0;
+          const hasCombos = order.combos && order.combos.length > 0;
+          
+          if (hasTickets) {
             // Group tickets by showtime to create booking records
             const ticketsByShowtime = {};
             order.items.forEach(item => {
@@ -65,6 +68,7 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
               mappedOrders.push({
                 bookingId: order.orderId,
                 orderId: order.orderId, // Keep orderId for reference
+                orderType: 'TICKET', // TICKET or FOOD_ONLY
                 user: {
                   name: order.userName || 'N/A',
                   email: order.userEmail || '',
@@ -87,6 +91,36 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
                 status: 'PAID', // All orders in DB are successful
                 paymentMethod: order.paymentMethod || 'UNKNOWN'
               });
+            });
+          } else if (hasCombos) {
+            // Food-only order (no tickets)
+            const comboTotal = order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0);
+            
+            mappedOrders.push({
+              bookingId: order.orderId,
+              orderId: order.orderId,
+              orderType: 'FOOD_ONLY',
+              user: {
+                name: order.userName || 'N/A',
+                email: order.userEmail || '',
+                phone: order.userPhone || ''
+              },
+              movieId: null,
+              movieTitle: null,
+              cinemaComplexId: null,
+              cinemaName: null,
+              roomId: null,
+              roomName: null,
+              showtime: order.orderDate || order.createdAt || new Date().toISOString(), // Use order date for food-only orders
+              seats: [],
+              pricePerSeat: 0,
+              ticketAmount: 0, // No tickets
+              comboAmount: comboTotal, // Amount from combos only
+              totalAmount: parseFloat(order.totalAmount) || comboTotal,
+              combos: order.combos || [],
+              orderDate: order.orderDate || order.createdAt || new Date().toISOString(),
+              status: 'PAID',
+              paymentMethod: order.paymentMethod || 'UNKNOWN'
             });
           }
         });
@@ -254,6 +288,12 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
       const orderDate = order.orderDate ? new Date(order.orderDate) : new Date(order.showtime);
       if (orderDate < dateRange.startDate || orderDate > dateRange.endDate) return false;
       
+      // For food-only orders, skip cinema and movie filters (they don't have these fields)
+      if (order.orderType === 'FOOD_ONLY') {
+        return true; // Include all food-only orders that pass date filter
+      }
+      
+      // For orders with tickets, apply cinema and movie filters
       if (selectedCinema !== 'all' && order.cinemaComplexId !== Number(selectedCinema)) return false;
       if (selectedMovie !== 'all' && order.movieId !== Number(selectedMovie)) return false;
       
@@ -360,16 +400,22 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
     };
   }, [filteredOrders, movies, actualUsers, actualVouchers, allShowtimes]);
 
-  // Revenue by Movie
+  // Revenue by Movie - CHỈ tính các đơn hàng có vé phim (không tính đơn hàng chỉ có đồ ăn)
   const revenueByMovie = useMemo(() => {
     const movieRevenue = {};
     filteredOrders.forEach(order => {
+      // Bỏ qua đơn hàng chỉ có đồ ăn (không có vé phim)
+      if (order.orderType === 'FOOD_ONLY' || !order.movieId || !order.seats || order.seats.length === 0) {
+        return;
+      }
+      
       const movieId = order.movieId;
       const movieTitle = order.movieTitle || movies.find(m => m.movieId === movieId)?.title || 'Unknown';
       if (!movieRevenue[movieId]) {
         movieRevenue[movieId] = { movieId, title: movieTitle, revenue: 0, tickets: 0 };
       }
-      movieRevenue[movieId].revenue += order.totalAmount || 0;
+      // CHỈ tính doanh thu từ vé phim (ticketAmount), KHÔNG tính doanh thu từ đồ ăn
+      movieRevenue[movieId].revenue += order.ticketAmount || 0;
       movieRevenue[movieId].tickets += order.seats?.length || 0;
     });
     return Object.values(movieRevenue).sort((a, b) => b.revenue - a.revenue);

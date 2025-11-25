@@ -19,7 +19,6 @@ public class FoodCombo {
     private String description;
     private String image;
     
-    @ManyToOne
-    @JoinColumn(name = "order_combo_id")
-    private OrderCombo orderCombo;
+    // Quan hệ đúng: OrderCombo có @ManyToOne FoodCombo (không phải ngược lại)
+    // FoodCombo là entity chính (menu item), không nên có quan hệ với OrderCombo
 }

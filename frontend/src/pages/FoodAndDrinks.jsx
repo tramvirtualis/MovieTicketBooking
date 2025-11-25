@@ -154,6 +154,8 @@ export default function FoodAndDrinks() {
       totalAmount: getTotalAmount()
     };
     localStorage.setItem('checkoutCart', JSON.stringify(cartData));
+    // Xóa pendingBooking vì đây là đơn hàng chỉ có đồ ăn (không có vé phim)
+    localStorage.removeItem('pendingBooking');
     // Navigate to checkout page
     navigate('/checkout');
   };
