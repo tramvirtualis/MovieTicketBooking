@@ -208,6 +208,9 @@ public class OrderService {
         dto.setVoucherCode(order.getVoucher() != null 
             ? order.getVoucher().getCode() 
             : null);
+        // Set cinemaComplexId từ Order entity (cho đơn hàng chỉ có đồ ăn)
+        // Với đơn hàng có vé phim, có thể lấy từ items[0].cinemaComplexId
+        dto.setCinemaComplexId(order.getCinemaComplexId());
         // Set user info
         if (order.getUser() != null) {
             dto.setUserId(order.getUser().getUserId());

@@ -26,6 +26,9 @@ public class CreatePaymentRequest {
     private Long showtimeId;
     private List<String> seatIds;
     private List<Map<String, Object>> foodCombos;
+    
+    // CinemaComplexId cho đơn hàng chỉ có đồ ăn (food-only orders)
+    private Long cinemaComplexId;
 }
 
 

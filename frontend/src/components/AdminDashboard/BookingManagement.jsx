@@ -32,9 +32,11 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
         // Frontend expects one booking per ticket group OR one booking for food-only orders
         const mappedOrders = [];
         ordersData.forEach(order => {
-          const hasTickets = order.items && order.items.length > 0;
-          const hasCombos = order.combos && order.combos.length > 0;
+          // Kiểm tra kỹ: items phải là array và có phần tử
+          const hasTickets = Array.isArray(order.items) && order.items.length > 0;
+          const hasCombos = Array.isArray(order.combos) && order.combos.length > 0;
           
+          // Đảm bảo: Nếu có tickets, luôn là TICKET, không bao giờ là FOOD_ONLY
           if (hasTickets) {
             // Group tickets by showtime to create booking records
             const ticketsByShowtime = {};
@@ -112,7 +114,21 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
           }
         });
         
+        // Validation: Đảm bảo không có đơn hàng FOOD_ONLY nhưng lại có thông tin vé
+        // Nếu phát hiện, tự động sửa lại orderType thành TICKET
+        mappedOrders.forEach(order => {
+          if (order.orderType === 'FOOD_ONLY') {
+            // Kiểm tra xem có thông tin vé không
+            if (order.movieId || order.movieTitle || (order.seats && order.seats.length > 0) || 
+                order.showtimeId || order.roomId || order.roomName || order.cinemaComplexId || order.cinemaName) {
+              console.warn('Found FOOD_ONLY order with ticket info, fixing orderType to TICKET:', order.bookingId);
+              order.orderType = 'TICKET';
+            }
+          }
+        });
+        
         console.log('Mapped orders:', mappedOrders);
+        console.log('Total mapped orders:', mappedOrders.length);
         setOrders(mappedOrders);
         if (onOrdersChange) onOrdersChange(mappedOrders);
       } catch (err) {
@@ -128,9 +144,19 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
   }, [onOrdersChange]);
 
   const withinRange = (dt) => {
+    if (!dt) return true; // Nếu không có date, không filter
     const t = new Date(dt).getTime();
-    if (dateFrom && t < new Date(dateFrom).getTime()) return false;
-    if (dateTo && t > new Date(dateTo + 'T23:59:59').getTime()) return false;
+    if (isNaN(t)) return true; // Nếu date không hợp lệ, không filter
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      if (t < from.getTime()) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      if (t > to.getTime()) return false;
+    }
     return true;
   };
 
@@ -150,20 +176,84 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
 
   const filtered = orders.filter(o => {
     // Filter by order type
-    if (orderTypeFilter === 'TICKET' && o.orderType !== 'TICKET') return false;
-    if (orderTypeFilter === 'FOOD_ONLY' && o.orderType !== 'FOOD_ONLY') return false;
+    if (orderTypeFilter === 'TICKET') {
+      if (o.orderType !== 'TICKET') return false;
+    } else if (orderTypeFilter === 'FOOD_ONLY') {
+      // Đơn đồ ăn: Phải là FOOD_ONLY và không có bất kỳ thông tin vé nào
+      if (o.orderType !== 'FOOD_ONLY') return false;
+      if (o.movieId || 
+          o.movieTitle || 
+          (o.seats && o.seats.length > 0) || 
+          o.showtimeId ||
+          o.roomId ||
+          o.roomName ||
+          o.cinemaComplexId ||
+          o.cinemaName) {
+        return false;
+      }
+    }
+    // Nếu orderTypeFilter === 'ALL', không filter theo orderType
     
-    const matchesText =
-      o.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.user.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (o.movieTitle && o.movieTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (o.cinemaName && o.cinemaName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (o.orderType === 'FOOD_ONLY' && 'đồ ăn'.includes(searchTerm.toLowerCase()));
-    const matchesCinema = !filterCinema || !o.cinemaComplexId || String(o.cinemaComplexId) === String(filterCinema);
-    const matchesMovie = !filterMovie || !o.movieId || String(o.movieId) === String(filterMovie);
-    const matchesStatus = !filterStatus || derivedStatus(o) === filterStatus;
-    return matchesText && matchesCinema && matchesMovie && matchesStatus && withinRange(o.showtime);
+    // Text search - chỉ áp dụng nếu có searchTerm
+    if (searchTerm && searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      const matches = 
+        o.user.name.toLowerCase().includes(term) ||
+        o.user.phone.toLowerCase().includes(term) ||
+        (o.movieTitle && o.movieTitle.toLowerCase().includes(term)) ||
+        (o.cinemaName && o.cinemaName.toLowerCase().includes(term)) ||
+        (o.orderType === 'FOOD_ONLY' && 'đồ ăn'.includes(term));
+      if (!matches) return false;
+    }
+    
+    // Cinema filter - chỉ áp dụng khi có filterCinema
+    if (filterCinema && filterCinema !== '') {
+      if (!o.cinemaComplexId || String(o.cinemaComplexId) !== String(filterCinema)) {
+        return false;
+      }
+    }
+    
+    // Movie filter - chỉ áp dụng khi có filterMovie
+    if (filterMovie && filterMovie !== '') {
+      if (!o.movieId || String(o.movieId) !== String(filterMovie)) {
+        return false;
+      }
+    }
+    
+    // Status filter - chỉ áp dụng khi có filterStatus
+    if (filterStatus && filterStatus !== '') {
+      if (derivedStatus(o) !== filterStatus) {
+        return false;
+      }
+    }
+    
+    // Date range filter - chỉ áp dụng khi có dateFrom hoặc dateTo
+    if (dateFrom || dateTo) {
+      const dateToCheck = o.orderType === 'FOOD_ONLY' ? (o.orderDate || o.showtime) : o.showtime;
+      if (!withinRange(dateToCheck)) {
+        return false;
+      }
+    }
+    
+    return true;
   });
+  
+  // Debug: Log filtered results
+  useEffect(() => {
+    console.log('=== Filter Debug ===');
+    console.log('Total orders:', orders.length);
+    console.log('Filtered orders:', filtered.length);
+    console.log('OrderTypeFilter:', orderTypeFilter);
+    console.log('SearchTerm:', searchTerm);
+    console.log('FilterCinema:', filterCinema);
+    console.log('FilterMovie:', filterMovie);
+    console.log('FilterStatus:', filterStatus);
+    console.log('DateFrom:', dateFrom);
+    console.log('DateTo:', dateTo);
+    if (filtered.length !== orders.length) {
+      console.log('Some orders were filtered out. Filtered orders:', filtered.map(o => ({ id: o.bookingId, type: o.orderType })));
+    }
+  }, [orders, filtered, orderTypeFilter, searchTerm, filterCinema, filterMovie, filterStatus, dateFrom, dateTo]);
 
   const statusColor = (s) => ({ ACTIVE: '#4caf50', EXPIRED: '#9e9e9e' }[s] || '#9e9e9e');
 
@@ -236,10 +326,77 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
     );
   };
 
-  // Count orders by type
-  const ticketOrdersCount = orders.filter(o => o.orderType === 'TICKET').length;
-  const foodOrdersCount = orders.filter(o => o.orderType === 'FOOD_ONLY').length;
-  const allOrdersCount = orders.length;
+  // Count orders by type - Phải dùng filtered để nhất quán với danh sách hiển thị
+  // Tạo một hàm helper để check xem order có pass các filter không (trừ orderTypeFilter)
+  const passesOtherFilters = (o) => {
+    // Text search - chỉ áp dụng khi có searchTerm
+    if (searchTerm && searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      const matches = 
+        o.user.name.toLowerCase().includes(term) ||
+        o.user.phone.toLowerCase().includes(term) ||
+        (o.movieTitle && o.movieTitle.toLowerCase().includes(term)) ||
+        (o.cinemaName && o.cinemaName.toLowerCase().includes(term)) ||
+        (o.orderType === 'FOOD_ONLY' && 'đồ ăn'.includes(term));
+      if (!matches) return false;
+    }
+    
+    // Cinema filter - QUAN TRỌNG: phải filter theo cụm rạp nếu có
+    if (filterCinema && filterCinema !== '') {
+      if (!o.cinemaComplexId || String(o.cinemaComplexId) !== String(filterCinema)) {
+        return false;
+      }
+    }
+    
+    // Movie filter - chỉ áp dụng khi có filterMovie
+    if (filterMovie && filterMovie !== '') {
+      if (!o.movieId || String(o.movieId) !== String(filterMovie)) {
+        return false;
+      }
+    }
+    
+    // Status filter - chỉ áp dụng khi có filterStatus
+    if (filterStatus && filterStatus !== '') {
+      if (derivedStatus(o) !== filterStatus) {
+        return false;
+      }
+    }
+    
+    // Date range filter - chỉ áp dụng khi có dateFrom hoặc dateTo
+    if (dateFrom || dateTo) {
+      const dateToCheck = o.orderType === 'FOOD_ONLY' ? (o.orderDate || o.showtime) : o.showtime;
+      if (!withinRange(dateToCheck)) {
+        return false;
+      }
+    }
+    
+    return true;
+  };
+  
+  // Đếm đơn vé: orderType === 'TICKET' HOẶC có thông tin vé (dù orderType là gì)
+  const ticketOrdersCount = orders.filter(o => {
+    if (!passesOtherFilters(o)) return false;
+    if (o.orderType === 'TICKET') return true;
+    // Nếu có thông tin vé, tính là đơn vé
+    if (o.movieId || o.movieTitle || (o.seats && o.seats.length > 0) || o.showtimeId || o.roomId || o.roomName || o.cinemaComplexId || o.cinemaName) {
+      return true;
+    }
+    return false;
+  }).length;
+  
+  // Đếm đơn đồ ăn: orderType === 'FOOD_ONLY' VÀ không có thông tin vé
+  const foodOrdersCount = orders.filter(o => {
+    if (!passesOtherFilters(o)) return false;
+    if (o.orderType !== 'FOOD_ONLY') return false;
+    // Không được có bất kỳ thông tin vé nào
+    if (o.movieId || o.movieTitle || (o.seats && o.seats.length > 0) || o.showtimeId || o.roomId || o.roomName || o.cinemaComplexId || o.cinemaName) {
+      return false;
+    }
+    return true;
+  }).length;
+  
+  // Đếm tất cả: tất cả orders pass các filter (trừ orderTypeFilter)
+  const allOrdersCount = orders.filter(o => passesOtherFilters(o)).length;
 
   return (
     <div className="admin-card">

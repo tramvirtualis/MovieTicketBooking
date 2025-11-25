@@ -59,4 +59,10 @@ public class Order {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
     private List<OrderCombo> orderCombos;
+    
+    // CinemaComplexId cho đơn hàng chỉ có đồ ăn (food-only orders)
+    // Với đơn hàng có vé phim, có thể lấy từ Ticket -> Showtime -> CinemaRoom -> CinemaComplex
+    // Nhưng với đơn hàng chỉ có đồ ăn, cần lưu trực tiếp
+    @Column(name = "cinema_complex_id")
+    private Long cinemaComplexId;
 }

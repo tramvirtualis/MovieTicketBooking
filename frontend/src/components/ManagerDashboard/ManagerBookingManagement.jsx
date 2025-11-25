@@ -32,9 +32,11 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
         // Frontend expects one booking per ticket group OR one booking for food-only orders
         const mappedOrders = [];
         ordersData.forEach(order => {
-          const hasTickets = order.items && order.items.length > 0;
-          const hasCombos = order.combos && order.combos.length > 0;
+          // Kiểm tra kỹ: items phải là array và có phần tử
+          const hasTickets = Array.isArray(order.items) && order.items.length > 0;
+          const hasCombos = Array.isArray(order.combos) && order.combos.length > 0;
           
+          // Đảm bảo: Nếu có tickets, luôn là TICKET, không bao giờ là FOOD_ONLY
           if (hasTickets) {
             // Group tickets by showtime to create booking records
             const ticketsByShowtime = {};
@@ -84,7 +86,11 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
             });
           } else if (hasCombos) {
             // Food-only order (no tickets)
+            // Với đơn hàng chỉ có đồ ăn, lấy cinemaComplexId từ order entity (đã được lưu khi tạo order)
             const comboTotal = order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0);
+            
+            // Lấy cinemaComplexId từ order (backend đã lưu khi tạo order)
+            const orderCinemaComplexId = order.cinemaComplexId || null;
             
             mappedOrders.push({
               bookingId: order.orderId,
@@ -96,8 +102,8 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
               },
               movieId: null,
               movieTitle: null,
-              cinemaComplexId: null,
-              cinemaName: null,
+              cinemaComplexId: orderCinemaComplexId, // Lấy từ order entity (đã được lưu khi tạo order)
+              cinemaName: orderCinemaComplexId ? (cinemas?.find(c => c.complexId === orderCinemaComplexId)?.name || null) : null,
               roomId: null,
               roomName: null,
               showtime: order.orderDate, // Use order date for food-only orders
@@ -109,6 +115,21 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
               combos: order.combos || [],
               orderDate: order.orderDate // For food-only QR code
             });
+          }
+        });
+        
+        // Validation: Đảm bảo không có đơn hàng FOOD_ONLY nhưng lại có thông tin vé
+        // Nếu phát hiện, tự động sửa lại orderType thành TICKET
+        // LƯU Ý: Đơn đồ ăn có thể có cinemaComplexId và cinemaName (để biết rạp nào bán)
+        // nhưng KHÔNG được có thông tin vé (movieId, movieTitle, seats, showtimeId, roomId, roomName)
+        mappedOrders.forEach(order => {
+          if (order.orderType === 'FOOD_ONLY') {
+            // Kiểm tra xem có thông tin vé không (KHÔNG kiểm tra cinemaComplexId/cinemaName)
+            if (order.movieId || order.movieTitle || (order.seats && order.seats.length > 0) || 
+                order.showtimeId || order.roomId || order.roomName) {
+              console.warn('Found FOOD_ONLY order with ticket info, fixing orderType to TICKET:', order.bookingId);
+              order.orderType = 'TICKET';
+            }
           }
         });
         
@@ -129,6 +150,18 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
   const scopedCinemas = useMemo(() => {
     return (cinemas || []).filter(c => managerComplexIds.includes(c.complexId));
   }, [cinemas, managerComplexIds]);
+
+  // Helper function to determine order status - đơn đồ ăn luôn là ACTIVE
+  const derivedStatus = (order) => {
+    if (order.orderType === 'FOOD_ONLY') {
+      return 'ACTIVE'; // Food orders are always active
+    }
+    const orderDate = new Date(order.showtime);
+    const now = new Date();
+    return orderDate > now && order.status === 'PAID' ? 'ACTIVE' : 'EXPIRED';
+  };
+
+  const statusColor = (status) => status === 'ACTIVE' ? '#4caf50' : '#9e9e9e';
 
   const filteredOrders = useMemo(() => {
     console.log('=== Filtering orders ===');
@@ -165,8 +198,25 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
       }
       // Filter by order type
       if (orderTypeFilter === 'TICKET' && order.orderType !== 'TICKET') return false;
-      if (orderTypeFilter === 'FOOD_ONLY' && order.orderType !== 'FOOD_ONLY') return false;
+      // Đơn đồ ăn: Chỉ hiển thị đơn hàng KHÔNG có vé (không có bất kỳ thông tin vé nào)
+      // LƯU Ý: Food-only orders CÓ THỂ có cinemaComplexId và cinemaName (để biết rạp nào bán)
+      // nhưng KHÔNG được có thông tin vé (movieId, movieTitle, seats, showtimeId, roomId, roomName)
+      if (orderTypeFilter === 'FOOD_ONLY') {
+        // Phải là FOOD_ONLY
+        if (order.orderType !== 'FOOD_ONLY') return false;
+        // Kiểm tra kỹ: không được có bất kỳ thông tin vé nào (nhưng có thể có cinemaComplexId)
+        if (order.movieId || 
+            order.movieTitle || 
+            (order.seats && order.seats.length > 0) || 
+            order.showtimeId ||
+            order.roomId ||
+            order.roomName) {
+          // Đơn hàng này có thông tin vé, không phải food-only
+          return false;
+        }
+      }
       
+      // Text search - chỉ áp dụng nếu có searchTerm
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const matches = 
@@ -177,28 +227,44 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
           (order.orderType === 'FOOD_ONLY' && 'đồ ăn'.includes(term));
         if (!matches) return false;
       }
-      if (filterCinema && order.cinemaComplexId && order.cinemaComplexId !== Number(filterCinema)) return false;
-      if (filterMovie && order.movieId && order.movieId !== Number(filterMovie)) return false;
-      if (filterStatus) {
-        const orderDate = new Date(order.showtime);
-        const now = new Date();
-        const isActive = orderDate > now && order.status === 'PAID';
-        if (filterStatus === 'ACTIVE' && !isActive) return false;
-        if (filterStatus === 'EXPIRED' && isActive) return false;
+      
+      // Cinema filter - áp dụng cho cả đơn có vé và đơn đồ ăn
+      // Food-only orders cần có cinemaComplexId để biết rạp nào bán
+      if (filterCinema) {
+        if (!order.cinemaComplexId || order.cinemaComplexId !== Number(filterCinema)) {
+          return false;
+        }
       }
+      
+      // Movie filter - chỉ áp dụng cho đơn có vé, đơn đồ ăn luôn pass
+      if (filterMovie) {
+        if (!order.movieId || order.movieId !== Number(filterMovie)) {
+          return false;
+        }
+      }
+      
+      // Status filter - sử dụng derivedStatus để xử lý đúng cho đơn đồ ăn
+      if (filterStatus) {
+        const orderStatus = derivedStatus(order);
+        if (orderStatus !== filterStatus) return false;
+      }
+      
+      // Date range filter - đơn đồ ăn dùng orderDate, đơn vé dùng showtime
+      const dateToCheck = order.orderType === 'FOOD_ONLY' ? (order.orderDate || order.showtime) : order.showtime;
       if (dateFrom) {
         const from = new Date(dateFrom);
         from.setHours(0, 0, 0, 0);
-        if (new Date(order.showtime) < from) return false;
+        if (new Date(dateToCheck) < from) return false;
       }
       if (dateTo) {
         const to = new Date(dateTo);
         to.setHours(23, 59, 59, 999);
-        if (new Date(order.showtime) > to) return false;
+        if (new Date(dateToCheck) > to) return false;
       }
+      
       return true;
     });
-  }, [orders, searchTerm, filterCinema, filterMovie, filterStatus, dateFrom, dateTo, managerComplexIds]);
+  }, [orders, orderTypeFilter, searchTerm, filterCinema, filterMovie, filterStatus, dateFrom, dateTo, managerComplexIds]);
   
   // Debug logging after filtering
   useEffect(() => {
@@ -224,11 +290,8 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
         case 'showtime': aVal = new Date(a.showtime).getTime(); bVal = new Date(b.showtime).getTime(); break;
         case 'amount': aVal = a.totalAmount || 0; bVal = b.totalAmount || 0; break;
         case 'status': 
-          const aDate = new Date(a.showtime);
-          const bDate = new Date(b.showtime);
-          const now = new Date();
-          aVal = aDate > now && a.status === 'PAID' ? 'ACTIVE' : 'EXPIRED';
-          bVal = bDate > now && b.status === 'PAID' ? 'ACTIVE' : 'EXPIRED';
+          aVal = derivedStatus(a);
+          bVal = derivedStatus(b);
           break;
         default: return 0;
       }
@@ -253,21 +316,89 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
     return sortOrder === 'asc' ? '↑' : '↓';
   };
 
-  const derivedStatus = (order) => {
-    if (order.orderType === 'FOOD_ONLY') {
-      return 'ACTIVE'; // Food orders are always active
+  // Count orders by type - Phải dùng filteredOrders để nhất quán với danh sách hiển thị
+  // Tạo một hàm helper để check xem order có pass các filter không (trừ orderTypeFilter)
+  const passesOtherFiltersForCount = (o) => {
+    // Check managerComplexIds filter
+    if (managerComplexIds && managerComplexIds.length > 0) {
+      const orderComplexId = o.cinemaComplexId;
+      const matches = managerComplexIds.some(id => 
+        id == orderComplexId || 
+        Number(id) === Number(orderComplexId) ||
+        String(id) === String(orderComplexId)
+      );
+      if (!matches) return false;
     }
-    const orderDate = new Date(order.showtime);
-    const now = new Date();
-    return orderDate > now && order.status === 'PAID' ? 'ACTIVE' : 'EXPIRED';
+    
+    // Text search - chỉ áp dụng khi có searchTerm
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const matches = 
+        (o.user?.name || '').toLowerCase().includes(term) ||
+        (o.user?.phone || '').includes(term) ||
+        (o.movieTitle || '').toLowerCase().includes(term) ||
+        (o.cinemaName || '').toLowerCase().includes(term) ||
+        (o.orderType === 'FOOD_ONLY' && 'đồ ăn'.includes(term));
+      if (!matches) return false;
+    }
+    
+    // Cinema filter - chỉ áp dụng cho đơn có vé, đơn đồ ăn luôn pass
+    if (filterCinema) {
+      if (!o.cinemaComplexId || o.cinemaComplexId !== Number(filterCinema)) {
+        return false;
+      }
+    }
+    
+    // Movie filter - chỉ áp dụng cho đơn có vé, đơn đồ ăn luôn pass
+    if (filterMovie) {
+      if (!o.movieId || o.movieId !== Number(filterMovie)) {
+        return false;
+      }
+    }
+    
+    // Status filter - sử dụng derivedStatus để xử lý đúng cho đơn đồ ăn
+    if (filterStatus) {
+      const orderStatus = derivedStatus(o);
+      if (orderStatus !== filterStatus) return false;
+    }
+    
+    // Date range filter - đơn đồ ăn dùng orderDate, đơn vé dùng showtime
+    const dateToCheck = o.orderType === 'FOOD_ONLY' ? (o.orderDate || o.showtime) : o.showtime;
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      if (new Date(dateToCheck) < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      if (new Date(dateToCheck) > to) return false;
+    }
+    
+    return true;
   };
-
-  const statusColor = (status) => status === 'ACTIVE' ? '#4caf50' : '#9e9e9e';
-
-  // Count orders by type
-  const ticketOrdersCount = orders.filter(o => o.orderType === 'TICKET').length;
-  const foodOrdersCount = orders.filter(o => o.orderType === 'FOOD_ONLY').length;
-  const allOrdersCount = orders.length;
+  
+  // Đếm đơn vé: CHỈ đếm đơn có orderType === 'TICKET'
+  // Đơn FOOD_ONLY không bao giờ được đếm vào đây, dù có thông tin gì đi nữa
+  const ticketOrdersCount = orders.filter(o => {
+    if (!passesOtherFiltersForCount(o)) return false;
+    // Chỉ đếm đơn có orderType === 'TICKET'
+    return o.orderType === 'TICKET';
+  }).length;
+  
+  // Đơn đồ ăn: orderType === 'FOOD_ONLY' VÀ không có thông tin vé (nhưng có thể có cinemaComplexId)
+  const foodOrdersCount = orders.filter(o => {
+    if (!passesOtherFiltersForCount(o)) return false;
+    if (o.orderType !== 'FOOD_ONLY') return false;
+    // Không được có bất kỳ thông tin vé nào (nhưng có thể có cinemaComplexId)
+    if (o.movieId || o.movieTitle || (o.seats && o.seats.length > 0) || o.showtimeId || o.roomId || o.roomName) {
+      return false;
+    }
+    return true;
+  }).length;
+  
+  // Đếm tất cả: tất cả orders pass các filter (trừ orderTypeFilter)
+  const allOrdersCount = orders.filter(o => passesOtherFiltersForCount(o)).length;
 
   return (
     <div className="admin-card">

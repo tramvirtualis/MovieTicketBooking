@@ -36,6 +36,7 @@ public class OrderCreationService {
      * @param totalAmount Tổng tiền
      * @param paymentMethod Phương thức thanh toán
      * @param voucherCode Mã voucher (nếu có)
+     * @param cinemaComplexId ID của cụm rạp (cho đơn hàng chỉ có đồ ăn, có thể null nếu có vé phim)
      * @return Order đã tạo
      */
     @Transactional
@@ -46,7 +47,8 @@ public class OrderCreationService {
             List<FoodComboRequest> foodComboRequests,
             BigDecimal totalAmount,
             PaymentMethod paymentMethod,
-            String voucherCode
+            String voucherCode,
+            Long cinemaComplexId
     ) {
         // 1. Lấy User
         Optional<User> userOpt = userRepository.findById(userId);
@@ -58,6 +60,7 @@ public class OrderCreationService {
         // 2. Lấy Showtime (chỉ khi có showtimeId)
         Showtime showtime = null;
         CinemaRoom room = null;
+        Long finalCinemaComplexId = cinemaComplexId; // Mặc định dùng cinemaComplexId từ parameter
         if (showtimeId != null) {
             Optional<Showtime> showtimeOpt = showtimeRepository.findByIdWithRelations(showtimeId);
             if (showtimeOpt.isEmpty()) {
@@ -65,6 +68,10 @@ public class OrderCreationService {
             }
             showtime = showtimeOpt.get();
             room = showtime.getCinemaRoom();
+            // Nếu có showtime, lấy cinemaComplexId từ room (ưu tiên hơn parameter)
+            if (room != null && room.getCinemaComplex() != null) {
+                finalCinemaComplexId = room.getCinemaComplex().getComplexId();
+            }
         }
         
         // 3. Tạo Order
@@ -75,6 +82,7 @@ public class OrderCreationService {
                 .paymentMethod(paymentMethod)
                 .tickets(new ArrayList<>())
                 .orderCombos(new ArrayList<>())
+                .cinemaComplexId(finalCinemaComplexId) // Lưu cinemaComplexId vào Order
                 .build();
         
         // 4. Set voucher nếu có và xóa khỏi danh sách voucher của user

@@ -15,11 +15,20 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
     // Tìm phim theo trạng thái
     List<Movie> findByStatus(MovieStatus status);
     
-    // Tìm phim đang chiếu, sắp xếp theo ngày phát hành mới nhất
-    @Query("SELECT m FROM Movie m WHERE m.status = 'NOW_SHOWING' ORDER BY m.releaseDate DESC")
+    // Tìm phim đang chiếu: Phim đã có ít nhất 1 showtime (dù quá khứ hay tương lai)
+    // Logic mới: Phim có showtime = "Đang chiếu", Phim chưa có showtime = "Sắp chiếu"
+    @Query("SELECT DISTINCT m FROM Movie m " +
+           "INNER JOIN m.versions mv " +
+           "INNER JOIN mv.showtimes s " +
+           "WHERE m.status != 'ENDED' " +
+           "ORDER BY m.releaseDate DESC")
     List<Movie> findNowShowingMovies();
     
-    // Tìm phim sắp chiếu, sắp xếp theo ngày phát hành
-    @Query("SELECT m FROM Movie m WHERE m.status = 'COMING_SOON' ORDER BY m.releaseDate ASC")
+    // Tìm phim sắp chiếu: Phim chưa có showtime nào
+    // Logic mới: Phim chưa có showtime = "Sắp chiếu"
+    @Query("SELECT m FROM Movie m " +
+           "WHERE m.status != 'ENDED' " +
+           "AND NOT EXISTS (SELECT 1 FROM MovieVersion mv WHERE mv.movie = m AND EXISTS (SELECT 1 FROM Showtime s WHERE s.movieVersion = mv)) " +
+           "ORDER BY m.releaseDate ASC")
     List<Movie> findComingSoonMovies();
 }

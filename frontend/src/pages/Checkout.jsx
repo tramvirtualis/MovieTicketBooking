@@ -218,7 +218,13 @@ export default function Checkout() {
           console.log('Checkout - Adding showtimeId and seatIds to bookingInfo');
         } else {
           // Chỉ có đồ ăn -> KHÔNG gửi showtimeId và seatIds
-          console.log('Checkout - Food-only order, NOT sending showtimeId or seatIds');
+          // NHƯNG cần gửi cinemaComplexId để xác định rạp
+          if (cartData?.cinema?.complexId) {
+            bookingInfo.cinemaComplexId = cartData.cinema.complexId;
+            console.log('Checkout - Food-only order, adding cinemaComplexId:', bookingInfo.cinemaComplexId);
+          } else {
+            console.warn('Checkout - Food-only order but no cinemaComplexId found in cartData');
+          }
         }
         
         // Luôn gửi foodCombos và voucherCode
@@ -297,6 +303,8 @@ export default function Checkout() {
           // CHỈ gửi showtimeId và seatIds nếu có đặt vé phim
           showtimeId: hasValidBooking ? bookingData.showtimeId : null,
           seatIds: hasValidBooking ? bookingData.seats : [],
+          // Nếu chỉ có đồ ăn, gửi cinemaComplexId để xác định rạp
+          cinemaComplexId: !hasValidBooking && cartData?.cinema?.complexId ? cartData.cinema.complexId : null,
           foodCombos: cartData?.items?.map(item => ({
             foodComboId: item.id?.replace('fc_', '') || item.foodComboId,
             quantity: item.quantity || 1

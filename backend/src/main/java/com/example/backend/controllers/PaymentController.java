@@ -123,6 +123,7 @@ public class PaymentController {
             List<Map<String, Object>> foodComboMaps = List.of();
             String voucherCode = null;
             Voucher voucher = null;
+            Long cinemaComplexId = null; // Declare outside if block to use later
             
             if (bookingInfo != null) {
                 // Parse seatIds trước để kiểm tra xem có đặt vé phim không
@@ -171,7 +172,23 @@ public class PaymentController {
                 voucherCode = bookingInfo.get("voucherCode") != null ?
                     bookingInfo.get("voucherCode").toString() : null;
                 
-                System.out.println("Final parsed values - showtimeId: " + showtimeId + ", seatIds size: " + (seatIds != null ? seatIds.size() : 0) + ", foodCombos size: " + (foodComboMaps != null ? foodComboMaps.size() : 0));
+                // Parse cinemaComplexId cho đơn hàng chỉ có đồ ăn
+                if (bookingInfo.get("cinemaComplexId") != null) {
+                    try {
+                        Object cinemaComplexIdObj = bookingInfo.get("cinemaComplexId");
+                        if (cinemaComplexIdObj instanceof Number) {
+                            cinemaComplexId = ((Number) cinemaComplexIdObj).longValue();
+                        } else {
+                            cinemaComplexId = Long.parseLong(cinemaComplexIdObj.toString());
+                        }
+                        System.out.println("Parsed cinemaComplexId: " + cinemaComplexId);
+                    } catch (Exception e) {
+                        System.err.println("Invalid cinemaComplexId format: " + bookingInfo.get("cinemaComplexId") + ", treating as null");
+                        cinemaComplexId = null;
+                    }
+                }
+                
+                System.out.println("Final parsed values - showtimeId: " + showtimeId + ", seatIds size: " + (seatIds != null ? seatIds.size() : 0) + ", foodCombos size: " + (foodComboMaps != null ? foodComboMaps.size() : 0) + ", cinemaComplexId: " + cinemaComplexId);
                 
                 // Lấy voucher nếu có
                 if (voucherCode != null && !voucherCode.isEmpty()) {
@@ -322,6 +339,8 @@ public class PaymentController {
             System.out.println("foodComboRequests size: " + foodComboRequests.size());
             
             // Tạo Order trực tiếp
+            // Với đơn hàng chỉ có đồ ăn, cần truyền cinemaComplexId
+            // Với đơn hàng có vé phim, có thể lấy từ showtime -> room -> complex
             Order order = orderCreationService.createOrder(
                 user.getUserId(),
                 showtimeId,
@@ -329,7 +348,8 @@ public class PaymentController {
                 foodComboRequests,
                 totalAmount,
                 PaymentMethod.ZALOPAY,
-                voucherCode
+                voucherCode,
+                cinemaComplexId // Truyền cinemaComplexId cho đơn hàng chỉ có đồ ăn
             );
             
             // Set thêm thông tin cho ZaloPay
@@ -642,6 +662,7 @@ public class PaymentController {
             List<String> seatIds = request.getSeatIds() != null ? request.getSeatIds() : List.of();
             List<Map<String, Object>> foodComboMaps = request.getFoodCombos() != null ? request.getFoodCombos() : List.of();
             String voucherCode = request.getVoucherCode();
+            Long cinemaComplexId = request.getCinemaComplexId(); // Lấy cinemaComplexId từ request (cho đơn hàng chỉ có đồ ăn)
             
             // Lấy voucher nếu có
             Voucher voucher = null;
@@ -751,6 +772,8 @@ public class PaymentController {
                 .toList();
             
             // Tạo Order trực tiếp với tickets và orderCombos
+            // Với đơn hàng chỉ có đồ ăn, cần truyền cinemaComplexId
+            // Với đơn hàng có vé phim, có thể lấy từ showtime -> room -> complex
             Order order = orderCreationService.createOrder(
                 user.getUserId(),
                 showtimeId,
@@ -758,7 +781,8 @@ public class PaymentController {
                 foodComboRequests,
                 request.getAmount(),
                 PaymentMethod.MOMO,
-                voucherCode
+                voucherCode,
+                cinemaComplexId // Truyền cinemaComplexId cho đơn hàng chỉ có đồ ăn
             );
             
             // Set thêm thông tin cho MoMo

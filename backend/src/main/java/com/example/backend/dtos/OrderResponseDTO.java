@@ -26,5 +26,8 @@ public class OrderResponseDTO {
     private String userName;
     private String userEmail;
     private String userPhone;
+    
+    // CinemaComplexId cho đơn hàng chỉ có đồ ăn (food-only orders)
+    private Long cinemaComplexId;
 }
 

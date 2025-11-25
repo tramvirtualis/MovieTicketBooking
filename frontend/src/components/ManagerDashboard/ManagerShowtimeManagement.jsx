@@ -193,10 +193,19 @@ export default function ManagerShowtimeManagement({ complexId }) {
               const language = showtimeService.mapLanguageFromBackend(st.language || st.movieVersion?.language);
               const format = showtimeService.mapRoomTypeFromBackend(st.roomType || st.movieVersion?.roomType || st.format);
               
+              // Lấy roomName từ cinemaRoom hoặc từ rooms state
+              const finalRoomId = st.cinemaRoom?.roomId || roomId;
+              let finalRoomName = st.cinemaRoom?.roomName;
+              if (!finalRoomName) {
+                // Nếu không có từ cinemaRoom, tìm trong rooms state
+                const room = rooms.find(r => r.roomId === finalRoomId);
+                finalRoomName = room?.roomName || `Phòng ${finalRoomId}`;
+              }
+              
               return {
                 showtimeId: st.showtimeId,
-                roomId: st.cinemaRoom?.roomId || roomId,
-                roomName: st.cinemaRoom?.roomName || 'Phòng',
+                roomId: finalRoomId,
+                roomName: finalRoomName,
                 movieId: movieId,
                 movieTitle: st.movieVersion?.movie?.title || st.movieTitle,
                 date: date,
@@ -427,10 +436,18 @@ export default function ManagerShowtimeManagement({ complexId }) {
         setAvailableLanguages(displayLanguages);
         
         // Filter rooms based on movie formats
-        const compatibleRooms = rooms.filter(room => {
+        let compatibleRooms = rooms.filter(room => {
           const roomFormat = cinemaRoomService.mapRoomTypeFromBackend(room.roomType);
           return displayFormats.includes(roomFormat);
         });
+        
+        // Nếu có quickCreateData với availableRooms, chỉ hiển thị các phòng không conflict
+        if (quickCreateData.availableRooms && quickCreateData.availableRooms.length > 0) {
+          compatibleRooms = compatibleRooms.filter(room => 
+            quickCreateData.availableRooms.includes(room.roomId)
+          );
+        }
+        
         setAvailableRooms(compatibleRooms);
         
         // Tính toán min và max time dựa trên slot đã chọn
@@ -587,21 +604,50 @@ export default function ManagerShowtimeManagement({ complexId }) {
 
   return (
     <div className="showtime-timeline-container">
-      {/* Notification */}
-      {notification && (
-        <div className={`showtime-timeline-notification showtime-timeline-notification--${notification.type}`}>
-          {notification.type === 'success' ? (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-          )}
-          {notification.message}
+      {/* Notification - Hiển thị bên ngoài modal (khi không có modal) */}
+      {notification && !showCreateModal && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 10001, // Cao hơn modal để luôn hiển thị
+          padding: '16px 20px',
+          borderRadius: '12px',
+          background: notification.type === 'success' 
+            ? 'rgba(76, 175, 80, 0.95)' 
+            : 'rgba(244, 67, 54, 0.95)',
+          color: '#fff',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          minWidth: '300px',
+          maxWidth: '500px',
+          animation: 'slideInRight 0.3s ease-out',
+          border: `1px solid ${notification.type === 'success' ? 'rgba(76, 175, 80, 1)' : 'rgba(244, 67, 54, 1)'}`
+        }}>
+          <div style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            {notification.type === 'success' ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            )}
+          </div>
+          <span style={{ fontSize: '14px', fontWeight: 500 }}>{notification.message}</span>
         </div>
       )}
 
@@ -899,15 +945,20 @@ export default function ManagerShowtimeManagement({ complexId }) {
                       const endTime = computeEndTime(date, time, movieId);
                       if (!endTime) return null;
                       
-                      // Check conflicts for all visible rooms or specific room
-                      const roomsToCheck = roomId ? [roomId] : Array.from(visibleRooms);
+                      // Check conflicts for all rooms (not just visible), or specific room
+                      const roomsToCheck = roomId ? [roomId] : (selectedRooms.length > 0 ? selectedRooms : Array.from(visibleRooms));
                       const allConflicts = [];
                       
                       for (const checkRoomId of roomsToCheck) {
                         const roomShowtimes = showtimes.filter(st => st.roomId === checkRoomId);
                         const conflicts = hasOverlap(roomShowtimes, date, time, endTime, checkRoomId);
                         if (conflicts.length > 0) {
-                          allConflicts.push(...conflicts.map(c => ({ ...c, roomId: checkRoomId })));
+                          const room = rooms.find(r => r.roomId === checkRoomId);
+                          allConflicts.push(...conflicts.map(c => ({ 
+                            ...c, 
+                            roomId: checkRoomId,
+                            roomName: room?.roomName || `Phòng ${checkRoomId}`
+                          })));
                         }
                       }
                       
@@ -930,11 +981,23 @@ export default function ManagerShowtimeManagement({ complexId }) {
                           const cellKey = `${dateIndex}-${slotIndex}`;
                           setDragOverCell(cellKey);
                           
-                          // Check for conflicts
+                          // Check for conflicts - CHỈ hiển thị conflict nếu TẤT CẢ phòng đều trùng
                           const conflicts = checkDragConflict(movieId, dateStr, slot.label);
                           if (conflicts && conflicts.length > 0) {
-                            e.dataTransfer.dropEffect = 'none';
-                            setDragConflict(conflicts);
+                            // Kiểm tra xem có phòng nào không conflict không
+                            const roomsToCheck = selectedRooms.length > 0 ? selectedRooms : Array.from(visibleRooms);
+                            const conflictRoomIds = new Set(conflicts.map(c => c.roomId));
+                            const availableRoomIds = roomsToCheck.filter(roomId => !conflictRoomIds.has(roomId));
+                            
+                            // CHỈ hiển thị conflict visual nếu TẤT CẢ các phòng đều trùng
+                            if (availableRoomIds.length === 0) {
+                              e.dataTransfer.dropEffect = 'none';
+                              setDragConflict(conflicts);
+                            } else {
+                              // Còn phòng không trùng - cho phép drop
+                              e.dataTransfer.dropEffect = 'copy';
+                              setDragConflict(null);
+                            }
                           } else {
                             e.dataTransfer.dropEffect = 'copy';
                             setDragConflict(null);
@@ -961,14 +1024,25 @@ export default function ManagerShowtimeManagement({ complexId }) {
                           }
                           
                           // Check for conflicts before allowing drop
+                          // CHỈ báo trùng nếu TẤT CẢ các phòng đều trùng
                           const conflicts = checkDragConflict(movieId, dateStr, slot.label);
                           if (conflicts && conflicts.length > 0) {
-                            const conflictInfo = conflicts[0];
-                            showNotification(
-                              `⚠️ Không thể tạo lịch: Trùng với "${conflictInfo.movieTitle}" (${conflictInfo.startTime} - ${conflictInfo.endTime}) trong ${conflictInfo.roomName || 'phòng'}`,
-                              'error'
-                            );
-                            return;
+                            // Kiểm tra xem có phòng nào không conflict không
+                            const roomsToCheck = selectedRooms.length > 0 ? selectedRooms : Array.from(visibleRooms);
+                            const conflictRoomIds = new Set(conflicts.map(c => c.roomId));
+                            const availableRoomIds = roomsToCheck.filter(roomId => !conflictRoomIds.has(roomId));
+                            
+                            // CHỈ báo lỗi nếu TẤT CẢ các phòng đều trùng
+                            if (availableRoomIds.length === 0) {
+                              const conflictInfo = conflicts[0];
+                              const conflictRoomNames = Array.from(new Set(conflicts.map(c => c.roomName || `Phòng ${c.roomId}`))).join(', ');
+                              showNotification(
+                                `⚠️ Không thể tạo lịch: Tất cả các phòng (${conflictRoomNames}) đều trùng với "${conflictInfo.movieTitle}" (${conflictInfo.startTime} - ${conflictInfo.endTime})`,
+                                'error'
+                              );
+                              return;
+                            }
+                            // Nếu còn phòng không trùng, vẫn cho phép drop và mở modal
                           }
                           
                           if (movieId) {
@@ -1001,30 +1075,53 @@ export default function ManagerShowtimeManagement({ complexId }) {
                               // Check for conflicts before opening modal
                               const endTime = computeEndTime(dateStr, slot.label, selectedMovie.movieId);
                               if (endTime) {
-                                const roomsToCheck = Array.from(visibleRooms);
-                                let hasConflict = false;
+                                // Kiểm tra TẤT CẢ các phòng, không chỉ visible rooms
+                                // Sử dụng selectedRooms (tất cả phòng đã load showtimes) thay vì visibleRooms
+                                const roomsToCheck = selectedRooms.length > 0 ? selectedRooms : Array.from(visibleRooms);
+                                const conflictRooms = [];
+                                const availableRooms = [];
                                 
+                                // Kiểm tra conflict cho từng phòng
                                 for (const checkRoomId of roomsToCheck) {
                                   const roomShowtimes = showtimes.filter(st => st.roomId === checkRoomId);
                                   const conflicts = hasOverlap(roomShowtimes, dateStr, slot.label, endTime, checkRoomId);
+                                  const room = rooms.find(r => r.roomId === checkRoomId);
+                                  const roomName = room?.roomName || `Phòng ${checkRoomId}`;
+                                  
                                   if (conflicts.length > 0) {
-                                    hasConflict = true;
-                                    const conflictInfo = conflicts[0];
-                                    showNotification(
-                                      `⚠️ Không thể tạo lịch: Trùng với "${conflictInfo.movieTitle}" (${conflictInfo.startTime} - ${conflictInfo.endTime}) trong ${conflictInfo.roomName || 'phòng'}`,
-                                      'error'
-                                    );
-                                    break;
+                                    conflictRooms.push({
+                                      roomId: checkRoomId,
+                                      roomName: roomName,
+                                      conflict: conflicts[0]
+                                    });
+                                  } else {
+                                    availableRooms.push({
+                                      roomId: checkRoomId,
+                                      roomName: roomName
+                                    });
                                   }
                                 }
                                 
-                                if (!hasConflict) {
+                                // CHỈ báo trùng nếu TẤT CẢ các phòng đều trùng
+                                if (conflictRooms.length > 0 && availableRooms.length === 0) {
+                                  // Tất cả phòng đều trùng - báo lỗi
+                                  const conflictInfo = conflictRooms[0].conflict;
+                                  const roomNames = conflictRooms.map(r => r.roomName).join(', ');
+                                  showNotification(
+                                    `⚠️ Không thể tạo lịch: Tất cả các phòng (${roomNames}) đều trùng với "${conflictInfo.movieTitle}" (${conflictInfo.startTime} - ${conflictInfo.endTime})`,
+                                    'error'
+                                  );
+                                } else {
+                                  // Có ít nhất 1 phòng không trùng - cho phép mở modal
+                                  // Lưu thông tin các phòng có conflict để highlight trong modal
                                   setQuickCreateData({
                                     movieId: selectedMovie.movieId,
                                     movieTitle: selectedMovie.title,
                                     date: dateStr,
                                     time: slot.label,
-                                    roomId: null
+                                    roomId: null,
+                                    conflictRooms: conflictRooms.map(r => r.roomId), // Lưu danh sách phòng có conflict
+                                    availableRooms: availableRooms.map(r => r.roomId) // Lưu danh sách phòng không conflict
                                   });
                                   setShowCreateModal(true);
                                 }
@@ -1141,7 +1238,54 @@ export default function ManagerShowtimeManagement({ complexId }) {
       {/* Create Modal - Keep existing create modal */}
       {showCreateModal && (
         <div className="showtime-timeline-create-modal" onClick={() => !creating && (setShowCreateModal(false), setQuickCreateData(null))}>
-          <div className="showtime-timeline-create-modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="showtime-timeline-create-modal-content" onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
+            {/* Notification bên trong modal - hiển thị ở phía trên form */}
+            {notification && (
+              <div style={{
+                position: 'absolute',
+                top: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 10001, // Cao hơn modal content
+                padding: '16px 20px',
+                borderRadius: '12px',
+                background: notification.type === 'success' 
+                  ? 'rgba(76, 175, 80, 0.95)' 
+                  : 'rgba(244, 67, 54, 0.95)',
+                color: '#fff',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                minWidth: '300px',
+                maxWidth: '500px',
+                animation: 'slideInRight 0.3s ease-out',
+                border: `1px solid ${notification.type === 'success' ? 'rgba(76, 175, 80, 1)' : 'rgba(244, 67, 54, 1)'}`
+              }}>
+                <div style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  {notification.type === 'success' ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  )}
+                </div>
+                <span style={{ fontSize: '14px', fontWeight: 500 }}>{notification.message}</span>
+              </div>
+            )}
             <div className="showtime-timeline-create-modal-header">
               <h3>Tạo lịch chiếu</h3>
               {!creating && (
@@ -1276,28 +1420,60 @@ export default function ManagerShowtimeManagement({ complexId }) {
                     Vui lòng chọn phim trước
                   </div>
                 ) : availableRooms.length > 0 ? (
-                  <select
-                    value={createForm.roomId || ''}
-                          onChange={(e) => {
-                      const selectedRoomId = e.target.value ? Number(e.target.value) : null;
-                      const selectedRoom = rooms.find(r => r.roomId === selectedRoomId);
-                      const roomFormat = selectedRoom ? cinemaRoomService.mapRoomTypeFromBackend(selectedRoom.roomType) : '';
-                              setCreateForm({ 
-                                ...createForm, 
-                        roomId: selectedRoomId,
-                                format: roomFormat
-                              });
-                          }}
-                          disabled={creating}
-                    className="showtime-timeline-create-select"
-                  >
-                    <option value="">-- Chọn phòng --</option>
-                    {availableRooms.map(room => (
-                      <option key={room.roomId} value={room.roomId}>
-                        {room.roomName} ({cinemaRoomService.mapRoomTypeFromBackend(room.roomType)})
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <select
+                      value={createForm.roomId || ''}
+                      onChange={(e) => {
+                        const selectedRoomId = e.target.value ? Number(e.target.value) : null;
+                        const selectedRoom = rooms.find(r => r.roomId === selectedRoomId);
+                        const roomFormat = selectedRoom ? cinemaRoomService.mapRoomTypeFromBackend(selectedRoom.roomType) : '';
+                        setCreateForm({ 
+                          ...createForm, 
+                          roomId: selectedRoomId,
+                          format: roomFormat
+                        });
+                      }}
+                      disabled={creating}
+                      className="showtime-timeline-create-select"
+                      style={{
+                        borderColor: quickCreateData?.conflictRooms?.length > 0 ? '#ff9800' : undefined
+                      }}
+                    >
+                      <option value="">-- Chọn phòng --</option>
+                      {availableRooms.map(room => {
+                        const isConflict = quickCreateData?.conflictRooms?.includes(room.roomId);
+                        const isAvailable = quickCreateData?.availableRooms?.includes(room.roomId);
+                        return (
+                          <option 
+                            key={room.roomId} 
+                            value={room.roomId}
+                            disabled={isConflict} // Disable các phòng có conflict
+                            style={{
+                              color: isConflict ? '#999' : undefined,
+                              backgroundColor: isConflict ? '#f5f5f5' : undefined
+                            }}
+                          >
+                            {room.roomName} ({cinemaRoomService.mapRoomTypeFromBackend(room.roomType)})
+                            {isConflict ? ' ⚠️ Trùng lịch' : ''}
+                            {isAvailable ? ' ✓ Có thể chọn' : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {quickCreateData?.conflictRooms && quickCreateData.conflictRooms.length > 0 && (
+                      <div style={{ 
+                        marginTop: '8px',
+                        padding: '8px 12px', 
+                        background: 'rgba(255, 152, 0, 0.15)', 
+                        border: '1px solid rgba(255, 152, 0, 0.4)', 
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        color: '#ff9800'
+                      }}>
+                        ⚠️ Một số phòng đã có lịch trùng. Chỉ các phòng không trùng mới có thể chọn.
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div style={{ 
                     padding: '12px', 
@@ -1478,6 +1654,15 @@ export default function ManagerShowtimeManagement({ complexId }) {
                   const now = new Date();
                   if (startDateTime <= now) {
                     showNotification('Không thể tạo lịch chiếu trong quá khứ. Vui lòng chọn ngày và giờ trong tương lai.', 'error');
+                    return;
+                  }
+
+                  // Kiểm tra xem phòng đã chọn có trong danh sách conflict không (nếu có quickCreateData)
+                  if (quickCreateData?.conflictRooms?.includes(createForm.roomId)) {
+                    showNotification(
+                      `⚠️ Không thể tạo lịch: Phòng "${selectedRoom.roomName}" đã có lịch trùng. Vui lòng chọn phòng khác.`,
+                      'error'
+                    );
                     return;
                   }
 

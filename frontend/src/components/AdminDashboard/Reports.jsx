@@ -16,19 +16,14 @@ import {
 } from 'recharts';
 import { getAllOrdersAdmin } from '../../services/customer';
 import showtimeService from '../../services/showtimeService';
-import { userService } from '../../services/userService';
-import { voucherService } from '../../services/voucherService';
 
 // Reports Component
 function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
   const [timeRange, setTimeRange] = useState('30');
   const [selectedCinema, setSelectedCinema] = useState('all');
-  const [selectedMovie, setSelectedMovie] = useState('all');
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [allShowtimes, setAllShowtimes] = useState([]);
-  const [actualUsers, setActualUsers] = useState(users || []);
-  const [actualVouchers, setActualVouchers] = useState(vouchers || []);
   
   // Load orders from backend
   useEffect(() => {
@@ -94,7 +89,11 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
             });
           } else if (hasCombos) {
             // Food-only order (no tickets)
+            // Với đơn hàng chỉ có đồ ăn, lấy cinemaComplexId từ order entity (đã được lưu khi tạo order)
             const comboTotal = order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0);
+            
+            // Lấy cinemaComplexId từ order (backend đã lưu khi tạo order)
+            const orderCinemaComplexId = order.cinemaComplexId || null;
             
             mappedOrders.push({
               bookingId: order.orderId,
@@ -107,8 +106,8 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
               },
               movieId: null,
               movieTitle: null,
-              cinemaComplexId: null,
-              cinemaName: null,
+              cinemaComplexId: orderCinemaComplexId, // Lấy từ order entity (đã được lưu khi tạo order)
+              cinemaName: orderCinemaComplexId ? (cinemas?.find(c => c.complexId === orderCinemaComplexId)?.name || null) : null,
               roomId: null,
               roomName: null,
               showtime: order.orderDate || order.createdAt || new Date().toISOString(), // Use order date for food-only orders
@@ -182,82 +181,6 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
     loadShowtimes();
   }, [movies]);
 
-  // Load users from API if not provided or empty
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const result = await userService.getAllUsers();
-        if (result.success && result.data) {
-          console.log('Reports: Loaded users:', result.data.length);
-          console.log('Reports: User roles:', result.data.map(u => ({ userId: u.userId, username: u.username, role: u.role })));
-          setActualUsers(result.data);
-        } else {
-          setActualUsers(users || []);
-        }
-      } catch (err) {
-        console.error('Error loading users:', err);
-        setActualUsers(users || []);
-      }
-    };
-    
-    loadUsers();
-  }, [users]);
-
-  // Load vouchers from API if not provided or empty
-  useEffect(() => {
-    const loadVouchers = async () => {
-      try {
-        const result = await voucherService.getAllVouchers();
-        if (result.success && result.data) {
-          // Map vouchers from backend format and calculate status
-          const mappedVouchers = (result.data || []).map(voucher => {
-            const now = new Date();
-            now.setHours(0, 0, 0, 0);
-            
-            // Parse dates from backend (LocalDateTime format: "2024-01-01T00:00:00" or ISO string)
-            const startDateStr = voucher.startDate ? (typeof voucher.startDate === 'string' ? voucher.startDate.split('T')[0] : voucher.startDate) : null;
-            const endDateStr = voucher.endDate ? (typeof voucher.endDate === 'string' ? voucher.endDate.split('T')[0] : voucher.endDate) : null;
-            
-            const startDate = startDateStr ? new Date(startDateStr) : null;
-            const endDate = endDateStr ? new Date(endDateStr) : null;
-            
-            let status = 'expired'; // 'upcoming', 'active', 'expired'
-            if (startDate && endDate) {
-              startDate.setHours(0, 0, 0, 0);
-              endDate.setHours(23, 59, 59, 999);
-              
-              if (now < startDate) {
-                status = 'upcoming';
-              } else if (now >= startDate && now <= endDate) {
-                status = 'active';
-              } else {
-                status = 'expired';
-              }
-            }
-            
-            return {
-              ...voucher,
-              startDate: startDateStr || '',
-              endDate: endDateStr || '',
-              status: status
-            };
-          });
-          
-          console.log('Reports: Loaded vouchers:', mappedVouchers.length);
-          console.log('Reports: Voucher statuses:', mappedVouchers.map(v => ({ code: v.code, status: v.status, startDate: v.startDate, endDate: v.endDate })));
-          setActualVouchers(mappedVouchers);
-        } else {
-          setActualVouchers(vouchers || []);
-        }
-      } catch (err) {
-        console.error('Error loading vouchers:', err);
-        setActualVouchers(vouchers || []);
-      }
-    };
-    
-    loadVouchers();
-  }, [vouchers]);
-
   // Calculate date range based on timeRange
   const dateRange = useMemo(() => {
     const endDate = new Date();
@@ -288,18 +211,17 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
       const orderDate = order.orderDate ? new Date(order.orderDate) : new Date(order.showtime);
       if (orderDate < dateRange.startDate || orderDate > dateRange.endDate) return false;
       
-      // For food-only orders, skip cinema and movie filters (they don't have these fields)
-      if (order.orderType === 'FOOD_ONLY') {
-        return true; // Include all food-only orders that pass date filter
+      // Apply cinema filter for both ticket orders and food-only orders
+      // Food-only orders also have cinemaComplexId (stored when order was created)
+      if (selectedCinema !== 'all') {
+        if (!order.cinemaComplexId || order.cinemaComplexId !== Number(selectedCinema)) {
+          return false;
+        }
       }
-      
-      // For orders with tickets, apply cinema and movie filters
-      if (selectedCinema !== 'all' && order.cinemaComplexId !== Number(selectedCinema)) return false;
-      if (selectedMovie !== 'all' && order.movieId !== Number(selectedMovie)) return false;
       
       return true;
     });
-  }, [orders, dateRange, selectedCinema, selectedMovie]);
+  }, [orders, dateRange, selectedCinema]);
 
   // Summary Statistics
   const summaryStats = useMemo(() => {
@@ -320,85 +242,13 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
     });
     
     const totalRevenue = Array.from(uniqueOrders.values()).reduce((sum, order) => sum + order.totalAmount, 0);
-    const totalTickets = Array.from(uniqueOrders.values()).reduce((sum, order) => sum + order.ticketCount, 0);
-    
-    // Active movies - count movies that have showtimes in the future or currently showing
-    const now = new Date();
-    const activeMovies = (movies || []).filter(m => {
-      // Check if movie has any showtime that is in the future or currently showing
-      const movieShowtimes = allShowtimes.filter(st => st.movieId === m.movieId);
-      if (movieShowtimes.length === 0) return false;
-      
-      // Check if any showtime is in the future or currently showing
-      return movieShowtimes.some(st => {
-        const startTime = new Date(st.startTime);
-        const endTime = new Date(st.endTime);
-        // Showtime is active if it hasn't ended yet
-        return endTime > now;
-      });
-    }).length;
-    
-    // Registered customers - count users with role USER (not ADMIN or MANAGER)
-    const customerUsers = actualUsers.filter(u => {
-      const role = (u.role || '').toString().toUpperCase().trim();
-      const isCustomer = role === 'USER' || role === 'CUSTOMER';
-      return isCustomer;
-    });
-    
-    console.log('Reports: Total users:', actualUsers.length);
-    console.log('Reports: Customer users:', customerUsers.length);
-    console.log('Reports: User roles breakdown:', actualUsers.reduce((acc, u) => {
-      const role = (u.role || '').toString().toUpperCase().trim();
-      acc[role] = (acc[role] || 0) + 1;
-      return acc;
-    }, {}));
-    
-    const registeredCustomers = customerUsers.length;
-    
-    // Active vouchers - vouchers that are currently valid (check status field)
-    const activeVouchersList = actualVouchers.filter(v => {
-      // Check if voucher has status field and it's 'active'
-      if (v.status) {
-        const status = typeof v.status === 'string' ? v.status.toLowerCase() : v.status;
-        return status === 'active' || status === 'available';
-      }
-      
-      // Fallback: if no status, calculate from dates
-      if (!v.startDate || !v.endDate) return false;
-      
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const startDateStr = typeof v.startDate === 'string' ? v.startDate.split('T')[0] : v.startDate;
-      const endDateStr = typeof v.endDate === 'string' ? v.endDate.split('T')[0] : v.endDate;
-      
-      const start = new Date(startDateStr);
-      const end = new Date(endDateStr);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      
-      return start <= today && today <= end;
-    });
-    
-    console.log('Reports: Total vouchers:', actualVouchers.length);
-    console.log('Reports: Active vouchers:', activeVouchersList.length);
-    console.log('Reports: Voucher details:', actualVouchers.map(v => ({ 
-      code: v.code, 
-      status: v.status, 
-      startDate: v.startDate, 
-      endDate: v.endDate 
-    })));
-    
-    const activeVouchers = activeVouchersList.length;
+    const totalOrders = uniqueOrders.size; // Số lượng đơn hàng unique
 
     return {
       totalRevenue,
-      totalTickets,
-      activeMovies,
-      registeredCustomers,
-      activeVouchers
+      totalOrders
     };
-  }, [filteredOrders, movies, actualUsers, actualVouchers, allShowtimes]);
+  }, [filteredOrders]);
 
   // Revenue by Movie - CHỈ tính các đơn hàng có vé phim (không tính đơn hàng chỉ có đồ ăn)
   const revenueByMovie = useMemo(() => {
@@ -479,7 +329,10 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
       cinemaRevenue[cinemaId].tickets += order.ticketCount || 0;
     });
     
-    const result = Object.values(cinemaRevenue).sort((a, b) => b.revenue - a.revenue);
+    // Only return cinemas with revenue > 0
+    const result = Object.values(cinemaRevenue)
+      .filter(c => c.revenue > 0)
+      .sort((a, b) => b.revenue - a.revenue);
     console.log('revenueByCinema result:', result);
     console.log('Unique orders processed:', Object.keys(uniqueOrdersByCinema).length);
     console.log('Cinemas found:', result.length);
@@ -661,24 +514,24 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
 
       {/* Filters */}
       <div className="admin-card">
-        <div className="admin-card__content">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#c9c4c5', fontWeight: 500 }}>
-                Khoảng thời gian
+        <div className="admin-card__content" style={{ padding: '12px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ fontSize: '13px', color: '#c9c4c5', whiteSpace: 'nowrap' }}>
+                Khoảng thời gian:
               </label>
               <select
                 value={timeRange}
                 onChange={(e) => setTimeRange(e.target.value)}
                 style={{
-                  width: '100%',
-                  padding: '10px 12px',
+                  padding: '6px 10px',
                   background: 'rgba(20, 15, 16, 0.8)',
                   border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
+                  borderRadius: '6px',
                   color: '#fff',
-                  fontSize: '14px',
-                  cursor: 'pointer'
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  minWidth: '150px'
                 }}
               >
                 <option value="7">7 ngày qua</option>
@@ -687,51 +540,27 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
                 <option value="all">Tất cả</option>
               </select>
             </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#c9c4c5', fontWeight: 500 }}>
-                Rạp
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ fontSize: '13px', color: '#c9c4c5', whiteSpace: 'nowrap' }}>
+                Rạp:
               </label>
               <select
                 value={selectedCinema}
                 onChange={(e) => setSelectedCinema(e.target.value)}
                 style={{
-                  width: '100%',
-                  padding: '10px 12px',
+                  padding: '6px 10px',
                   background: 'rgba(20, 15, 16, 0.8)',
                   border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
+                  borderRadius: '6px',
                   color: '#fff',
-                  fontSize: '14px',
-                  cursor: 'pointer'
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  minWidth: '150px'
                 }}
               >
                 <option value="all">Tất cả rạp</option>
                 {(cinemas || []).map(c => (
                   <option key={c.complexId} value={c.complexId}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#c9c4c5', fontWeight: 500 }}>
-                Phim
-              </label>
-              <select
-                value={selectedMovie}
-                onChange={(e) => setSelectedMovie(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  background: 'rgba(20, 15, 16, 0.8)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  color: '#fff',
-                  fontSize: '14px',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="all">Tất cả phim</option>
-                {(movies || []).map(m => (
-                  <option key={m.movieId} value={m.movieId}>{m.title}</option>
                 ))}
               </select>
             </div>
@@ -757,54 +586,16 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
         <div className="admin-stat-card">
           <div className="admin-stat-card__icon" style={{ color: '#2196f3' }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9z"/>
-              <path d="M6 9v6M18 9v6"/>
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
           </div>
           <div className="admin-stat-card__content">
-            <div className="admin-stat-card__value">{formatNumber(summaryStats.totalTickets)}</div>
-            <div className="admin-stat-card__label">Tổng vé bán ra</div>
+            <div className="admin-stat-card__value">{formatNumber(summaryStats.totalOrders)}</div>
+            <div className="admin-stat-card__label">Tổng đơn</div>
           </div>
         </div>
 
-        <div className="admin-stat-card">
-          <div className="admin-stat-card__icon" style={{ color: '#ff9800' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="4" width="20" height="16" rx="2"/>
-              <path d="M7 4v16M17 4v16M2 8h20M2 12h20M2 16h20"/>
-            </svg>
-          </div>
-          <div className="admin-stat-card__content">
-            <div className="admin-stat-card__value">{summaryStats.activeMovies}</div>
-            <div className="admin-stat-card__label">Phim đang chiếu</div>
-          </div>
-        </div>
-
-        <div className="admin-stat-card">
-          <div className="admin-stat-card__icon" style={{ color: '#9c27b0' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-          </div>
-          <div className="admin-stat-card__content">
-            <div className="admin-stat-card__value">{formatNumber(summaryStats.registeredCustomers)}</div>
-            <div className="admin-stat-card__label">Khách hàng</div>
-          </div>
-        </div>
-
-        <div className="admin-stat-card">
-          <div className="admin-stat-card__icon" style={{ color: '#e83b41' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-            </svg>
-          </div>
-          <div className="admin-stat-card__content">
-            <div className="admin-stat-card__value">{summaryStats.activeVouchers}</div>
-            <div className="admin-stat-card__label">Voucher hoạt động</div>
-          </div>
-        </div>
       </div>
 
       {/* Main Charts */}
