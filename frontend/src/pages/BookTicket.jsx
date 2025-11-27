@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import { cinemaRoomService } from '../services/cinemaRoomService';
@@ -12,7 +12,7 @@ import { websocketService } from '../services/websocketService';
 function generateSeats(rows, cols) {
   const seats = [];
   const rowLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  
+
   const walkwayPositions = new Set();
   for (let col = 5; col <= cols; col += 5) {
     walkwayPositions.add(col);
@@ -22,11 +22,11 @@ function generateSeats(rows, cols) {
     walkwayPositions.add(middle);
     walkwayPositions.add(middle + 1);
   }
-  
+
   for (let row = 0; row < rows; row++) {
     for (let col = 1; col <= cols; col++) {
       if (walkwayPositions.has(col)) continue;
-      
+
       let seatType = 'NORMAL';
       if (row < Math.floor(rows * 0.15)) {
         seatType = 'VIP';
@@ -35,7 +35,7 @@ function generateSeats(rows, cols) {
           seatType = 'COUPLE';
         }
       }
-      
+
       seats.push({
         seatId: `${rowLetters[row]}${col}`,
         row: rowLetters[row],
@@ -45,7 +45,7 @@ function generateSeats(rows, cols) {
       });
     }
   }
-  
+
   return seats;
 }
 
@@ -133,6 +133,34 @@ export default function BookTicket() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const navType = useNavigationType();
+
+  // Force reload on back navigation to ensure fresh state
+  // Use sessionStorage with timeout to handle Strict Mode and prevent infinite loops
+  useEffect(() => {
+    console.log('[BookTicket] Navigation type:', navType);
+
+    if (navType === 'POP') {
+      const justReloaded = sessionStorage.getItem('just_reloaded');
+
+      if (justReloaded) {
+        // We just reloaded. Clear the flag after a short delay to handle Strict Mode double-mount
+        console.log('[BookTicket] Page reloaded successfully.');
+        const timer = setTimeout(() => {
+          sessionStorage.removeItem('just_reloaded');
+        }, 1000);
+        return () => clearTimeout(timer);
+      } else {
+        console.log('[BookTicket] Detected back navigation (POP), reloading page...');
+        sessionStorage.setItem('just_reloaded', 'true');
+        window.location.reload();
+      }
+    } else {
+      // If not POP, ensure flag is clear
+      sessionStorage.removeItem('just_reloaded');
+    }
+  }, [navType]);
+
   // Read parameters from URL
   const movieIdFromUrl = searchParams.get('movieId');
   const cinemaIdFromUrl = searchParams.get('cinemaId');
@@ -178,7 +206,7 @@ export default function BookTicket() {
           console.error('Error loading movie:', error);
         }
       }
-      
+
       // Load cinema if cinemaId exists
       if (cinemaIdFromUrl || selectedCinema) {
         const cinemaId = cinemaIdFromUrl || selectedCinema;
@@ -191,7 +219,7 @@ export default function BookTicket() {
           console.error('Error loading cinema:', error);
         }
       }
-      
+
       // Load prices
       try {
         const response = await fetch('http://localhost:8080/api/public/prices');
@@ -209,7 +237,7 @@ export default function BookTicket() {
         console.error('Error loading prices:', error);
       }
     };
-    
+
     loadData();
   }, [movieIdFromUrl, selectedMovie, cinemaIdFromUrl, selectedCinema]);
 
@@ -228,7 +256,6 @@ export default function BookTicket() {
   const websocketSubscribedRef = useRef(false);
   const selectedSeatsRef = useRef([]); // Keep latest selectedSeats for WebSocket callback
   const currentSessionIdRef = useRef(null); // Track current user's session ID
-  const recentlySelectedSeatsRef = useRef(new Set()); // Track seats just selected by this user (to ignore own WebSocket messages)
   const isNavigatingToCheckoutRef = useRef(false); // Track nếu đang navigate đến checkout
 
   // Initialize showtime from URL params - load from database
@@ -242,16 +269,16 @@ export default function BookTicket() {
           console.log('[BookTicket] Loading showtime by ID:', showtimeIdFromUrl);
           const showtimeResult = await showtimeService.getShowtimeById(Number(showtimeIdFromUrl));
           console.log('[BookTicket] Showtime API response:', showtimeResult);
-          
+
           if (showtimeResult.success && showtimeResult.data) {
             const st = showtimeResult.data;
             console.log('[BookTicket] Showtime data received:', st);
-            
+
             // Validate required fields
             if (!st.showtimeId || !st.cinemaRoomId) {
               throw new Error('Dữ liệu suất chiếu không đầy đủ');
             }
-            
+
             const mockShowtime = {
               showtimeId: st.showtimeId,
               movieId: st.movieId || Number(movieIdFromUrl),
@@ -280,14 +307,14 @@ export default function BookTicket() {
           setLoadingShowtime(false);
         }
       };
-      
+
       loadShowtimeById();
     } else if (movieIdFromUrl && cinemaIdFromUrl && showtimeFromUrl && dateFromUrl && !selectedShowtime && !showtimeIdFromUrl && !loadingShowtime) {
       // Fallback: Load by time matching (old method)
       const [hours, minutes] = showtimeFromUrl.split(':');
       const showtimeDate = new Date(dateFromUrl);
       showtimeDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-      
+
       const loadShowtime = async () => {
         setLoadingShowtime(true);
         setShowtimeError(null);
@@ -301,9 +328,9 @@ export default function BookTicket() {
           if (showtimeResult.success && showtimeResult.data) {
             const matchingShowtime = showtimeResult.data.find(st => {
               const stTime = new Date(st.startTime);
-              return stTime.getHours() === parseInt(hours) && 
-                     stTime.getMinutes() === parseInt(minutes) &&
-                     String(st.cinemaComplexId) === String(cinemaIdFromUrl);
+              return stTime.getHours() === parseInt(hours) &&
+                stTime.getMinutes() === parseInt(minutes) &&
+                String(st.cinemaComplexId) === String(cinemaIdFromUrl);
             });
             if (matchingShowtime) {
               const mockShowtime = {
@@ -332,7 +359,7 @@ export default function BookTicket() {
           setLoadingShowtime(false);
         }
       };
-      
+
       loadShowtime();
     }
   }, [movieIdFromUrl, cinemaIdFromUrl, showtimeFromUrl, dateFromUrl, showtimeIdFromUrl, selectedShowtime, loadingShowtime]);
@@ -342,9 +369,9 @@ export default function BookTicket() {
     if (!selectedMovie || !selectedCinema) return [];
     const cinema = cinemas.find(c => c.complexId === Number(selectedCinema));
     if (!cinema) return [];
-    
-    return showtimes.filter(st => 
-      st.movieId === Number(selectedMovie) && 
+
+    return showtimes.filter(st =>
+      st.movieId === Number(selectedMovie) &&
       cinema.rooms.some(r => r.roomId === st.roomId)
     );
   }, [selectedMovie, selectedCinema]);
@@ -358,7 +385,7 @@ export default function BookTicket() {
         console.log('[BookTicket] No showtime or roomId, skipping room load');
         return;
       }
-      
+
       console.log('[BookTicket] Loading room data for roomId:', selectedShowtime.roomId);
       setLoadingRoom(true);
       setRoomError(null);
@@ -366,17 +393,24 @@ export default function BookTicket() {
         // Load room with seats
         const roomResult = await cinemaRoomService.getPublicRoomById(selectedShowtime.roomId);
         console.log('[BookTicket] Room API response:', roomResult);
-        
+
         if (roomResult.success && roomResult.data) {
           // Map seats from database format to frontend format
-          const mappedSeats = (roomResult.data.seats || []).map(seat => ({
+          let mappedSeats = (roomResult.data.seats || []).map(seat => ({
             seatId: `${seat.seatRow}${seat.seatColumn}`, // Format: "A1", "B2", etc.
             row: seat.seatRow,
             column: seat.seatColumn,
             type: seat.type, // NORMAL, VIP, COUPLE
             status: true
           }));
-          
+
+          // Fallback: If no seats from DB but we have dimensions, generate them
+          // This handles cases where seat data might be missing or failed to load on navigation
+          if (mappedSeats.length === 0 && roomResult.data.rows > 0 && roomResult.data.cols > 0) {
+            console.warn('[BookTicket] No seats from DB, generating based on dimensions');
+            mappedSeats = generateSeats(roomResult.data.rows, roomResult.data.cols);
+          }
+
           const mappedRoom = {
             roomId: roomResult.data.roomId,
             roomName: roomResult.data.roomName,
@@ -387,7 +421,7 @@ export default function BookTicket() {
             cols: roomResult.data.cols,
             seats: mappedSeats
           };
-          
+
           console.log('[BookTicket] Mapped room data:', mappedRoom);
           setRoomData(mappedRoom);
         } else {
@@ -395,7 +429,7 @@ export default function BookTicket() {
           console.error('[BookTicket] Failed to load room:', errorMsg);
           setRoomError(errorMsg);
         }
-        
+
         // Load booked seats if showtimeId exists
         if (selectedShowtime.showtimeId && typeof selectedShowtime.showtimeId === 'number') {
           console.log('[BookTicket] Loading booked seats for showtimeId:', selectedShowtime.showtimeId);
@@ -403,6 +437,31 @@ export default function BookTicket() {
           console.log('[BookTicket] Booked seats response:', bookedResult);
           if (bookedResult.success && bookedResult.data) {
             setBookedSeatIds(new Set(bookedResult.data));
+          }
+
+          // Load currently selected seats (real-time status)
+          try {
+            console.log('[BookTicket] Loading real-time seat status for showtimeId:', selectedShowtime.showtimeId);
+            const statusResponse = await fetch(`http://localhost:8080/api/public/seats/status?showtimeId=${selectedShowtime.showtimeId}`);
+            const statusResult = await statusResponse.json();
+
+            if (statusResult.success && statusResult.selectedSeats) {
+              console.log('[BookTicket] Real-time selected seats:', statusResult.selectedSeats);
+              setTemporarilySelectedSeats(prev => {
+                const newSet = new Set(prev);
+                const currentUserSeats = selectedSeatsRef.current;
+
+                statusResult.selectedSeats.forEach(seatId => {
+                  // Only add if not selected by current user
+                  if (!currentUserSeats.includes(seatId)) {
+                    newSet.add(seatId);
+                  }
+                });
+                return newSet;
+              });
+            }
+          } catch (e) {
+            console.error('[BookTicket] Error loading real-time seat status:', e);
           }
         }
       } catch (error) {
@@ -412,7 +471,7 @@ export default function BookTicket() {
         setLoadingRoom(false);
       }
     };
-    
+
     loadRoomAndSeats();
   }, [selectedShowtime]);
 
@@ -426,8 +485,7 @@ export default function BookTicket() {
   useEffect(() => {
     // Clear temporarily selected seats khi mount lại hoặc showtime thay đổi
     setTemporarilySelectedSeats(new Set());
-    recentlySelectedSeatsRef.current.clear();
-    
+
     // Restore selectedSeats từ pendingBooking nếu có (khi user quay lại từ checkout)
     if (selectedShowtime?.showtimeId) {
       try {
@@ -439,21 +497,15 @@ export default function BookTicket() {
           if (bookingShowtimeId === selectedShowtime.showtimeId && booking.seats && Array.isArray(booking.seats) && booking.seats.length > 0) {
             console.log('[BookTicket] Restoring selectedSeats from pendingBooking:', booking.seats);
             setSelectedSeats(booking.seats);
-            
+
             // Gửi SELECT lại cho các ghế này qua WebSocket để đánh dấu là user này đang chọn
             if (websocketService.getConnectionStatus()) {
               booking.seats.forEach(seatId => {
                 websocketService.sendSeatSelection(selectedShowtime.showtimeId, seatId, 'SELECT');
               });
             }
-            
-            // Đánh dấu các ghế này là vừa được restore để tránh thêm vào temporarilySelectedSeats
-            booking.seats.forEach(seatId => {
-              recentlySelectedSeatsRef.current.add(seatId);
-              setTimeout(() => {
-                recentlySelectedSeatsRef.current.delete(seatId);
-              }, 2000);
-            });
+
+            // Seats will be automatically filtered by sessionId in WebSocket handler
           }
         }
       } catch (e) {
@@ -462,11 +514,37 @@ export default function BookTicket() {
     }
   }, [selectedShowtime?.showtimeId]);
 
+  // Re-broadcast selected seats when component mounts or connection is established
+  // This ensures that if the page was reloaded (restoring state), the backend knows about the selections
+  useEffect(() => {
+    if (selectedShowtime?.showtimeId && selectedSeats.length > 0) {
+      const broadcastSelections = () => {
+        if (websocketService.getConnectionStatus()) {
+          console.log('[BookTicket] Re-broadcasting selected seats:', selectedSeats);
+          selectedSeats.forEach(seatId => {
+            websocketService.sendSeatSelection(selectedShowtime.showtimeId, seatId, 'SELECT');
+          });
+        }
+      };
+
+      // Try immediately
+      broadcastSelections();
+
+      // Also set up a listener/interval to retry if connection isn't ready yet
+      const intervalId = setInterval(() => {
+        if (websocketService.getConnectionStatus()) {
+          broadcastSelections();
+          clearInterval(intervalId);
+        }
+      }, 500);
+
+      return () => clearInterval(intervalId);
+    }
+  }, [selectedShowtime, selectedSeats.length]); // Depend on length to avoid loops if array ref changes
+
   // WebSocket connection for real-time seat selection
   useEffect(() => {
-    if (!selectedShowtime || !selectedShowtime.showtimeId) {
-      return;
-    }
+    if (!selectedShowtime?.showtimeId) return;
 
     const showtimeId = selectedShowtime.showtimeId;
 
@@ -481,40 +559,85 @@ export default function BookTicket() {
       if (websocketService.getConnectionStatus()) {
         if (!websocketSubscribedRef.current) {
           console.log('[BookTicket] Subscribing to seat updates for showtime:', showtimeId);
+
+          // Get current session ID
+          const mySessionId = websocketService.getSessionId();
+          currentSessionIdRef.current = mySessionId;
           
           websocketService.subscribeToSeats(showtimeId, (update) => {
             console.log('[BookTicket] Received seat update:', update);
-            
-            // Update temporarily selected seats, but exclude seats that this user has selected
+
+            const currentUserSeats = selectedSeatsRef.current;
+
+            // Handle batch deselect (timeout or disconnect) - sync with server state
+            if (update.status === 'BATCH_DESELECTED' && update.selectedSeats) {
+              // Remove any seats from user's selection that are not in server's list
+              setSelectedSeats(prev => {
+                const serverSeatsSet = new Set(update.selectedSeats);
+                const filtered = prev.filter(seatId => serverSeatsSet.has(seatId));
+                if (filtered.length !== prev.length) {
+                  console.log('[BookTicket] Removed expired seats from selection:', 
+                    prev.filter(seatId => !serverSeatsSet.has(seatId)));
+                }
+                return filtered;
+              });
+
+              // Update temporarily selected seats (seats selected by others)
+              setTemporarilySelectedSeats(prev => {
+                const newSet = new Set();
+                update.selectedSeats.forEach(seatId => {
+                  if (!selectedSeatsRef.current.includes(seatId)) {
+                    newSet.add(seatId);
+                  }
+                });
+                return newSet;
+              });
+              return;
+            }
+
+            // Ignore updates from our own session (except batch updates which we handled above)
+            if (update.sessionId && update.sessionId === mySessionId) {
+              console.log('[BookTicket] Ignoring own update:', update);
+              return;
+            }
+
+            // Handle individual DESELECTED - remove from user's selection if it was selected
+            if (update.status === 'DESELECTED' && update.seatId) {
+              setSelectedSeats(prev => {
+                if (prev.includes(update.seatId)) {
+                  console.log('[BookTicket] Removing seat from selection due to server deselect:', update.seatId);
+                  return prev.filter(id => id !== update.seatId);
+                }
+                return prev;
+              });
+            }
+
+            // Update temporarily selected seats based on server state
             setTemporarilySelectedSeats(prev => {
               const newSet = new Set();
-              const currentUserSeats = selectedSeatsRef.current; // Use ref to get latest value
-              const recentlySelected = recentlySelectedSeatsRef.current; // Ghế vừa được chọn bởi user này
-              
-              // Get all selected seats from server
+
+              // Handle individual updates
               if (update.selectedSeats && Array.isArray(update.selectedSeats)) {
+                // Use server's complete list of selected seats
                 update.selectedSeats.forEach(seatId => {
-                  // Chỉ thêm vào temporarilySelectedSeats nếu:
-                  // 1. User này chưa chọn ghế đó
-                  // 2. Ghế đó không phải là ghế vừa được chọn bởi user này (để tránh hiển thị "đang được chọn" cho ghế của chính mình)
-                  if (!currentUserSeats.includes(seatId) && !recentlySelected.has(seatId)) {
+                  // Only add seats that are not selected by this user
+                  if (!selectedSeatsRef.current.includes(seatId)) {
                     newSet.add(seatId);
                   }
                 });
               } else {
                 // Fallback: update based on status
                 const currentSet = new Set(prev);
-                if (update.status === 'SELECTED') {
-                  // Chỉ thêm nếu user này chưa chọn và không phải ghế vừa chọn bởi user này
-                  if (!currentUserSeats.includes(update.seatId) && !recentlySelected.has(update.seatId)) {
+                if (update.status === 'SELECTED' && update.seatId) {
+                  if (!selectedSeatsRef.current.includes(update.seatId)) {
                     currentSet.add(update.seatId);
                   }
-                } else if (update.status === 'DESELECTED') {
+                } else if (update.status === 'DESELECTED' && update.seatId) {
                   currentSet.delete(update.seatId);
                 }
                 return currentSet;
               }
-              
+
               return newSet;
             });
           });
@@ -533,7 +656,7 @@ export default function BookTicket() {
     // Cleanup function - gửi DESELECT cho tất cả ghế đã chọn khi rời trang (trừ khi đi đến checkout)
     return () => {
       clearTimeout(timeoutId);
-      
+
       // Chỉ gửi DESELECT nếu KHÔNG đang navigate đến checkout
       const currentSelectedSeats = selectedSeatsRef.current;
       if (currentSelectedSeats && currentSelectedSeats.length > 0 && showtimeId && !isNavigatingToCheckoutRef.current) {
@@ -548,14 +671,13 @@ export default function BookTicket() {
         // Clear pendingBooking khi rời trang (không phải đi đến checkout)
         localStorage.removeItem('pendingBooking');
       }
-      
+
       // Reset flag sau khi cleanup
       isNavigatingToCheckoutRef.current = false;
-      
+
       // Clear temporarily selected seats
       setTemporarilySelectedSeats(new Set());
-      recentlySelectedSeatsRef.current.clear();
-      
+
       if (websocketSubscribedRef.current && showtimeId) {
         console.log('[BookTicket] Unsubscribing from seat updates for showtime:', showtimeId);
         websocketService.unsubscribeFromSeats(showtimeId);
@@ -589,28 +711,28 @@ export default function BookTicket() {
   // Calculate total price - calculate price for each seat based on pricesData
   const totalPrice = useMemo(() => {
     if (!selectedRoom || !selectedShowtime || selectedSeats.length === 0 || pricesData.length === 0) return 0;
-    
+
     // Check if showtime is weekend (Saturday = 6, Sunday = 7)
     const showtimeDate = new Date(selectedShowtime.startTime);
     const dayOfWeek = showtimeDate.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    
+
     return selectedSeats.reduce((total, seatId) => {
       const seat = selectedRoom.seats.find(s => s.seatId === seatId);
       if (!seat) return total;
-      
+
       // Find price from pricesData for this roomType + seatType combination
-      const priceRecord = pricesData.find(p => 
+      const priceRecord = pricesData.find(p =>
         p.roomType === selectedRoom.roomType && p.seatType === seat.type
       );
-      
+
       if (priceRecord) {
         // Apply 30% increase for weekend
         const basePrice = priceRecord.price;
         const adjustedPrice = isWeekend ? basePrice * 1.3 : basePrice;
         return total + adjustedPrice;
       }
-      
+
       return total;
     }, 0);
   }, [selectedRoom, selectedSeats, selectedShowtime, pricesData]);
@@ -640,23 +762,10 @@ export default function BookTicket() {
       // Can't select seats that are temporarily selected by others (unless it's already selected by this user)
       return;
     }
-    
+
     const wasSelected = selectedSeats.includes(seatId);
     const action = wasSelected ? 'DESELECT' : 'SELECT';
-    
-    // Đánh dấu ghế này vừa được chọn/bỏ chọn bởi user này
-    // Để tránh thêm vào temporarilySelectedSeats khi nhận WebSocket message từ chính mình
-    if (action === 'SELECT') {
-      recentlySelectedSeatsRef.current.add(seatId);
-      // Xóa khỏi recentlySelectedSeats sau 1 giây (đủ thời gian để nhận WebSocket message)
-      setTimeout(() => {
-        recentlySelectedSeatsRef.current.delete(seatId);
-      }, 1000);
-    } else {
-      // Khi bỏ chọn, xóa khỏi recentlySelectedSeats ngay
-      recentlySelectedSeatsRef.current.delete(seatId);
-    }
-    
+
     // Update local state
     setSelectedSeats(prev => {
       if (wasSelected) {
@@ -698,10 +807,10 @@ export default function BookTicket() {
     const buildRowSeats = (rowSeats) => {
       const sortedSeats = [...rowSeats].sort((a, b) => a.column - b.column);
       if (sortedSeats.length === 0) return [];
-      
+
       const result = [];
       let lastColumn = 0;
-      
+
       sortedSeats.forEach((seat) => {
         if (lastColumn > 0 && seat.column > lastColumn + 1) {
           let hasWalkway = false;
@@ -711,18 +820,18 @@ export default function BookTicket() {
               break;
             }
           }
-          
+
           if (hasWalkway) {
             const gapColumns = seat.column - lastColumn - 1;
             const gapWidth = Math.max(32, gapColumns * 8);
             result.push({ type: 'gap', width: gapWidth });
           }
         }
-        
+
         result.push({ type: 'seat', seat });
         lastColumn = seat.column;
       });
-      
+
       return result;
     };
 
@@ -743,14 +852,14 @@ export default function BookTicket() {
                     if (item.type === 'gap') {
                       return <div key={`gap-${idx}`} className="seat-layout__gap" style={{ width: `${item.width}px` }} />;
                     }
-                    
+
                     const seat = item.seat;
                     const isCouple = seat.type === 'COUPLE';
                     const isBooked = bookedSeatsForShowtime.has(seat.seatId);
                     const isSelected = selectedSeats.includes(seat.seatId);
                     const isTemporarilySelected = temporarilySelectedSeats.has(seat.seatId) && !isSelected;
                     const isDisabled = isBooked || isTemporarilySelected;
-                    
+
                     return (
                       <button
                         key={seat.seatId}
@@ -778,7 +887,7 @@ export default function BookTicket() {
             );
           })}
         </div>
-        
+
         <div className="seat-layout__legend">
           <div className="seat-legend">
             <div className="seat-legend__item">
@@ -826,9 +935,9 @@ export default function BookTicket() {
           <div className="container">
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffd159' }}>
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                <path d="M8 7h8M8 11h8M8 15h4"/>
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                <path d="M8 7h8M8 11h8M8 15h4" />
               </svg>
               <h1 className="section__title" style={{ fontSize: 'clamp(28px, 4vw, 36px)', margin: 0, fontWeight: 800, letterSpacing: '-0.02em', fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}>
                 Đặt vé phim
@@ -1042,29 +1151,29 @@ export default function BookTicket() {
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                               {selectedSeats.map(seatId => {
                                 const seat = selectedRoom.seats.find(s => s.seatId === seatId);
-                                
+
                                 // Lấy giá từ pricesData dựa trên roomType + seatType
                                 let seatPrice = 0;
                                 let baseSeatPrice = 0;
                                 let isWeekend = false;
-                                
+
                                 if (pricesData.length > 0 && selectedRoom) {
                                   // Check if showtime is weekend
                                   const showtimeDate = new Date(selectedShowtime.startTime);
                                   const dayOfWeek = showtimeDate.getDay();
                                   isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                                  
+
                                   // Find price from pricesData
-                                  const priceRecord = pricesData.find(p => 
+                                  const priceRecord = pricesData.find(p =>
                                     p.roomType === selectedRoom.roomType && p.seatType === seat?.type
                                   );
-                                  
+
                                   if (priceRecord) {
                                     baseSeatPrice = priceRecord.price;
                                     seatPrice = isWeekend ? baseSeatPrice * 1.3 : baseSeatPrice;
                                   }
                                 }
-                                
+
                                 return (
                                   <div key={seatId} className="book-ticket-seat-badge">
                                     <span>{seatId}</span>
@@ -1089,17 +1198,17 @@ export default function BookTicket() {
                                 const showtimeDate = new Date(selectedShowtime.startTime);
                                 const dayOfWeek = showtimeDate.getDay();
                                 const isWeekendShowtime = dayOfWeek === 0 || dayOfWeek === 6;
-                                
+
                                 if (isWeekendShowtime && pricesData.length > 0) {
                                   // Tính tổng giá gốc
                                   const totalBasePrice = selectedSeats.reduce((total, seatId) => {
                                     const seat = selectedRoom.seats.find(s => s.seatId === seatId);
-                                    const priceRecord = pricesData.find(p => 
+                                    const priceRecord = pricesData.find(p =>
                                       p.roomType === selectedRoom.roomType && p.seatType === seat?.type
                                     );
                                     return total + (priceRecord?.price || 0);
                                   }, 0);
-                                  
+
                                   return (
                                     <>
                                       <span style={{ fontSize: '14px', color: '#c9c4c5', textDecoration: 'line-through' }}>
@@ -1117,7 +1226,7 @@ export default function BookTicket() {
                                 const showtimeDate = new Date(selectedShowtime.startTime);
                                 const dayOfWeek = showtimeDate.getDay();
                                 const isWeekendShowtime = dayOfWeek === 0 || dayOfWeek === 6;
-                                
+
                                 return isWeekendShowtime && (
                                   <span style={{ fontSize: '12px', color: '#4caf50', fontWeight: 600 }}>
                                     +30% Weekend
@@ -1136,7 +1245,7 @@ export default function BookTicket() {
                                   alert('Vui lòng chọn ít nhất một ghế');
                                   return;
                                 }
-                                
+
                                 const bookingInfo = {
                                   movieId: selectedMovie || movieIdFromUrl,
                                   cinemaId: selectedCinema || cinemaIdFromUrl,
@@ -1148,7 +1257,7 @@ export default function BookTicket() {
                                   totalPrice: totalPrice,
                                   movieTitle: movieData?.title || ''
                                 };
-                                
+
                                 console.log('Saving bookingInfo to localStorage:', bookingInfo);
                                 localStorage.setItem('pendingBooking', JSON.stringify(bookingInfo));
                                 // Đánh dấu đang navigate đến checkout để không gửi DESELECT
@@ -1156,8 +1265,8 @@ export default function BookTicket() {
                                 // Navigate to food and drinks page with ticket
                                 navigate('/food-drinks-with-ticket');
                               }}
-                              style={{ 
-                                padding: '14px 32px', 
+                              style={{
+                                padding: '14px 32px',
                                 minWidth: '200px',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -1347,8 +1456,8 @@ export default function BookTicket() {
 
       {/* Age Confirmation Modal */}
       {showAgeConfirmModal && (
-        <div 
-          className="modal-overlay" 
+        <div
+          className="modal-overlay"
           style={{
             position: 'fixed',
             top: 0,
@@ -1369,7 +1478,7 @@ export default function BookTicket() {
             }
           }}
         >
-          <div 
+          <div
             className="modal-content"
             style={{
               backgroundColor: '#2d2627',
@@ -1381,39 +1490,39 @@ export default function BookTicket() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ 
-              margin: '0 0 24px', 
-              fontSize: '24px', 
-              fontWeight: 800, 
+            <h2 style={{
+              margin: '0 0 24px',
+              fontSize: '24px',
+              fontWeight: 800,
               color: '#fff',
               textAlign: 'center'
             }}>
               Xác nhận độ tuổi
             </h2>
-            
+
             {pendingShowtime && (() => {
               const rating = movieData?.ageRating ? movieService.mapAgeRatingFromBackend(movieData.ageRating) : 'T16';
               const ageNumber = rating.replace('T', '');
-              
+
               return (
                 <>
-                  <div style={{ 
+                  <div style={{
                     marginBottom: '24px',
                     padding: '20px',
                     backgroundColor: '#1a1415',
                     borderRadius: '8px',
                     border: '1px solid #4a3f41'
                   }}>
-                    <div style={{ 
-                      fontSize: '16px', 
-                      color: '#fff', 
+                    <div style={{
+                      fontSize: '16px',
+                      color: '#fff',
                       marginBottom: '12px',
                       fontWeight: 600
                     }}>
                       Phim: {movieData?.title || 'N/A'}
                     </div>
-                    <div style={{ 
-                      fontSize: '14px', 
+                    <div style={{
+                      fontSize: '14px',
                       color: '#c9c4c5',
                       lineHeight: '1.6'
                     }}>
@@ -1421,7 +1530,7 @@ export default function BookTicket() {
                     </div>
                   </div>
 
-                  <div style={{ 
+                  <div style={{
                     marginBottom: '24px',
                     display: 'flex',
                     alignItems: 'flex-start',
@@ -1440,7 +1549,7 @@ export default function BookTicket() {
                         accentColor: '#e83b41'
                       }}
                     />
-                    <label 
+                    <label
                       htmlFor="age-confirm-checkbox"
                       style={{
                         fontSize: '14px',
@@ -1454,7 +1563,7 @@ export default function BookTicket() {
                     </label>
                   </div>
 
-                  <div style={{ 
+                  <div style={{
                     display: 'flex',
                     gap: '12px',
                     justifyContent: 'flex-end'
@@ -1483,7 +1592,7 @@ export default function BookTicket() {
                           alert('Vui lòng xác nhận độ tuổi để tiếp tục');
                           return;
                         }
-                        
+
                         // Load full showtime data from API to get basePrice and adjustedPrice
                         try {
                           const showtimeResult = await showtimeService.getShowtimeById(Number(pendingShowtime.showtimeId));
@@ -1508,7 +1617,7 @@ export default function BookTicket() {
                           // Fallback: use pendingShowtime as is
                           setSelectedShowtime(pendingShowtime);
                         }
-                        
+
                         setSelectedSeats([]);
                         setStep(2);
                         setShowAgeConfirmModal(false);

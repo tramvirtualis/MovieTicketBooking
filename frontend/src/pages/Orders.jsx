@@ -72,17 +72,20 @@ export default function Orders() {
           });
 
           // Map combos to foodItems
+          // Lưu ý: combo.price từ backend đã là tổng tiền (price * quantity), không phải đơn giá
           const foodItems = order.combos ? order.combos.map(combo => ({
             id: `f${combo.comboId}`,
             name: combo.comboName,
             quantity: combo.quantity,
-            price: Number(combo.price),
+            totalPrice: Number(combo.price), // Tổng tiền (đã nhân quantity ở backend)
+            unitPrice: Number(combo.price) / (combo.quantity || 1), // Đơn giá = tổng / số lượng
             image: combo.comboImage || 'https://via.placeholder.com/300x300?text=Food'
           })) : [];
 
           // Tính tổng tiền gốc (trước khi áp voucher)
+          // foodItem.totalPrice đã là tổng tiền, không cần nhân quantity nữa
           const originalTotal = Object.values(itemsByShowtime).reduce((sum, item) => sum + item.price, 0) +
-                                foodItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                                foodItems.reduce((sum, item) => sum + item.totalPrice, 0);
 
           return {
             orderId: `ORD-${order.orderId}`,
@@ -355,7 +358,7 @@ export default function Orders() {
                                   Giá
                                 </span>
                                 <span className="order-item__detail-value order-item__detail-value--price">
-                                  {formatPrice(foodItem.price * foodItem.quantity)}
+                                  {formatPrice(foodItem.totalPrice)}
                                 </span>
                               </div>
                             </div>

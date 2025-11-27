@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import Header from '../components/Header.jsx';
+import Footer from '../components/Footer.jsx';
 import './PaymentSuccess.css';
 import { paymentService } from '../services/paymentService';
 import { notificationService } from '../services/notificationService';
@@ -256,17 +258,29 @@ const PaymentSuccess = () => {
 
   if (loading) {
     return (
-      <div className="payment-success">
-        <div className="payment-success__container">
-          <div className="text-center text-[#c9c4c5]">Đang xử lý kết quả thanh toán...</div>
-        </div>
+      <div className="min-h-screen cinema-mood">
+        <Header />
+        <main className="main">
+          <section className="section">
+            <div className="container">
+              <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
+                <p className="text-base m-0">Đang xử lý kết quả thanh toán...</p>
+              </div>
+            </div>
+          </section>
+        </main>
+        <Footer />
       </div>
     );
   }
 
   return (
-    <div className="payment-success">
-      <div className="payment-success__container">
+    <div className="min-h-screen cinema-mood">
+      <Header />
+      <main className="main">
+        <section className="section">
+          <div className="container">
+            <div className="payment-success__container">
         <div className={`payment-success__icon ${isSuccess ? 'success' : 'failure'}`}>
           {isSuccess ? (
             <svg
@@ -442,7 +456,11 @@ const PaymentSuccess = () => {
             </p>
           </div>
         )}
-      </div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <Footer />
     </div>
   );
 };

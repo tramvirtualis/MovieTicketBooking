@@ -1,19 +1,13 @@
-.payment-success {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
-}
-
 .payment-success__container {
-  background: white;
+  background: rgba(26, 20, 21, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 48px 32px;
   max-width: 600px;
   width: 100%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  margin: 0 auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   text-align: center;
   animation: slideUp 0.5s ease-out;
 }
@@ -73,14 +67,14 @@
 .payment-success__title {
   font-size: 32px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: #ffd159;
   margin: 0 0 12px 0;
   animation: fadeIn 0.5s ease-out 0.4s both;
 }
 
 .payment-success__message {
   font-size: 16px;
-  color: #666;
+  color: #c9c4c5;
   margin: 0 0 32px 0;
   line-height: 1.5;
   animation: fadeIn 0.5s ease-out 0.5s both;
@@ -96,7 +90,8 @@
 }
 
 .payment-success__details {
-  background: #f8f9fa;
+  background: rgba(40, 32, 33, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 24px;
   margin: 0 0 32px 0;
@@ -108,7 +103,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .payment-success__detail-item:last-child {
@@ -117,13 +112,13 @@
 
 .payment-success__detail-label {
   font-size: 14px;
-  color: #666;
+  color: #c9c4c5;
   font-weight: 500;
 }
 
 .payment-success__detail-value {
   font-size: 14px;
-  color: #1a1a1a;
+  color: #ffffff;
   font-weight: 600;
   word-break: break-all;
   text-align: right;
@@ -131,8 +126,9 @@
 }
 
 .payment-success__amount {
-  color: #4CAF50;
+  color: #ffd159;
   font-size: 18px;
+  font-weight: 700;
 }
 
 .payment-success__actions {
@@ -158,30 +154,33 @@
 }
 
 .payment-success__button--primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #e83b41 0%, #c92e33 100%);
   color: white;
+  border: 1px solid rgba(232, 59, 65, 0.3);
 }
 
 .payment-success__button--primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 8px 20px rgba(232, 59, 65, 0.4);
+  background: linear-gradient(135deg, #f04a50 0%, #d93e44 100%);
 }
 
 .payment-success__button--secondary {
-  background: white;
-  color: #667eea;
-  border: 2px solid #667eea;
+  background: rgba(26, 20, 21, 0.8);
+  color: #ffd159;
+  border: 2px solid rgba(255, 209, 89, 0.4);
 }
 
 .payment-success__button--secondary:hover {
-  background: #f8f9fa;
+  background: rgba(40, 32, 33, 0.9);
+  border-color: rgba(255, 209, 89, 0.6);
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
+  box-shadow: 0 8px 20px rgba(255, 209, 89, 0.2);
 }
 
 .payment-success__note {
-  background: #fff3cd;
-  border: 1px solid #ffc107;
+  background: rgba(255, 193, 7, 0.15);
+  border: 1px solid rgba(255, 193, 7, 0.3);
   border-radius: 8px;
   padding: 16px;
   animation: fadeIn 0.5s ease-out 0.8s both;
@@ -190,12 +189,12 @@
 .payment-success__note p {
   margin: 0;
   font-size: 14px;
-  color: #856404;
+  color: #ffd159;
   line-height: 1.5;
 }
 
 .payment-success__note strong {
-  color: #856404;
+  color: #ffd159;
 }
 
 /* Responsive */

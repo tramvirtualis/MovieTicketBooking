@@ -10,6 +10,7 @@ class WebSocketService {
     this.maxReconnectAttempts = 5;
     this.userId = null;
     this.onNotificationCallback = null;
+    this.sessionId = null; // Session ID for seat selection
   }
 
   connect(userId, onNotification) {
@@ -227,8 +228,18 @@ class WebSocketService {
   }
 
   generateSessionId() {
-    // Generate a simple session ID (can be improved)
-    return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Generate a simple session ID and store it
+    if (!this.sessionId) {
+      this.sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    return this.sessionId;
+  }
+  
+  getSessionId() {
+    if (!this.sessionId) {
+      this.generateSessionId();
+    }
+    return this.sessionId;
   }
 
   // Connect without userId (for public seat selection)

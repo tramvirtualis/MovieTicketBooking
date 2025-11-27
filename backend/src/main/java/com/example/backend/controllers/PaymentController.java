@@ -7,10 +7,12 @@ import com.example.backend.dtos.MomoCreatePaymentResponse;
 import com.example.backend.entities.Order;
 import com.example.backend.entities.User;
 import com.example.backend.entities.Voucher;
+import com.example.backend.entities.Customer;
 import com.example.backend.entities.enums.PaymentMethod;
 import com.example.backend.repositories.OrderRepository;
 import com.example.backend.repositories.UserRepository;
 import com.example.backend.repositories.VoucherRepository;
+import com.example.backend.repositories.CustomerRepository;
 import com.example.backend.services.OrderCreationService;
 import com.example.backend.services.OrderService;
 import com.example.backend.services.MomoService;
@@ -67,6 +69,7 @@ public class PaymentController {
     private final UserRepository userRepository;
     private final VoucherRepository voucherRepository;
     private final OrderRepository orderRepository;
+    private final CustomerRepository customerRepository;
     private final MomoService momoService;
     private final MomoProperties momoProperties;
 
@@ -486,6 +489,9 @@ public class PaymentController {
                             // Gửi thông báo đặt hàng thành công (chỉ gửi nếu callback lần đầu)
                             // notifyBookingSuccess đã có check duplicate, nên an toàn
                             if (!alreadyProcessed) {
+                                // Xóa voucher khỏi danh sách của user khi thanh toán thành công
+                                removeVoucherFromUser(order);
+                                
                                 try {
                                     // 1. Gửi Notification
                                     String totalAmountStr = order.getTotalAmount()
@@ -577,6 +583,9 @@ public class PaymentController {
                         }
                         
                         orderService.save(order);
+                        
+                        // Xóa voucher khỏi danh sách của user khi thanh toán thành công
+                        removeVoucherFromUser(order);
                         
                         // Gửi notification và email xác nhận
                         try {
@@ -916,6 +925,9 @@ public class PaymentController {
             // Gửi thông báo đặt hàng thành công (chỉ gửi nếu IPN lần đầu)
             // notifyBookingSuccess đã có check duplicate, nên an toàn
             if (!alreadyProcessed) {
+                // Xóa voucher khỏi danh sách của user khi thanh toán thành công
+                removeVoucherFromUser(order);
+                
                 try {
                     // 1. Notification
                     String totalAmountStr = order.getTotalAmount()
@@ -1096,6 +1108,9 @@ public class PaymentController {
                     orderRepository.flush(); // Force commit
                     System.out.println("Order saved with PayDate: " + savedOrder.getVnpPayDate());
                     
+                    // Xóa voucher khỏi danh sách của user khi thanh toán thành công
+                    removeVoucherFromUser(order);
+                    
                     // Send Notif & Email
                     try {
                          String totalAmountStr = order.getTotalAmount()
@@ -1168,5 +1183,47 @@ public class PaymentController {
             return request.getOrderDescription();
         }
         return "Thanh toán đơn hàng tại Cinesmart";
+    }
+    
+    /**
+     * Xóa voucher khỏi danh sách voucher của user khi thanh toán thành công
+     * Chỉ xóa nếu order có voucher và user là Customer
+     */
+    private void removeVoucherFromUser(Order order) {
+        if (order.getVoucher() == null) {
+            return; // Không có voucher, không cần xóa
+        }
+        
+        User user = order.getUser();
+        if (!(user instanceof Customer)) {
+            return; // Chỉ xóa voucher cho Customer
+        }
+        
+        try {
+            Long userId = user.getUserId();
+            Voucher voucher = order.getVoucher();
+            
+            // Load customer với vouchers để có thể xóa
+            Optional<Customer> customerWithVouchersOpt = customerRepository.findByIdWithVouchers(userId);
+            if (customerWithVouchersOpt.isPresent()) {
+                Customer customerWithVouchers = customerWithVouchersOpt.get();
+                if (customerWithVouchers.getVouchers() != null) {
+                    // Xóa voucher khỏi danh sách
+                    boolean removed = customerWithVouchers.getVouchers().removeIf(
+                        v -> v.getVoucherId().equals(voucher.getVoucherId())
+                    );
+                    
+                    if (removed) {
+                        // Lưu customer để cập nhật relationship
+                        customerRepository.save(customerWithVouchers);
+                        System.out.println("Removed voucher " + voucher.getCode() + " from user " + userId + " vouchers list (payment successful)");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error removing voucher from user: " + e.getMessage());
+            e.printStackTrace();
+            // Không fail payment flow nếu xóa voucher lỗi
+        }
     }
 }

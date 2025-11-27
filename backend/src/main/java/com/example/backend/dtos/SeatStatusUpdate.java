@@ -12,8 +12,9 @@ import java.util.Set;
 public class SeatStatusUpdate {
     private Long showtimeId;
     private String seatId;
-    private String status; // "SELECTED", "DESELECTED", "BOOKED"
+    private String status; // "SELECTED", "DESELECTED", "BOOKED", "BATCH_DESELECTED", "ALREADY_SELECTED"
     private Set<String> selectedSeats; // All currently selected seats for this showtime
+    private String sessionId; // Session ID of the user who triggered this update (null for batch updates)
 }
 
 

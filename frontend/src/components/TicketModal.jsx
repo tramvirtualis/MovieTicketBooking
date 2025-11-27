@@ -364,7 +364,7 @@ const TicketModal = ({ order, isOpen, onClose }) => {
                     fontSize: '12px',
                     color: '#666'
                   }}>
-                    Số lượng: {foodItem.quantity} | Đơn giá: {formatPrice(foodItem.price)} | Thành tiền: {formatPrice(foodItem.price * foodItem.quantity)}
+                    Số lượng: {foodItem.quantity} | Đơn giá: {formatPrice((foodItem.totalPrice || foodItem.price) / (foodItem.quantity || 1))} | Thành tiền: {formatPrice(foodItem.totalPrice || foodItem.price)}
                   </div>
                 </div>
               ))}
@@ -403,11 +403,13 @@ const TicketModal = ({ order, isOpen, onClose }) => {
                             const idStr = String(item.id);
                             comboId = idStr.startsWith('f') ? idStr.substring(1) : idStr;
                           }
+                          // totalPrice là tổng tiền (đã nhân quantity), price là fallback
+                          const totalPrice = item.totalPrice || item.price || 0;
                           return {
                             foodComboId: String(comboId || ''),
                             name: String(item.comboName || item.name || ''),
                             quantity: item.quantity || 0,
-                            price: String(item.price || '0')
+                            price: String(totalPrice)
                           };
                         })
                       })}
