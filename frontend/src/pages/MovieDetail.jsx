@@ -3,6 +3,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import BookingModal from '../components/BookingModal.jsx';
+import { Toast } from '../components/AdminDashboard/NotificationSystem.jsx';
 import { movieService } from '../services/movieService';
 import { reviewService } from '../services/reviewService';
 import { enumService } from '../services/enumService';
@@ -35,6 +36,7 @@ export default function MovieDetail() {
   const [selectedReviewId, setSelectedReviewId] = useState(null);
   const [reportReason, setReportReason] = useState('');
   const [showReportSuccess, setShowReportSuccess] = useState(false);
+  const [toast, setToast] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const reviewsPerPage = 4;
   const [showAgeConfirmModal, setShowAgeConfirmModal] = useState(false);
@@ -355,7 +357,7 @@ export default function MovieDetail() {
 
     const token = localStorage.getItem('jwt');
     if (!token) {
-      alert('Vui lòng đăng nhập để thêm phim vào yêu thích');
+      setToast({ message: 'Vui lòng đăng nhập để thêm phim vào yêu thích', type: 'warning' });
       return;
     }
 
@@ -366,21 +368,23 @@ export default function MovieDetail() {
         const result = await favoriteService.removeFavorite(movie.movieId);
         if (result.success) {
           setIsFavorite(false);
+          setToast({ message: 'Đã xóa phim khỏi yêu thích', type: 'success' });
         } else {
-          alert(result.error || 'Không thể xóa phim khỏi yêu thích');
+          setToast({ message: result.error || 'Không thể xóa phim khỏi yêu thích', type: 'error' });
         }
       } else {
         // Add to favorites
         const result = await favoriteService.addFavorite(movie.movieId);
         if (result.success) {
           setIsFavorite(true);
+          setToast({ message: 'Đã thêm phim vào yêu thích', type: 'success' });
         } else {
-          alert(result.error || 'Không thể thêm phim vào yêu thích');
+          setToast({ message: result.error || 'Không thể thêm phim vào yêu thích', type: 'error' });
         }
       }
     } catch (err) {
       console.error('Error toggling favorite:', err);
-      alert(err.message || 'Có lỗi xảy ra');
+      setToast({ message: err.message || 'Có lỗi xảy ra', type: 'error' });
     } finally {
       setLoadingFavorite(false);
     }
@@ -390,8 +394,10 @@ export default function MovieDetail() {
   const handleOpenReportModal = (reviewId) => {
     const token = localStorage.getItem('jwt');
     if (!token) {
-      alert('Bạn cần đăng nhập để báo cáo đánh giá');
-      navigate('/login');
+      setToast({ message: 'Bạn cần đăng nhập để báo cáo đánh giá', type: 'warning' });
+      setTimeout(() => {
+        navigate('/login');
+      }, 1500);
       return;
     }
     setSelectedReviewId(reviewId);
@@ -416,7 +422,7 @@ export default function MovieDetail() {
         setShowReportSuccess(false);
       }, 3000);
     } catch (err) {
-      alert(err.message || 'Có lỗi xảy ra khi báo cáo đánh giá');
+      setToast({ message: err.message || 'Có lỗi xảy ra khi báo cáo đánh giá', type: 'error' });
     } finally {
       setReportingReviewId(null);
     }
@@ -1452,6 +1458,15 @@ export default function MovieDetail() {
       )}
 
       <Footer />
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }
