@@ -46,7 +46,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
     return `${year}-${month}-${day}`;
   };
   
-  const [date, setDate] = useState(getTodayDate()); // Default: Hôm nay
+  const [date, setDate] = useState('all'); // Default: Tất cả ('all' = all dates, YYYY-MM-DD = specific date)
   const [province, setProvince] = useState(''); // Default: Tất cả (empty = all provinces)
   const [cinema, setCinema] = useState(''); // Default: Tất cả (empty = all cinemas)
   const [format, setFormat] = useState('Tất cả');
@@ -69,7 +69,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
       // Reset to "Tất cả" (empty = all)
       setProvince('');
       setCinema('');
-      // Keep date as today (don't reset it)
+      setDate('all'); // Reset to "Tất cả" dates
       setFormat('Tất cả');
     } else {
       // Close login modal when main modal closes
@@ -77,11 +77,13 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
     }
   }, [isOpen]);
   
-  // Load showtimes when modal opens with today's date
+  // Load showtimes when modal opens - load all dates if "all" is selected
   useEffect(() => {
-    if (isOpen && onFiltersChange && options.movieId && date) {
-      // Load with today's date and all provinces
-      onFiltersChange(options.movieId, null, date);
+    if (isOpen && onFiltersChange && options.movieId) {
+      // If date is "all", pass null to get all dates
+      // Otherwise pass the selected date
+      const dateToUse = date === 'all' ? null : date;
+      onFiltersChange(options.movieId, null, dateToUse);
     }
   }, [isOpen, options.movieId]);
   
@@ -92,8 +94,12 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
       // If province is empty, pass null to get all provinces
       const provinceToUse = (province && province.trim() !== '') ? province : null;
       
+      // If date is "all", pass null to get all dates
+      // Otherwise pass the selected date
+      const dateToUse = date === 'all' ? null : date;
+      
       // Call with current date and province filter
-      onFiltersChange(options.movieId, provinceToUse, date);
+      onFiltersChange(options.movieId, provinceToUse, dateToUse);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [province, date, options.movieId, isOpen]);
@@ -168,13 +174,16 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
             </label>
             <label className="field">
               <span className="field__label">Ngày</span>
-              <input 
+              <select 
                 className="field__input" 
-                type="date" 
                 value={date} 
                 onChange={(e)=>setDate(e.target.value)}
-                placeholder="Tất cả"
-              />
+              >
+                <option value="all">Tất cả</option>
+                {dates.map(d => (
+                  <option key={d.key} value={d.key}>{d.label}</option>
+                ))}
+              </select>
             </label>
           </div>
         </div>
@@ -225,75 +234,179 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
                 show = formatShowtimes;
               }
               
-              // Filter by date nếu có chọn
-              if (date && date.trim() !== '') {
-                // Note: Date filtering should be done at API level, but we can filter here too
-                // For now, we'll show all showtimes and let API handle date filtering
+              // Filter by date nếu có chọn (không phải "Tất cả")
+              let filteredShow = show;
+              if (date && date !== 'all' && date.trim() !== '') {
+                // Filter showtimes by selected date
+                filteredShow = show.filter(timeData => {
+                  const showtimeDate = typeof timeData === 'object' && timeData.date 
+                    ? timeData.date 
+                    : null;
+                  return showtimeDate === date;
+                });
               }
               
-              if (show.length === 0) {
+              // Group showtimes by date if "Tất cả" is selected
+              const showtimesByDate = {};
+              if (date === 'all') {
+                filteredShow.forEach(timeData => {
+                  const showtimeDate = typeof timeData === 'object' && timeData.date 
+                    ? timeData.date 
+                    : null;
+                  if (showtimeDate) {
+                    if (!showtimesByDate[showtimeDate]) {
+                      showtimesByDate[showtimeDate] = [];
+                    }
+                    showtimesByDate[showtimeDate].push(timeData);
+                  } else {
+                    // If no date info, add to a default group
+                    if (!showtimesByDate['unknown']) {
+                      showtimesByDate['unknown'] = [];
+                    }
+                    showtimesByDate['unknown'].push(timeData);
+                  }
+                });
+              }
+              
+              if (filteredShow.length === 0) {
                 return null; // Don't render cinema if no showtimes
               }
               
+              // Format date for display
+              const formatDateDisplay = (dateStr) => {
+                if (!dateStr || dateStr === 'unknown') return '';
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' });
+              };
+              
               return (
-                <div key={c.id} className="cinema-item" style={{ display: show.length === 0 ? 'none' : 'block' }}>
+                <div key={c.id} className="cinema-item" style={{ display: filteredShow.length === 0 ? 'none' : 'block' }}>
                   <div className="cinema-item__head">
                     <div className="cinema-item__name">{c.name}</div>
                     <div className="cinema-item__format">{format === 'Tất cả' ? 'Tất cả định dạng' : format}</div>
                   </div>
-                  <div className="cinema-item__times">
-                    {show.length === 0 ? (
-                      <span className="card__meta">Chưa có suất</span>
-                    ) : (
-                      show.map((timeData) => {
-                        // timeData can be just a time string or an object with time and showtimeId
-                        const timeStr = typeof timeData === 'string' ? timeData : timeData.time;
-                        const showtimeId = typeof timeData === 'object' && timeData.showtimeId ? timeData.showtimeId : null;
-                        
-                        // Build booking URL with parameters
-                        const bookingParams = new URLSearchParams({
-                          movieId: options.movieId || '',
-                          cinemaId: c.id,
-                          showtime: timeStr,
-                          date: date,
-                          format: format,
-                          cinemaName: c.name
-                        });
-                        
-                        // Add showtimeId if available
-                        if (showtimeId) {
-                          bookingParams.append('showtimeId', showtimeId);
-                        }
-                        
-                        const bookingUrl = `/booking?${bookingParams.toString()}`;
-                        return (
-                          <button
-                            key={timeStr}
-                            onClick={() => {
-                              // Check if user is logged in
-                              const token = localStorage.getItem('jwt');
-                              if (!token) {
-                                // Show login modal if not logged in
-                                setShowLoginModal(true);
-                                return;
-                              }
-                              
-                              // If logged in, proceed with booking
-                              if (onShowtimeClick) {
-                                onShowtimeClick(bookingUrl);
-                              } else {
-                                window.location.href = bookingUrl;
-                              }
-                            }}
-                            className="btn" 
-                            style={{ padding: '8px 12px', background: '#2d2627', border: '1px solid #4a3f41', color: '#fff', cursor: 'pointer' }}
-                          >
-                            {timeStr}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
+                  
+                  {date === 'all' && Object.keys(showtimesByDate).length > 0 ? (
+                    // Show grouped by date when "Tất cả" is selected
+                    Object.keys(showtimesByDate).sort().map(dateKey => (
+                      <div key={dateKey} style={{ marginBottom: '20px' }}>
+                        <div style={{ 
+                          fontSize: '14px', 
+                          fontWeight: 600, 
+                          color: '#ffd159', 
+                          marginBottom: '8px',
+                          paddingBottom: '4px',
+                          borderBottom: '1px solid rgba(255, 209, 89, 0.3)'
+                        }}>
+                          {formatDateDisplay(dateKey) || 'Ngày khác'}
+                        </div>
+                        <div className="cinema-item__times">
+                          {showtimesByDate[dateKey].map((timeData) => {
+                            const timeStr = typeof timeData === 'string' ? timeData : timeData.time;
+                            const showtimeId = typeof timeData === 'object' && timeData.showtimeId ? timeData.showtimeId : null;
+                            const showtimeDate = typeof timeData === 'object' && timeData.date ? timeData.date : dateKey;
+                            
+                            // Build booking URL with parameters
+                            const bookingParams = new URLSearchParams({
+                              movieId: options.movieId || '',
+                              cinemaId: c.id,
+                              showtime: timeStr,
+                              date: showtimeDate,
+                              format: format,
+                              cinemaName: c.name
+                            });
+                            
+                            // Add showtimeId if available
+                            if (showtimeId) {
+                              bookingParams.append('showtimeId', showtimeId);
+                            }
+                            
+                            const bookingUrl = `/booking?${bookingParams.toString()}`;
+                            return (
+                              <button
+                                key={`${dateKey}-${timeStr}`}
+                                onClick={() => {
+                                  // Check if user is logged in
+                                  const token = localStorage.getItem('jwt');
+                                  if (!token) {
+                                    // Show login modal if not logged in
+                                    setShowLoginModal(true);
+                                    return;
+                                  }
+                                  
+                                  // If logged in, proceed with booking
+                                  if (onShowtimeClick) {
+                                    onShowtimeClick(bookingUrl);
+                                  } else {
+                                    window.location.href = bookingUrl;
+                                  }
+                                }}
+                                className="btn" 
+                                style={{ padding: '8px 12px', background: '#2d2627', border: '1px solid #4a3f41', color: '#fff', cursor: 'pointer' }}
+                              >
+                                {timeStr}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    // Show normally when specific date is selected
+                    <div className="cinema-item__times">
+                      {filteredShow.length === 0 ? (
+                        <span className="card__meta">Chưa có suất</span>
+                      ) : (
+                        filteredShow.map((timeData) => {
+                          const timeStr = typeof timeData === 'string' ? timeData : timeData.time;
+                          const showtimeId = typeof timeData === 'object' && timeData.showtimeId ? timeData.showtimeId : null;
+                          const showtimeDate = typeof timeData === 'object' && timeData.date ? timeData.date : date;
+                          
+                          // Build booking URL with parameters
+                          const bookingParams = new URLSearchParams({
+                            movieId: options.movieId || '',
+                            cinemaId: c.id,
+                            showtime: timeStr,
+                            date: showtimeDate,
+                            format: format,
+                            cinemaName: c.name
+                          });
+                          
+                          // Add showtimeId if available
+                          if (showtimeId) {
+                            bookingParams.append('showtimeId', showtimeId);
+                          }
+                          
+                          const bookingUrl = `/booking?${bookingParams.toString()}`;
+                          return (
+                            <button
+                              key={timeStr}
+                              onClick={() => {
+                                // Check if user is logged in
+                                const token = localStorage.getItem('jwt');
+                                if (!token) {
+                                  // Show login modal if not logged in
+                                  setShowLoginModal(true);
+                                  return;
+                                }
+                                
+                                // If logged in, proceed with booking
+                                if (onShowtimeClick) {
+                                  onShowtimeClick(bookingUrl);
+                                } else {
+                                  window.location.href = bookingUrl;
+                                }
+                              }}
+                              className="btn" 
+                              style={{ padding: '8px 12px', background: '#2d2627', border: '1px solid #4a3f41', color: '#fff', cursor: 'pointer' }}
+                            >
+                              {timeStr}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

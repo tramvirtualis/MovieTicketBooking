@@ -284,22 +284,30 @@ export default function MovieDetail() {
             }
             
             // Format time as HH:mm - giống như Schedule.jsx
-            const time = item.startTime 
-              ? new Date(item.startTime).toLocaleTimeString('vi-VN', {
+            const startTime = item.startTime ? new Date(item.startTime) : null;
+            const time = startTime
+              ? startTime.toLocaleTimeString('vi-VN', {
                   hour: '2-digit',
                   minute: '2-digit',
                   hour12: false,
                 })
               : '';
             
-            // Store as object with time and showtimeId
+            // Get date in YYYY-MM-DD format for grouping
+            const dateKey = startTime ? startTime.toISOString().slice(0, 10) : null;
+            
+            // Store as object with time, showtimeId, and date
             if (time) {
               const showtimeData = {
                 time: time,
-                showtimeId: item.showtimeId
+                showtimeId: item.showtimeId,
+                date: dateKey, // Store date for grouping when "Tất cả" is selected
+                startTime: item.startTime // Keep original startTime for date formatting
               };
-              // Check if time already exists
-              const existingIndex = showtimesByCinema[cinemaId][format].findIndex(st => st.time === time);
+              // Check if time already exists for this date
+              const existingIndex = showtimesByCinema[cinemaId][format].findIndex(
+                st => st.time === time && st.date === dateKey
+              );
               if (existingIndex === -1) {
                 showtimesByCinema[cinemaId][format].push(showtimeData);
               }
