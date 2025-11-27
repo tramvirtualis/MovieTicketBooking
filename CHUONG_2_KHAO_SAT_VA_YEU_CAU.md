@@ -110,7 +110,7 @@ Quản trị viên là người có quyền cao nhất trong hệ thống, có q
 
 **Quản lý rạp và phòng chiếu:** Quản trị viên có thể tạo mới, chỉnh sửa, và xóa các cụm rạp và phòng chiếu trong hệ thống. Quản trị viên có thể quản lý thông tin về rạp như tên, địa chỉ, số điện thoại, và các tiện ích. Quản trị viên có thể tạo mới phòng chiếu, cấu hình số lượng và loại ghế, và quản lý các tiện ích của phòng chiếu.
 
-**Quản lý suất chiếu:** Quản trị viên có thể xem và quản lý tất cả các suất chiếu trong hệ thống, không giới hạn bởi rạp. Quản trị viên có thể tạo mới, chỉnh sửa, và xóa suất chiếu cho bất kỳ rạp nào. Quản trị viên có thể xem thống kê về số lượng vé đã bán cho từng suất chiếu và toàn bộ hệ thống.
+**Quản lý suất chiếu:** Quản trị viên có thể xem tất cả các suất chiếu trong hệ thống, không giới hạn bởi rạp, để theo dõi và giám sát hoạt động chiếu phim. Quản trị viên có thể xem thống kê về số lượng vé đã bán cho từng suất chiếu và toàn bộ hệ thống. Tuy nhiên, quản trị viên chỉ có quyền xem, không có quyền tạo mới, chỉnh sửa, hoặc xóa suất chiếu. Việc quản lý suất chiếu được giao cho quản lý rạp để đảm bảo tính linh hoạt và trách nhiệm rõ ràng.
 
 **Quản lý giá vé:** Quản trị viên có toàn quyền quản lý giá vé trong hệ thống, bao gồm thiết lập giá vé cho các loại ghế và định dạng phim khác nhau. Quản trị viên có thể tạo các bảng giá khác nhau cho các rạp khác nhau và quản lý các chính sách giá đặc biệt.
 
@@ -124,61 +124,161 @@ Quản trị viên là người có quyền cao nhất trong hệ thống, có q
 
 **Quản lý banner và quảng cáo:** Quản trị viên có thể quản lý các banner quảng cáo hiển thị trên trang web, bao gồm thêm mới, chỉnh sửa, và xóa banner. Quản trị viên có thể thiết lập thời gian hiển thị và vị trí hiển thị của banner.
 
-**Quản lý đánh giá:** Quản trị viên có thể xem và quản lý tất cả các đánh giá và nhận xét của khách hàng về phim. Quản trị viên có thể xóa các đánh giá không phù hợp hoặc vi phạm quy định.
+**Quản lý đánh giá:** Quản trị viên có thể xem và quản lý tất cả các đánh giá và nhận xét của khách hàng về phim. Khi phát hiện các đánh giá không phù hợp hoặc vi phạm quy định, quản trị viên có thể ẩn đánh giá đó để không hiển thị công khai trên hệ thống, nhưng không xóa hoàn toàn để đảm bảo tính minh bạch và có thể khôi phục lại nếu cần.
 
 **Quản lý hoạt động hệ thống:** Quản trị viên có thể xem nhật ký hoạt động của hệ thống, bao gồm các thao tác của người dùng và các sự kiện quan trọng. Điều này giúp quản trị viên theo dõi và kiểm soát hoạt động của hệ thống, cũng như phát hiện và xử lý các vấn đề bảo mật.
 
 ### 2.2.2. Các chức năng chính
 
-Hệ thống cung cấp một bộ chức năng đầy đủ để đáp ứng nhu cầu của cả khách hàng và quản lý, được tổ chức thành các module chính như sau:
+Hệ thống cung cấp một bộ chức năng đầy đủ và toàn diện để đáp ứng nhu cầu của cả khách hàng và quản lý, được tổ chức thành các module chính với các tính năng chi tiết như sau:
 
 #### 2.2.2.1. Module Xác thực và Quản lý Người dùng
 
-Module này cung cấp các chức năng cơ bản để quản lý người dùng và xác thực truy cập vào hệ thống. Các chức năng bao gồm đăng ký tài khoản mới với xác thực email, đăng nhập bằng tài khoản hệ thống hoặc Google OAuth, quên mật khẩu và đặt lại mật khẩu thông qua email OTP, quản lý thông tin cá nhân, và quản lý phiên đăng nhập với JWT token.
+Module Xác thực và Quản lý Người dùng là nền tảng của hệ thống, đảm bảo tính bảo mật và quản lý hiệu quả các tài khoản người dùng. Module này cung cấp các chức năng đăng ký tài khoản mới với quy trình xác thực email nghiêm ngặt. Khi người dùng đăng ký, hệ thống sẽ gửi một mã OTP (One-Time Password) đến email đã đăng ký để xác minh tính hợp lệ của địa chỉ email. Chỉ sau khi xác thực email thành công, tài khoản mới được kích hoạt và người dùng có thể sử dụng các chức năng của hệ thống.
+
+Module hỗ trợ đăng nhập đa dạng với hai phương thức chính: đăng nhập bằng tài khoản hệ thống (username/password) và đăng nhập thông qua Google OAuth 2.0. Việc tích hợp Google OAuth mang lại sự thuận tiện cho người dùng, cho phép họ đăng nhập nhanh chóng mà không cần nhớ thêm một bộ thông tin đăng nhập mới. Hệ thống sử dụng JWT (JSON Web Token) để quản lý phiên đăng nhập, đảm bảo tính bảo mật và hiệu quả. JWT token có thời gian hết hạn, yêu cầu người dùng đăng nhập lại sau một khoảng thời gian nhất định để tăng cường bảo mật.
+
+Chức năng quên mật khẩu được thực hiện thông qua email OTP. Khi người dùng yêu cầu đặt lại mật khẩu, hệ thống sẽ gửi một mã OTP đến email đã đăng ký. Người dùng nhập mã OTP để xác thực danh tính, sau đó có thể đặt mật khẩu mới. Quy trình này đảm bảo rằng chỉ chủ sở hữu email mới có thể đặt lại mật khẩu.
+
+Module cũng cung cấp các chức năng quản lý thông tin cá nhân, cho phép người dùng xem và cập nhật thông tin của mình như họ tên, email, số điện thoại, và địa chỉ. Hệ thống đảm bảo tính nhất quán của dữ liệu và cung cấp các validation để đảm bảo thông tin nhập vào là hợp lệ.
 
 #### 2.2.2.2. Module Quản lý Phim
 
-Module này cung cấp các chức năng để quản lý thông tin về phim trong hệ thống. Các chức năng bao gồm thêm mới, chỉnh sửa, và xóa phim, upload và quản lý poster và trailer phim, quản lý thông tin về phim như tiêu đề, mô tả, diễn viên, đạo diễn, thể loại, và độ tuổi cho phép, quản lý trạng thái phim (đang chiếu, sắp chiếu, đã kết thúc), tìm kiếm và lọc phim theo nhiều tiêu chí, và xem thống kê về số lượng vé đã bán cho từng phim.
+Module Quản lý Phim là trung tâm của hệ thống, quản lý toàn bộ thông tin về các bộ phim được chiếu tại rạp. Module này cung cấp giao diện quản lý phim toàn diện cho quản trị viên, cho phép thêm mới, chỉnh sửa, và xóa phim một cách dễ dàng. Khi thêm phim mới, quản trị viên có thể nhập đầy đủ thông tin về phim bao gồm tiêu đề (tiếng Việt và tiếng Anh), mô tả chi tiết, diễn viên, đạo diễn, thể loại, độ tuổi cho phép, thời lượng phim, ngày khởi chiếu, và ngày kết thúc.
+
+Module hỗ trợ upload và quản lý poster phim, cho phép quản trị viên upload hình ảnh poster chất lượng cao để hiển thị trên website. Hệ thống tích hợp với Cloudinary để lưu trữ và tối ưu hóa hình ảnh, đảm bảo tốc độ tải nhanh và chất lượng hình ảnh tốt trên mọi thiết bị. Module cũng hỗ trợ upload trailer phim, cho phép khách hàng xem trước phim trước khi quyết định đặt vé.
+
+Hệ thống quản lý trạng thái phim một cách linh hoạt với ba trạng thái chính: "đang chiếu" (NOW_SHOWING), "sắp chiếu" (COMING_SOON), và "đã kết thúc" (ENDED). Hệ thống tự động cập nhật trạng thái phim dựa trên ngày khởi chiếu và ngày kết thúc, đảm bảo thông tin luôn chính xác và cập nhật.
+
+Module cung cấp các công cụ tìm kiếm và lọc phim mạnh mẽ, cho phép khách hàng tìm kiếm phim theo tên, thể loại, rạp chiếu, ngày chiếu, và định dạng phim. Hệ thống cũng cung cấp các bộ lọc nâng cao để khách hàng có thể tìm được phim phù hợp với sở thích của mình một cách nhanh chóng.
+
+Module cung cấp thống kê chi tiết về số lượng vé đã bán cho từng phim, giúp quản lý đánh giá mức độ phổ biến của từng bộ phim và đưa ra các quyết định kinh doanh phù hợp.
 
 #### 2.2.2.3. Module Quản lý Rạp và Phòng chiếu
 
-Module này cung cấp các chức năng để quản lý thông tin về rạp và phòng chiếu. Các chức năng bao gồm quản lý thông tin về cụm rạp như tên, địa chỉ, số điện thoại, và các tiện ích, tạo mới và quản lý phòng chiếu, cấu hình số lượng và loại ghế trong phòng chiếu, quản lý các tiện ích của phòng chiếu, và xem thông tin chi tiết về từng rạp và phòng chiếu.
+Module Quản lý Rạp và Phòng chiếu quản lý toàn bộ cơ sở hạ tầng của hệ thống rạp chiếu phim. Module này cho phép quản trị viên tạo mới, chỉnh sửa, và xóa các cụm rạp trong hệ thống. Mỗi cụm rạp được quản lý với đầy đủ thông tin bao gồm tên rạp, địa chỉ chi tiết (số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố), số điện thoại liên hệ, email, và các tiện ích đi kèm như bãi đỗ xe, quầy đồ ăn, khu vực chờ, v.v.
+
+Module quản lý phòng chiếu một cách chi tiết, cho phép quản trị viên tạo mới phòng chiếu và cấu hình đầy đủ thông tin về phòng. Mỗi phòng chiếu được định nghĩa với số lượng hàng ghế, số lượng ghế mỗi hàng, loại ghế (thường, VIP, couple), và các tiện ích của phòng như màn hình IMAX, hệ thống âm thanh Dolby Atmos, ghế massage, v.v.
+
+Hệ thống tự động tạo sơ đồ ghế dựa trên cấu hình phòng chiếu, với mỗi ghế được đánh số và phân loại rõ ràng. Module hỗ trợ nhiều loại ghế khác nhau như ghế thường, ghế VIP, ghế couple, mỗi loại có mức giá khác nhau. Hệ thống cũng quản lý các vị trí đặc biệt như lối đi, màn hình, và các khu vực không thể đặt ghế.
+
+Module cung cấp giao diện xem thông tin chi tiết về từng rạp và phòng chiếu, cho phép quản lý và quản trị viên dễ dàng theo dõi và quản lý cơ sở hạ tầng của hệ thống.
 
 #### 2.2.2.4. Module Quản lý Suất chiếu
 
-Module này cung cấp các chức năng để quản lý lịch chiếu phim. Các chức năng bao gồm tạo mới, chỉnh sửa, và xóa suất chiếu, tự động kiểm tra xung đột thời gian khi tạo suất chiếu mới, quản lý lịch chiếu theo ngày, tuần, và tháng, xem thống kê về số lượng vé đã bán cho từng suất chiếu, và quản lý các định dạng phim (2D, 3D, IMAX, v.v.) cho từng suất chiếu.
+Module Quản lý Suất chiếu là một trong những module quan trọng nhất của hệ thống, quản lý lịch chiếu phim tại các rạp. Module này cung cấp giao diện quản lý lịch chiếu trực quan và mạnh mẽ cho quản lý rạp, cho phép tạo mới, chỉnh sửa, và xóa suất chiếu một cách dễ dàng.
+
+Khi tạo suất chiếu mới, quản lý rạp cần chọn phim, phòng chiếu, ngày chiếu, giờ bắt đầu, và định dạng phim (2D, 3D, IMAX, 4DX, v.v.). Hệ thống tự động tính toán thời gian kết thúc dựa trên thời lượng phim và thời gian dọn dẹp giữa các suất chiếu. Module tích hợp với Drools Business Rules Engine để tự động kiểm tra xung đột thời gian khi tạo suất chiếu mới. Hệ thống sẽ cảnh báo quản lý nếu có xung đột với các suất chiếu khác trong cùng phòng, đảm bảo không có hai suất chiếu cùng diễn ra trong một phòng tại cùng một thời điểm.
+
+Module cung cấp giao diện xem lịch chiếu theo nhiều định dạng khác nhau: xem theo ngày để thấy tất cả suất chiếu trong ngày, xem theo tuần để có cái nhìn tổng quan về lịch chiếu trong tuần, và xem theo tháng để lập kế hoạch dài hạn. Giao diện hiển thị lịch chiếu dưới dạng timeline, cho phép quản lý dễ dàng nhận biết các khoảng trống trong lịch chiếu và tối ưu hóa việc sử dụng phòng chiếu.
+
+Module cung cấp thống kê chi tiết về số lượng vé đã bán cho từng suất chiếu, giúp quản lý đánh giá hiệu quả của từng suất chiếu và điều chỉnh lịch chiếu phù hợp. Hệ thống cũng cung cấp thông tin về số ghế còn trống, tỷ lệ lấp đầy, và doanh thu của từng suất chiếu.
+
+Đối với quản trị viên, module chỉ cung cấp quyền xem lịch chiếu để theo dõi và giám sát hoạt động chiếu phim trên toàn hệ thống, nhưng không có quyền chỉnh sửa để đảm bảo tính phân quyền và trách nhiệm rõ ràng.
 
 #### 2.2.2.5. Module Đặt vé và Chọn ghế
 
-Module này cung cấp các chức năng cốt lõi để khách hàng đặt vé xem phim. Các chức năng bao gồm chọn phim và suất chiếu, xem sơ đồ ghế tương tác với thông tin về loại ghế và giá vé, chọn ghế ngồi với cập nhật trạng thái real-time thông qua WebSocket, đặt combo đồ ăn kèm theo vé, xem tổng tiền và áp dụng voucher giảm giá, và xác nhận thông tin đặt vé trước khi thanh toán.
+Module Đặt vé và Chọn ghế là module cốt lõi của hệ thống, cung cấp trải nghiệm đặt vé trực quan và thuận tiện cho khách hàng. Module này được thiết kế với giao diện người dùng thân thiện, đảm bảo quy trình đặt vé diễn ra mượt mà và nhanh chóng.
+
+Quy trình đặt vé bắt đầu từ việc khách hàng chọn phim và suất chiếu. Hệ thống hiển thị danh sách các phim đang chiếu và sắp chiếu với đầy đủ thông tin và hình ảnh poster. Khách hàng có thể lọc phim theo nhiều tiêu chí như rạp chiếu, ngày chiếu, định dạng phim, và thể loại. Sau khi chọn phim, khách hàng được hiển thị danh sách các suất chiếu có sẵn với thông tin về thời gian, phòng chiếu, và định dạng.
+
+Khi khách hàng chọn suất chiếu, hệ thống hiển thị sơ đồ ghế tương tác với đầy đủ thông tin về vị trí và loại ghế. Sơ đồ ghế được thiết kế trực quan với màu sắc rõ ràng để phân biệt các trạng thái ghế: ghế trống (có thể chọn), ghế đã được chọn bởi người khác (không thể chọn), ghế đã được bán (không thể chọn), và ghế VIP (có giá cao hơn). Hệ thống hiển thị giá vé cho từng loại ghế, giúp khách hàng đưa ra quyết định phù hợp.
+
+Module sử dụng WebSocket để cập nhật trạng thái ghế theo thời gian thực, đảm bảo rằng khi một khách hàng chọn ghế, tất cả khách hàng khác đang xem cùng suất chiếu sẽ thấy ghế đó đã được chọn ngay lập tức. Điều này ngăn chặn tình trạng nhiều người cùng chọn một ghế và tạo ra xung đột. Hệ thống cũng tự động giải phóng ghế sau một khoảng thời gian nhất định (2 phút) nếu khách hàng không hoàn tất việc thanh toán, đảm bảo ghế không bị giữ quá lâu.
+
+Sau khi chọn ghế, khách hàng có thể đặt combo đồ ăn kèm theo vé. Module hiển thị danh sách các combo có sẵn với hình ảnh, mô tả, và giá. Khách hàng có thể chọn số lượng combo và xem tổng tiền được cập nhật ngay lập tức. Hệ thống cũng cho phép khách hàng áp dụng voucher giảm giá nếu có, với khả năng tự động tính toán số tiền được giảm và tổng tiền cuối cùng.
+
+Trước khi thanh toán, hệ thống hiển thị một trang xác nhận với đầy đủ thông tin về đơn hàng: thông tin phim, suất chiếu, ghế đã chọn, combo đồ ăn, voucher đã áp dụng, và tổng tiền. Khách hàng có thể xem lại và chỉnh sửa trước khi xác nhận đặt vé.
 
 #### 2.2.2.6. Module Thanh toán
 
-Module này cung cấp các chức năng để xử lý thanh toán đơn hàng. Các chức năng bao gồm tích hợp với các cổng thanh toán ZaloPay và MoMo, xử lý callback từ cổng thanh toán để cập nhật trạng thái đơn hàng, quản lý trạng thái thanh toán (chờ thanh toán, đã thanh toán, thanh toán thất bại), gửi thông báo xác nhận thanh toán cho khách hàng, và xử lý hoàn tiền trong trường hợp cần thiết.
+Module Thanh toán là module quan trọng đảm bảo việc xử lý các giao dịch thanh toán một cách an toàn và hiệu quả. Module này tích hợp với hai cổng thanh toán phổ biến tại Việt Nam là ZaloPay và MoMo, cung cấp nhiều lựa chọn thanh toán cho khách hàng.
+
+Khi khách hàng xác nhận đặt vé, hệ thống tạo một đơn hàng với trạng thái "PENDING" (chờ thanh toán) và gọi API của cổng thanh toán được chọn để tạo yêu cầu thanh toán. Hệ thống truyền đầy đủ thông tin về đơn hàng bao gồm số tiền, mô tả đơn hàng, và thông tin khách hàng. Cổng thanh toán xử lý yêu cầu và trả về URL thanh toán, hệ thống sẽ chuyển hướng khách hàng đến trang thanh toán của cổng thanh toán.
+
+Sau khi khách hàng thực hiện thanh toán trên trang của cổng thanh toán, cổng thanh toán sẽ gửi callback về server để thông báo kết quả thanh toán. Module xử lý callback một cách an toàn bằng cách kiểm tra signature để đảm bảo callback đến từ cổng thanh toán hợp lệ. Nếu thanh toán thành công, hệ thống cập nhật trạng thái đơn hàng thành "PAID" (đã thanh toán), tạo vé và ticket tương ứng, và gửi thông báo xác nhận cho khách hàng.
+
+Module quản lý trạng thái thanh toán một cách chi tiết với các trạng thái: "PENDING" (chờ thanh toán), "PAID" (đã thanh toán), "FAILED" (thanh toán thất bại), và "REFUNDED" (đã hoàn tiền). Hệ thống tự động cập nhật trạng thái dựa trên kết quả từ cổng thanh toán và cung cấp cơ chế để xử lý các trường hợp thanh toán thất bại hoặc cần hoàn tiền.
+
+Module cung cấp chức năng gửi thông báo xác nhận thanh toán cho khách hàng qua nhiều kênh: thông báo real-time trên website, email xác nhận với thông tin chi tiết về đơn hàng, và mã QR code để sử dụng khi đến rạp. Hệ thống cũng cung cấp cơ chế để xử lý hoàn tiền trong các trường hợp đặc biệt như hủy đơn hàng hoặc có vấn đề với dịch vụ.
 
 #### 2.2.2.7. Module Quản lý Đơn hàng
 
-Module này cung cấp các chức năng để quản lý đơn hàng trong hệ thống. Các chức năng bao gồm xem danh sách đơn hàng với khả năng tìm kiếm và lọc, xem chi tiết từng đơn hàng bao gồm thông tin về phim, suất chiếu, ghế ngồi, và combo đồ ăn, quản lý trạng thái đơn hàng, xuất mã QR code cho vé, và quản lý lịch sử đơn hàng của khách hàng.
+Module Quản lý Đơn hàng cung cấp các công cụ toàn diện để quản lý và theo dõi tất cả các đơn hàng trong hệ thống. Module này phục vụ cả khách hàng, quản lý rạp, và quản trị viên với các quyền truy cập khác nhau.
+
+Đối với khách hàng, module cung cấp trang "Lịch sử đơn hàng" cho phép xem tất cả các đơn hàng của mình, bao gồm cả đơn hàng đã hoàn thành và đang chờ thanh toán. Khách hàng có thể xem chi tiết từng đơn hàng với đầy đủ thông tin: thông tin phim (tên phim, poster), thông tin suất chiếu (ngày, giờ, phòng chiếu), thông tin ghế ngồi (số ghế, loại ghế), thông tin combo đồ ăn (tên combo, số lượng, giá), thông tin thanh toán (phương thức thanh toán, số tiền, trạng thái), và mã QR code để sử dụng khi đến rạp.
+
+Module cung cấp mã QR code duy nhất cho mỗi vé, chứa đầy đủ thông tin về đơn hàng và có thể được quét tại rạp để xác thực và sử dụng. Mã QR code được hiển thị rõ ràng trên trang chi tiết đơn hàng và có thể được tải xuống để lưu trữ trên điện thoại.
+
+Đối với quản lý rạp, module cung cấp giao diện quản lý đơn hàng với khả năng xem tất cả các đơn hàng liên quan đến rạp của mình, bao gồm cả đơn vé và đơn đồ ăn. Quản lý có thể tìm kiếm và lọc đơn hàng theo nhiều tiêu chí: ngày đặt hàng, phim, suất chiếu, trạng thái thanh toán, loại đơn hàng (vé phim hoặc đồ ăn), và thông tin khách hàng. Module cung cấp các công cụ tìm kiếm mạnh mẽ, cho phép quản lý nhanh chóng tìm được đơn hàng cần thiết.
+
+Đối với quản trị viên, module cung cấp quyền truy cập toàn bộ đơn hàng trong hệ thống, không giới hạn bởi rạp. Quản trị viên có thể xem, tìm kiếm, và lọc đơn hàng trên toàn hệ thống, xem chi tiết từng đơn hàng, và thực hiện các thao tác quản lý như hủy đơn hàng hoặc hoàn tiền trong các trường hợp đặc biệt.
+
+Module cung cấp các báo cáo và thống kê về đơn hàng, giúp quản lý và quản trị viên đánh giá hiệu quả kinh doanh và đưa ra các quyết định phù hợp.
 
 #### 2.2.2.8. Module Quản lý Voucher và Khuyến mãi
 
-Module này cung cấp các chức năng để quản lý voucher và các chương trình khuyến mãi. Các chức năng bao gồm tạo mới, chỉnh sửa, và xóa voucher, thiết lập các điều kiện sử dụng voucher như giá trị đơn hàng tối thiểu, thời gian hiệu lực, và số lượng voucher, gán voucher cho khách hàng cụ thể hoặc công khai cho tất cả khách hàng, áp dụng voucher khi thanh toán, và quản lý việc sử dụng voucher.
+Module Quản lý Voucher và Khuyến mãi cung cấp các công cụ mạnh mẽ để quản lý các chương trình khuyến mãi và voucher giảm giá. Module này cho phép quản trị viên tạo và quản lý các voucher với nhiều tùy chọn linh hoạt.
+
+Khi tạo voucher mới, quản trị viên có thể thiết lập nhiều thông tin: mã voucher (có thể tự động sinh hoặc nhập thủ công), loại giảm giá (giảm theo phần trăm hoặc giảm theo số tiền cố định), giá trị giảm giá, giá trị đơn hàng tối thiểu để sử dụng voucher, thời gian hiệu lực (ngày bắt đầu và ngày kết thúc), số lượng voucher (tổng số voucher có thể phát hành), và phạm vi áp dụng (toàn hệ thống hoặc chỉ một số rạp cụ thể).
+
+Module hỗ trợ hai cách phân phối voucher: công khai cho tất cả khách hàng hoặc gán cho các khách hàng cụ thể. Khi voucher được công khai, tất cả khách hàng đều có thể sử dụng nếu đáp ứng các điều kiện. Khi voucher được gán cho khách hàng cụ thể, chỉ những khách hàng đó mới có thể sử dụng voucher.
+
+Module tự động kiểm tra tính hợp lệ của voucher khi khách hàng cố gắng sử dụng: kiểm tra thời gian hiệu lực, giá trị đơn hàng tối thiểu, số lượng voucher còn lại, và quyền sử dụng của khách hàng. Hệ thống tự động tính toán số tiền được giảm và cập nhật tổng tiền cuối cùng.
+
+Module quản lý việc sử dụng voucher một cách chi tiết, theo dõi số lượng voucher đã được sử dụng, số lượng còn lại, và các đơn hàng đã sử dụng voucher. Hệ thống cung cấp thống kê về hiệu quả của từng voucher, giúp quản trị viên đánh giá và điều chỉnh các chương trình khuyến mãi.
 
 #### 2.2.2.9. Module Quản lý Đồ ăn
 
-Module này cung cấp các chức năng để quản lý menu đồ ăn và đồ uống. Các chức năng bao gồm thêm mới, chỉnh sửa, và xóa combo đồ ăn, upload hình ảnh cho combo, thiết lập giá và mô tả combo, quản lý tình trạng còn hàng, và xem thống kê về số lượng combo đã bán.
+Module Quản lý Đồ ăn cung cấp các công cụ để quản lý menu đồ ăn và đồ uống trong hệ thống. Module này cho phép quản trị viên tạo và quản lý các combo đồ ăn với đầy đủ thông tin và hình ảnh.
+
+Khi tạo combo đồ ăn mới, quản trị viên có thể nhập thông tin chi tiết: tên combo, mô tả (các món ăn và đồ uống trong combo), giá, và upload hình ảnh. Module tích hợp với Cloudinary để lưu trữ và tối ưu hóa hình ảnh, đảm bảo hình ảnh được hiển thị đẹp và tải nhanh trên mọi thiết bị.
+
+Module quản lý tình trạng còn hàng của từng combo, cho phép quản trị viên đánh dấu combo là "còn hàng" hoặc "hết hàng". Khi combo hết hàng, hệ thống tự động ẩn combo khỏi danh sách khi khách hàng đặt vé, đảm bảo khách hàng chỉ có thể đặt những combo còn sẵn.
+
+Module cung cấp thống kê về số lượng combo đã bán, giúp quản trị viên đánh giá mức độ phổ biến của từng combo và điều chỉnh menu phù hợp. Hệ thống cũng cung cấp thông tin về doanh thu từ đồ ăn, giúp quản lý đánh giá hiệu quả kinh doanh của phần đồ ăn.
+
+Khi khách hàng đặt vé, module hiển thị danh sách các combo có sẵn với hình ảnh, mô tả, và giá. Khách hàng có thể chọn số lượng combo và xem tổng tiền được cập nhật ngay lập tức. Hệ thống tự động tính toán tổng tiền cho combo dựa trên số lượng đã chọn.
 
 #### 2.2.2.10. Module Báo cáo và Thống kê
 
-Module này cung cấp các chức năng để tạo báo cáo và phân tích dữ liệu kinh doanh. Các chức năng bao gồm xem báo cáo doanh thu theo ngày, tuần, tháng, và năm, xem báo cáo số lượng vé bán ra, xem báo cáo doanh thu theo phim và rạp, xem báo cáo doanh thu từ đồ ăn, xuất báo cáo ra file Excel, và xem các biểu đồ và đồ thị trực quan.
+Module Báo cáo và Thống kê là công cụ mạnh mẽ để phân tích dữ liệu kinh doanh và đưa ra các quyết định dựa trên dữ liệu. Module này cung cấp các báo cáo chi tiết và trực quan cho cả quản lý rạp và quản trị viên.
+
+Module cung cấp báo cáo doanh thu theo nhiều khoảng thời gian khác nhau: theo ngày để theo dõi doanh thu hàng ngày, theo tuần để có cái nhìn tổng quan về doanh thu trong tuần, theo tháng để đánh giá hiệu quả kinh doanh trong tháng, và theo năm để lập kế hoạch dài hạn. Mỗi báo cáo có thể được lọc theo rạp, phim, hoặc các tiêu chí khác để có được thông tin chi tiết hơn.
+
+Module cung cấp báo cáo số lượng vé bán ra, cho phép quản lý và quản trị viên đánh giá mức độ phổ biến của từng phim và suất chiếu. Báo cáo này giúp xác định các phim và suất chiếu có hiệu quả cao và điều chỉnh lịch chiếu phù hợp.
+
+Module cung cấp báo cáo doanh thu theo phim, cho phép đánh giá hiệu quả kinh doanh của từng bộ phim. Báo cáo này giúp quản lý quyết định nên tiếp tục chiếu phim nào và dừng chiếu phim nào. Module cũng cung cấp báo cáo doanh thu theo rạp, cho phép so sánh hiệu quả kinh doanh giữa các rạp khác nhau.
+
+Module cung cấp báo cáo doanh thu từ đồ ăn, cho phép đánh giá hiệu quả của phần kinh doanh đồ ăn. Báo cáo này giúp quản lý điều chỉnh menu và giá cả để tối ưu hóa doanh thu.
+
+Tất cả các báo cáo được hiển thị dưới dạng biểu đồ và đồ thị trực quan, sử dụng Recharts để tạo các biểu đồ đẹp mắt và dễ hiểu. Module cung cấp nhiều loại biểu đồ khác nhau: biểu đồ cột để so sánh doanh thu giữa các khoảng thời gian, biểu đồ đường để theo dõi xu hướng doanh thu, và biểu đồ tròn để phân tích tỷ lệ doanh thu từ các nguồn khác nhau.
+
+Module cung cấp chức năng xuất báo cáo ra file Excel, cho phép quản lý và quản trị viên tải xuống và phân tích chi tiết hơn. File Excel chứa đầy đủ dữ liệu với các định dạng phù hợp, giúp dễ dàng tạo các báo cáo tùy chỉnh.
 
 #### 2.2.2.11. Module Đánh giá và Phản hồi
 
-Module này cung cấp các chức năng để khách hàng đánh giá và phản hồi về phim. Các chức năng bao gồm viết đánh giá và nhận xét về phim, xem đánh giá của các khách hàng khác, yêu thích phim và xem danh sách phim yêu thích, và quản lý đánh giá (cho quản trị viên).
+Module Đánh giá và Phản hồi cung cấp nền tảng để khách hàng chia sẻ ý kiến và đánh giá về các bộ phim đã xem. Module này tạo ra một cộng đồng người dùng tích cực và giúp các khách hàng khác có thêm thông tin để quyết định xem phim.
+
+Khách hàng có thể viết đánh giá và nhận xét về các bộ phim đã xem, với khả năng đánh giá bằng sao (từ 1 đến 5 sao) và viết nhận xét chi tiết. Hệ thống chỉ cho phép khách hàng đánh giá các phim mà họ đã đặt vé và thanh toán thành công, đảm bảo tính xác thực của đánh giá.
+
+Module hiển thị tất cả các đánh giá của khách hàng về một bộ phim, cho phép khách hàng khác xem và tham khảo trước khi quyết định xem phim. Hệ thống hiển thị điểm đánh giá trung bình và số lượng đánh giá, giúp khách hàng có cái nhìn tổng quan về chất lượng phim.
+
+Module cung cấp chức năng yêu thích phim, cho phép khách hàng đánh dấu các phim mà họ yêu thích và xem lại danh sách phim yêu thích của mình. Chức năng này giúp khách hàng dễ dàng theo dõi các phim mà họ quan tâm.
+
+Đối với quản trị viên, module cung cấp công cụ quản lý đánh giá. Quản trị viên có thể xem tất cả các đánh giá trong hệ thống, tìm kiếm và lọc đánh giá theo nhiều tiêu chí. Khi phát hiện các đánh giá không phù hợp hoặc vi phạm quy định (như nội dung không phù hợp, spam, hoặc đánh giá giả), quản trị viên có thể ẩn đánh giá đó để không hiển thị công khai trên hệ thống. Tuy nhiên, hệ thống không xóa hoàn toàn đánh giá để đảm bảo tính minh bạch và có thể khôi phục lại nếu cần. Đánh giá bị ẩn vẫn được lưu trữ trong database nhưng không hiển thị cho khách hàng khác.
 
 #### 2.2.2.12. Module Thông báo
 
-Module này cung cấp các chức năng để gửi thông báo cho người dùng. Các chức năng bao gồm gửi thông báo real-time thông qua WebSocket, gửi email thông báo về đơn hàng và thanh toán, gửi mã OTP qua email, quản lý lịch sử thông báo, và cài đặt tùy chọn nhận thông báo.
+Module Thông báo cung cấp hệ thống thông báo đa kênh để gửi thông tin quan trọng đến người dùng một cách kịp thời và hiệu quả. Module này sử dụng nhiều phương thức khác nhau để đảm bảo người dùng luôn nhận được thông báo quan trọng.
 
-Tất cả các module này được tích hợp chặt chẽ với nhau để tạo ra một hệ thống hoàn chỉnh và thống nhất, đáp ứng đầy đủ nhu cầu của cả khách hàng và quản lý trong việc đặt vé và quản lý rạp chiếu phim.
+Module cung cấp thông báo real-time thông qua WebSocket, cho phép gửi thông báo tức thời đến người dùng mà không cần họ phải tải lại trang. Thông báo real-time được sử dụng cho các sự kiện quan trọng như xác nhận thanh toán thành công, cập nhật trạng thái đơn hàng, và các thông báo hệ thống khác. Hệ thống hiển thị thông báo dưới dạng toast notification, xuất hiện ở góc màn hình và tự động biến mất sau một khoảng thời gian.
+
+Module cung cấp thông báo qua email cho các sự kiện quan trọng như xác nhận đặt vé, xác nhận thanh toán, và các thông báo về đơn hàng. Email được gửi tự động khi có sự kiện xảy ra và chứa đầy đủ thông tin về sự kiện. Module cũng sử dụng email để gửi mã OTP khi người dùng quên mật khẩu hoặc cần xác thực email.
+
+Module quản lý lịch sử thông báo, cho phép người dùng xem lại tất cả các thông báo đã nhận. Hệ thống lưu trữ thông báo trong database và hiển thị trong một trang riêng, cho phép người dùng xem lại các thông báo cũ và đánh dấu thông báo đã đọc.
+
+Module cung cấp cài đặt tùy chọn nhận thông báo, cho phép người dùng chọn loại thông báo mà họ muốn nhận. Người dùng có thể bật hoặc tắt thông báo cho từng loại sự kiện, đảm bảo họ chỉ nhận được những thông báo mà họ quan tâm.
+
+Tất cả các module này được tích hợp chặt chẽ với nhau để tạo ra một hệ thống hoàn chỉnh và thống nhất, đáp ứng đầy đủ nhu cầu của cả khách hàng và quản lý trong việc đặt vé và quản lý rạp chiếu phim. Mỗi module được thiết kế với các tính năng chi tiết và toàn diện, đảm bảo hệ thống hoạt động hiệu quả và mang lại trải nghiệm tốt nhất cho người dùng.
 
