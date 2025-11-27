@@ -3,19 +3,6 @@ import { useNavigate } from 'react-router-dom';
 
 export default function BookingModal({ isOpen, onClose, movieTitle, options, onShowtimeClick, onFiltersChange }) {
   const navigate = useNavigate();
-  const today = useMemo(() => new Date(), []);
-  const dates = useMemo(() => {
-    const arr = [];
-    for (let i = 0; i < 14; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() + i);
-      arr.push({
-        key: d.toISOString().slice(0,10),
-        label: d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })
-      });
-    }
-    return arr;
-  }, [today]);
 
   // Get unique provinces from showtimes (chỉ hiển thị provinces có showtimes)
   const provinces = useMemo(() => {
@@ -37,15 +24,42 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
     return Array.from(uniqueProvinces).sort();
   }, [options.cinemas, options.showtimes]);
 
-  // Initialize date with today's date in YYYY-MM-DD format
-  const getTodayDate = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  
+  // Get unique dates from showtimes (chỉ hiển thị ngày có showtimes)
+  const availableDates = useMemo(() => {
+    const uniqueDates = new Set();
+    
+    // Lấy tất cả các ngày từ showtimes
+    if (options.showtimes && Object.keys(options.showtimes).length > 0) {
+      Object.keys(options.showtimes).forEach(cinemaId => {
+        const cinemaShowtimes = options.showtimes[cinemaId];
+        if (cinemaShowtimes) {
+          Object.keys(cinemaShowtimes).forEach(format => {
+            const showtimes = cinemaShowtimes[format];
+            if (Array.isArray(showtimes)) {
+              showtimes.forEach(timeData => {
+                // Lấy date từ showtime object
+                if (typeof timeData === 'object' && timeData.date) {
+                  uniqueDates.add(timeData.date);
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+    
+    // Convert to array, sort, and format
+    return Array.from(uniqueDates)
+      .sort() // Sort by date string (YYYY-MM-DD format)
+      .map(dateStr => {
+        const d = new Date(dateStr);
+        return {
+          key: dateStr,
+          label: d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })
+        };
+      });
+  }, [options.showtimes]);
+
   const [date, setDate] = useState('all'); // Default: Tất cả ('all' = all dates, YYYY-MM-DD = specific date)
   const [province, setProvince] = useState(''); // Default: Tất cả (empty = all provinces)
   const [cinema, setCinema] = useState(''); // Default: Tất cả (empty = all cinemas)
@@ -180,7 +194,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
                 onChange={(e)=>setDate(e.target.value)}
               >
                 <option value="all">Tất cả</option>
-                {dates.map(d => (
+                {availableDates.map(d => (
                   <option key={d.key} value={d.key}>{d.label}</option>
                 ))}
               </select>
