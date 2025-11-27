@@ -106,6 +106,28 @@ export const cinemaComplexService = {
   },
 
   /**
+   * Lấy danh sách phim của cụm rạp (Public - không cần authentication)
+   * @param {number} complexId - ID của cụm rạp
+   * @returns {Promise<Object>} Response từ server
+   */
+  getComplexMoviesPublic: async (complexId) => {
+    try {
+      const response = await axiosInstance.get(`/public/cinema-complexes/${complexId}/movies`);
+      return {
+        success: true,
+        data: response.data.data || [],
+        message: response.data.message || 'Lấy danh sách phim thành công',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || 'Không thể lấy danh sách phim',
+        data: [],
+      };
+    }
+  },
+
+  /**
    * Lấy cụm rạp theo ID (Admin - cần authentication)
    * @param {number} complexId - ID của cụm rạp
    * @returns {Promise<Object>} Response từ server

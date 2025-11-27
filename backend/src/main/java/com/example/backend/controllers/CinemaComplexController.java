@@ -2,7 +2,10 @@ package com.example.backend.controllers;
 
 import com.example.backend.dtos.CinemaComplexResponseDTO;
 import com.example.backend.dtos.CreateCinemaComplexDTO;
+import com.example.backend.dtos.MovieResponseDTO;
+import com.example.backend.entities.Movie;
 import com.example.backend.services.CinemaComplexService;
+import com.example.backend.services.MovieService;
 import com.example.backend.utils.JwtUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -26,6 +29,7 @@ import java.util.stream.Collectors;
 public class CinemaComplexController {
     
     private final CinemaComplexService cinemaComplexService;
+    private final MovieService movieService;
     private final JwtUtils jwtUtils;
     
     // ============ PUBLIC ENDPOINTS ============
@@ -58,6 +62,37 @@ public class CinemaComplexController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse(e.getMessage()));
+        }
+    }
+    
+    /**
+     * Lấy danh sách phim của cụm rạp (Public - không cần authentication)
+     */
+    @GetMapping("/api/public/cinema-complexes/{complexId}/movies")
+    public ResponseEntity<?> getComplexMoviesPublic(@PathVariable Long complexId) {
+        try {
+            List<Movie> movies = cinemaComplexService.getMoviesByComplexId(complexId);
+            
+            // Convert to MovieResponseDTO using MovieService
+            List<MovieResponseDTO> movieDTOs = movies.stream()
+                .map(movie -> {
+                    try {
+                        return movieService.getMovieById(movie.getMovieId());
+                    } catch (Exception e) {
+                        // If movie not found, return null and filter it out
+                        return null;
+                    }
+                })
+                .filter(dto -> dto != null)
+                .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(createSuccessResponse("Lấy danh sách phim thành công", movieDTOs));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(createErrorResponse("Có lỗi xảy ra: " + e.getMessage()));
         }
     }
     

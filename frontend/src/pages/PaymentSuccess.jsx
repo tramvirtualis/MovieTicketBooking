@@ -178,10 +178,20 @@ const PaymentSuccess = () => {
         localStorage.removeItem('checkoutCart');
         localStorage.removeItem('pendingBooking');
 
+        // Dispatch event ngay để NotificationBell reload notifications
+        // Backend sẽ tự động tạo notification qua IPN/callback, nhưng có thể mất thời gian
+        const orderId = orderData?.orderId;
+        if (orderId) {
+          // Dispatch event ngay lập tức để NotificationBell biết có order mới
+          window.dispatchEvent(new CustomEvent('paymentSuccess', {
+            detail: { orderId: orderId }
+          }));
+          console.log('Payment success event dispatched for order:', orderId);
+        }
+
         // Trigger notification và email từ frontend làm FALLBACK (chỉ 1 lần duy nhất)
         // Vì callback/IPN có thể không được gọi (localhost, firewall, etc.)
         const storedUser = JSON.parse(localStorage.getItem('user'));
-        const orderId = orderData?.orderId;
         if (storedUser && storedUser.userId && orderId && !notificationTriggered) {
           setNotificationTriggered(true);
 
@@ -189,7 +199,14 @@ const PaymentSuccess = () => {
           setTimeout(async () => {
             try {
               await notificationService.triggerOrderSuccessNotification(orderId);
+              console.log('Notification triggered for order:', orderId);
+              
+              // Dispatch event lại sau khi notification đã được tạo
+              window.dispatchEvent(new CustomEvent('paymentSuccess', {
+                detail: { orderId: orderId }
+              }));
             } catch (notifError) {
+              console.error('Error triggering notification:', notifError);
               // Không fail flow chính
             }
 
@@ -199,10 +216,6 @@ const PaymentSuccess = () => {
             } catch (emailError) {
               // Không fail flow chính
             }
-
-            window.dispatchEvent(new CustomEvent('paymentSuccess', {
-              detail: { orderId: orderId }
-            }));
           }, 2000);
         }
       } else {

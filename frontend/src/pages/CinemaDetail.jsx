@@ -75,10 +75,31 @@ export default function CinemaDetail() {
 
         // 2. Load all showtimes for this cinema complex
         const now = new Date();
-        const nowShowingMovieIds = new Set();
+        const nowShowingMovieIds = new Set(); // Phim có showtime đã bắt đầu hoặc đang diễn ra
+        const comingSoonMovieIds = new Set(); // Phim có showtime sắp tới (chưa bắt đầu) ở rạp này
         const allMovieIds = new Set();
 
         const currentCinema = foundCinema || cinemasResult.data.find(c => c.name === cinemaName);
+        
+        // Get list of movies for this cinema complex (for filtering coming soon movies)
+        const cinemaComplexMovieIds = new Set();
+        if (currentCinema && currentCinema.complexId) {
+          try {
+            // Get movies for this cinema complex using public API
+            const complexMoviesResult = await cinemaComplexService.getComplexMoviesPublic(currentCinema.complexId);
+            if (complexMoviesResult.success && complexMoviesResult.data) {
+              complexMoviesResult.data.forEach(movie => {
+                if (movie && movie.movieId) {
+                  cinemaComplexMovieIds.add(Number(movie.movieId));
+                }
+              });
+              console.log('Cinema complex movie IDs:', Array.from(cinemaComplexMovieIds));
+            }
+          } catch (err) {
+            console.log('Could not load cinema complex movies:', err.message);
+            // Continue without filtering - this is expected for public pages
+          }
+        }
         
         if (currentCinema && currentCinema.complexId) {
           try {
@@ -177,6 +198,21 @@ export default function CinemaDetail() {
             return false;
           }
           
+          // Exclude movies that have ended
+          // Check status
+          if (m.status === 'ENDED' || m.status === 'Ended') {
+            return false;
+          }
+          
+          // Check endDate if available
+          if (m.endDate) {
+            const endDate = new Date(m.endDate);
+            if (endDate < now) {
+              // Movie has ended
+              return false;
+            }
+          }
+          
           // Only show as "coming soon" if the movie has NEVER been shown at this cinema
           // If movie has any showtime history at this cinema (even if all are in the past), don't show as coming soon
           if (allMovieIds.has(movieIdNum)) {
@@ -184,10 +220,16 @@ export default function CinemaDetail() {
             return false;
           }
           
-          // Movie has never been shown at this cinema - check if it's scheduled to be shown
-          // (This would require checking if movie is in the cinema's movie list)
-          // For now, we'll show movies that haven't been shown yet
-          return true;
+          // Only show movies that belong to this cinema complex
+          // If we couldn't load the cinema's movie list (no auth), don't show any coming soon movies
+          if (cinemaComplexMovieIds.size > 0) {
+            // We have the cinema's movie list, so only show movies in that list
+            return cinemaComplexMovieIds.has(movieIdNum);
+          } else {
+            // Couldn't load cinema's movie list, so don't show any coming soon movies
+            // (to avoid showing all movies)
+            return false;
+          }
         });
 
         console.log('Coming soon movies count:', comingSoon.length);
@@ -470,3 +512,4 @@ export default function CinemaDetail() {
     </div>
   );
 }
+

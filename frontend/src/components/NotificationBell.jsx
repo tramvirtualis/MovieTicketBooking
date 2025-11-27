@@ -167,13 +167,26 @@ const NotificationBell = () => {
       });
       
       // Listen for payment success event to reload notifications
-      const handlePaymentSuccess = () => {
-        console.log('Payment success event received, reloading notifications...');
-        // Delay a bit to allow backend to create notification
+      const handlePaymentSuccess = (event) => {
+        const orderId = event?.detail?.orderId;
+        console.log('Payment success event received, orderId:', orderId, 'reloading notifications...');
+        
+        // Reload ngay lập tức (có thể notification đã được tạo qua WebSocket)
+        loadNotifications();
+        playNotificationSound();
+        
+        // Reload lại sau 2 giây để đảm bảo notification đã được tạo (nếu IPN/callback chậm)
         setTimeout(() => {
+          console.log('Reloading notifications again after delay...');
           loadNotifications();
           playNotificationSound();
-        }, 1000);
+        }, 2000);
+        
+        // Reload lại sau 5 giây nữa để chắc chắn (nếu backend chậm)
+        setTimeout(() => {
+          console.log('Final reload of notifications...');
+          loadNotifications();
+        }, 5000);
       };
       
       window.addEventListener('paymentSuccess', handlePaymentSuccess);
