@@ -23,5 +23,7 @@ public class CreateBannerDTO {
     @NotBlank(message = "URL ảnh banner không được để trống")
     @Size(max = 2000, message = "URL ảnh không được vượt quá 2000 ký tự")
     private String image;
+
+    private Integer displayOrder;
 }
 

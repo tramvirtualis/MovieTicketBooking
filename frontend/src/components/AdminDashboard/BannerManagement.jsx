@@ -14,7 +14,8 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
   const [formData, setFormData] = useState({
     name: '',
     image: '',
-    imageFile: null
+    imageFile: null,
+    displayOrder: null
   });
   const [imagePreview, setImagePreview] = useState('');
   const [validationErrors, setValidationErrors] = useState({});
@@ -52,7 +53,8 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
             id: banner.id,
             name: banner.name || '',
             image: banner.image || '',
-            isActive: banner.isActive !== undefined ? banner.isActive : true
+            isActive: banner.isActive !== undefined ? banner.isActive : true,
+            displayOrder: banner.displayOrder !== undefined ? banner.displayOrder : 0
           }));
           setBanners(mappedBanners);
           if (onBannersChange) {
@@ -136,6 +138,15 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
     
     if (name === 'imageFile' && files && files.length > 0) {
       onUploadImage(files[0]);
+    } else if (name === 'displayOrder') {
+      // Xử lý displayOrder: cho phép để trống hoặc số nguyên >= 0
+      const numValue = value === '' ? null : parseInt(value);
+      if (value === '' || (!isNaN(numValue) && numValue >= 0)) {
+        setFormData({ ...formData, [name]: numValue });
+        if (validationErrors[name]) {
+          setValidationErrors({ ...validationErrors, [name]: null });
+        }
+      }
     } else {
       setFormData({ ...formData, [name]: value });
       // Clear validation error when user types
@@ -174,7 +185,10 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
     try {
       const bannerData = {
         name: formData.name.trim(),
-        image: formData.image.trim()
+        image: formData.image.trim(),
+        displayOrder: formData.displayOrder !== null && formData.displayOrder !== undefined 
+          ? parseInt(formData.displayOrder) 
+          : null
       };
 
       let result;
@@ -194,7 +208,8 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
             id: banner.id,
             name: banner.name || '',
             image: banner.image || '',
-            isActive: banner.isActive !== undefined ? banner.isActive : true
+            isActive: banner.isActive !== undefined ? banner.isActive : true,
+            displayOrder: banner.displayOrder !== undefined ? banner.displayOrder : 0
           }));
           setBanners(mappedBanners);
           if (onBannersChange) {
@@ -226,7 +241,8 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
     setFormData({
       name: banner.name || '',
       image: banner.image || '',
-      imageFile: null
+      imageFile: null,
+      displayOrder: banner.displayOrder !== undefined ? banner.displayOrder : null
     });
     setImagePreview(banner.image || '');
     setValidationErrors({});
@@ -248,7 +264,8 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
             id: banner.id,
             name: banner.name || '',
             image: banner.image || '',
-            isActive: banner.isActive !== undefined ? banner.isActive : true
+            isActive: banner.isActive !== undefined ? banner.isActive : true,
+            displayOrder: banner.displayOrder !== undefined ? banner.displayOrder : 0
           }));
           setBanners(mappedBanners);
           if (onBannersChange) {
@@ -280,7 +297,8 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
     setFormData({
       name: '',
       image: '',
-      imageFile: null
+      imageFile: null,
+      displayOrder: null
     });
     setImagePreview('');
     setValidationErrors({});
@@ -290,10 +308,15 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
   // Handle add new
   const handleAddNew = () => {
     setEditingBanner(null);
+    // Tính displayOrder mặc định (max + 1)
+    const maxOrder = banners.length > 0 
+      ? Math.max(...banners.map(b => b.displayOrder || 0))
+      : -1;
     setFormData({
       name: '',
       image: '',
-      imageFile: null
+      imageFile: null,
+      displayOrder: maxOrder + 1
     });
     setImagePreview('');
     setValidationErrors({});
@@ -314,7 +337,8 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
             id: banner.id,
             name: banner.name || '',
             image: banner.image || '',
-            isActive: banner.isActive !== undefined ? banner.isActive : true
+            isActive: banner.isActive !== undefined ? banner.isActive : true,
+            displayOrder: banner.displayOrder !== undefined ? banner.displayOrder : 0
           }));
           setBanners(mappedBanners);
           if (onBannersChange) {
@@ -540,7 +564,12 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
                     </div>
                   </div>
                   <div className="banner-card__info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-                    <span className="banner-card__name" style={{ flex: 1 }}>{banner.name || `Banner #${banner.id}`}</span>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span className="banner-card__name">{banner.name || `Banner #${banner.id}`}</span>
+                      <span style={{ fontSize: '12px', color: '#999', fontWeight: 500 }}>
+                        Thứ tự: {banner.displayOrder !== undefined ? banner.displayOrder : 0}
+                      </span>
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span style={{
                         fontSize: '12px',
@@ -647,6 +676,39 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
                 />
                 {validationErrors.name && (
                   <div className="banner-form-error">{validationErrors.name}</div>
+                )}
+              </div>
+
+              {/* Display Order Input */}
+              <div className="banner-form-group">
+                <label className="banner-form-label">
+                  Thứ tự hiển thị
+                </label>
+                <input
+                  type="number"
+                  name="displayOrder"
+                  value={formData.displayOrder !== null && formData.displayOrder !== undefined ? formData.displayOrder : ''}
+                  onChange={handleChange}
+                  placeholder="Tự động gán nếu để trống"
+                  min="0"
+                  className="banner-form-input"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: `1px solid ${validationErrors.displayOrder ? '#ff5757' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(20, 15, 16, 0.5)',
+                    color: '#fff',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'border-color 0.3s ease'
+                  }}
+                />
+                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                  Số nhỏ hơn sẽ hiển thị trước. Để trống sẽ tự động gán thứ tự tiếp theo.
+                </div>
+                {validationErrors.displayOrder && (
+                  <div className="banner-form-error">{validationErrors.displayOrder}</div>
                 )}
               </div>
 

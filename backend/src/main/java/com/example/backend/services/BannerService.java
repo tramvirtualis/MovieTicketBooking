@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import com.example.backend.entities.enums.Action;
 import com.example.backend.entities.enums.ObjectType;
 import com.example.backend.utils.SecurityUtils;
+import org.springframework.data.domain.Sort;
 
 @Service
 @RequiredArgsConstructor
@@ -24,9 +25,21 @@ public class BannerService {
     
     @Transactional
     public BannerResponseDTO createBanner(CreateBannerDTO createDTO, String username) {
+        // Nếu không có displayOrder, tự động gán giá trị lớn nhất + 1
+        Integer displayOrder = createDTO.getDisplayOrder();
+        if (displayOrder == null) {
+            Integer maxOrder = bannerRepository.findAll().stream()
+                    .map(Banner::getDisplayOrder)
+                    .filter(order -> order != null)
+                    .max(Integer::compareTo)
+                    .orElse(-1);
+            displayOrder = maxOrder + 1;
+        }
+        
         Banner banner = Banner.builder()
                 .name(createDTO.getName() != null ? createDTO.getName().trim() : null)
                 .image(createDTO.getImage() != null ? createDTO.getImage().trim() : null)
+                .displayOrder(displayOrder)
                 .build();
         
         Banner savedBanner = bannerRepository.save(banner);
@@ -66,6 +79,10 @@ public class BannerService {
         
         if (updateDTO.getIsActive() != null) {
             banner.setIsActive(updateDTO.getIsActive());
+        }
+        
+        if (updateDTO.getDisplayOrder() != null) {
+            banner.setDisplayOrder(updateDTO.getDisplayOrder());
         }
         
         Banner updatedBanner = bannerRepository.save(banner);
@@ -151,13 +168,13 @@ public class BannerService {
     }
     
     public List<BannerResponseDTO> getAllBanners() {
-        return bannerRepository.findAll().stream()
+        return bannerRepository.findAllByOrderByDisplayOrderAsc().stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
     
     public List<BannerResponseDTO> getActiveBanners() {
-        return bannerRepository.findByIsActiveTrue().stream()
+        return bannerRepository.findByIsActiveTrueOrderByDisplayOrderAsc().stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
@@ -168,6 +185,7 @@ public class BannerService {
                 .name(banner.getName())
                 .image(banner.getImage())
                 .isActive(banner.getIsActive())
+                .displayOrder(banner.getDisplayOrder())
                 .build();
     }
 }

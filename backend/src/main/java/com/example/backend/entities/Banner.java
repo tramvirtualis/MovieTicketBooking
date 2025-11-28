@@ -20,4 +20,8 @@ public class Banner {
     @Column(nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer displayOrder = 0;
 }

@@ -18,5 +18,6 @@ public class BannerResponseDTO {
     private String name;
     private String image;
     private Boolean isActive;
+    private Integer displayOrder;
 }
 

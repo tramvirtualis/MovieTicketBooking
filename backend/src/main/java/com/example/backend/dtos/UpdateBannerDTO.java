@@ -22,5 +22,7 @@ public class UpdateBannerDTO {
     private String image;
 
     private Boolean isActive;
+
+    private Integer displayOrder;
 }
 
