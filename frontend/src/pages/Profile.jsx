@@ -398,6 +398,20 @@ export default function Profile() {
 
   const [formMessage, setFormMessage] = useState({ type: '', text: '' });
 
+  // Update editData when isEditing becomes true (when opening the edit form)
+  useEffect(() => {
+    if (isEditing) {
+      setEditData({
+        name: userData.name || '',
+        email: userData.email || '',
+        phone: userData.phone || '',
+        dob: userData.dob || '',
+        addressDescription: userData.address?.description || '',
+        addressProvince: userData.address?.province || '',
+      });
+    }
+  }, [isEditing]); // Only update when isEditing changes, not when userData changes (to avoid overwriting user's edits)
+
   const showMessage = (type, text) => {
     setMessage({ type, text });
     setTimeout(() => setMessage({ type: '', text: '' }), 5000);
