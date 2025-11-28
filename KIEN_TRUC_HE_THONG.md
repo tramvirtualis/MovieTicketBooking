@@ -270,12 +270,56 @@ frontend/
 
 #### Business Logic
 
-**Drools** là Business Rules Engine được sử dụng để quản lý các quy tắc nghiệp vụ động:
+**Drools** là Business Rules Engine được sử dụng để quản lý các quy tắc nghiệp vụ động trong hệ thống. Drools cho phép tách biệt logic nghiệp vụ khỏi code Java, giúp dễ dàng thay đổi và bảo trì các quy tắc mà không cần sửa đổi mã nguồn. Hệ thống sử dụng Drools 7.x với KieContainer để quản lý và thực thi các rules.
 
-- **Dynamic pricing rules**: Các quy tắc định giá có thể được thay đổi mà không cần sửa mã nguồn, ví dụ như tăng giá vào cuối tuần, giảm giá cho học sinh/sinh viên.
+**Cấu trúc Drools trong hệ thống:**
 
-- **Showtime validation rules**: Các quy tắc xác thực lịch chiếu, ví dụ như không cho phép tạo lịch chiếu trùng thời gian trong cùng một phòng, hoặc không cho phép tạo lịch chiếu trong quá khứ.
+Hệ thống sử dụng các file `.drl` (Drools Rule Language) được lưu trữ trong thư mục `src/main/resources/drools/`. Các rules được tổ chức theo từng nhóm chức năng:
 
+1. **Showtime Validation Rules** (`showtime-date-constraint.drl`, `showtime-time-conflict.drl`, `showtime-validation.drl`):
+   - **Kiểm tra ràng buộc ngày**: Chỉ validate showtimes trong cùng ngày để tối ưu hiệu suất. Nếu showtimes khác ngày, không cần kiểm tra xung đột thời gian.
+   - **Kiểm tra xung đột thời gian**: Đảm bảo không có hai lịch chiếu trùng thời gian trong cùng một phòng chiếu trong cùng một ngày. Sử dụng logic: `start1 < end2 && start2 < end1` để phát hiện xung đột.
+   - **Kiểm tra lịch chiếu trong quá khứ**: Không cho phép tạo lịch chiếu có thời gian bắt đầu trong quá khứ.
+   - **Validation mặc định**: Nếu không có rule nào trigger, coi như showtime hợp lệ.
+
+2. **Voucher Validation Rules** (`voucher-validation.drl`):
+   - **Kiểm tra ngày bắt đầu và kết thúc**: Đảm bảo ngày bắt đầu phải trước ngày kết thúc của voucher.
+   - **Kiểm tra giá trị giảm giá phần trăm**: Giảm giá phần trăm không được vượt quá 100%.
+   - **Kiểm tra giá trị dương**: Đảm bảo giá trị giảm giá, số tiền giảm tối đa, và giá trị đơn hàng tối thiểu đều phải lớn hơn hoặc bằng 0.
+   - **Validation mặc định**: Nếu không có rule nào trigger, coi như voucher hợp lệ.
+
+3. **Price Calculation Rules** (`price-calculation.drl`):
+   - **Tính giá cuối tuần**: Áp dụng phụ thu 30% (nhân 1.3) cho các suất chiếu vào thứ 7 (dayOfWeek = 6) hoặc chủ nhật (dayOfWeek = 7).
+   - **Giá ngày thường**: Không áp dụng phụ thu cho các ngày trong tuần (thứ 2 đến thứ 6).
+   - **Mặc định**: Nếu không có thông tin thời gian, sử dụng giá gốc.
+
+4. **Voucher Discount Calculation Rules** (`voucher-discount-calculation.drl`):
+   - **Kiểm tra thời gian hiệu lực**: Xác minh voucher có còn trong thời gian hiệu lực (giữa startDate và endDate) hay không.
+   - **Kiểm tra giá trị đơn hàng tối thiểu**: Đảm bảo tổng tiền đơn hàng đạt giá trị tối thiểu để áp dụng voucher.
+   - **Tính giảm giá theo phần trăm**: Tính toán số tiền giảm dựa trên phần trăm, áp dụng maxDiscountAmount nếu có, và đảm bảo không vượt quá tổng tiền đơn hàng.
+   - **Tính giảm giá theo số tiền cố định**: Áp dụng số tiền giảm cố định, đảm bảo không vượt quá tổng tiền đơn hàng.
+   - **Xử lý mặc định**: Nếu voucher không thể áp dụng, set discountAmount = 0 và finalAmount = orderAmount.
+
+**Fact Classes (DTOs cho Drools):**
+
+Hệ thống sử dụng các Fact classes để truyền dữ liệu vào Drools engine:
+
+- **ShowtimeValidationFact**: Chứa thông tin showtime mới và showtime hiện có để so sánh, kết quả validation (valid, errorMessage).
+- **VoucherValidationFact**: Chứa thông tin voucher cần validate (code, discountType, discountValue, dates, scope), kết quả validation.
+- **PriceCalculationFact**: Chứa giá gốc và thời gian chiếu, kết quả tính toán (finalPrice, calculationReason).
+- **VoucherDiscountFact**: Chứa thông tin voucher và đơn hàng, kết quả tính toán (discountAmount, finalAmount, applicable, errorMessage).
+
+**Tích hợp Drools trong Services:**
+
+- **ShowtimeService**: Sử dụng Drools để validate showtime trước khi tạo hoặc cập nhật, đảm bảo không có xung đột thời gian.
+- **VoucherService**: Sử dụng Drools để validate voucher khi tạo/cập nhật và tính toán giảm giá khi áp dụng voucher cho đơn hàng.
+- **PriceService**: Sử dụng Drools để tính giá vé dựa trên ngày trong tuần, áp dụng phụ thu cuối tuần nếu cần.
+
+**Ưu điểm của việc sử dụng Drools:**
+
+- **Tách biệt logic nghiệp vụ**: Các quy tắc nghiệp vụ được tách ra khỏi code Java, dễ đọc và hiểu hơn.
+- **Dễ bảo trì và mở rộng**: Có thể thay đổi rules mà không cần sửa code Java, chỉ cần sửa file `.drl` và restart ứng dụng.
+- **Rule priority (Salience)**: Sử dụng salience để đảm bảo thứ tự thực thi rules đúng (validation rules chạy trước, calculation rules chạy sau).
 - **Rule-based decision making**: Cho phép thực hiện các quyết định phức tạp dựa trên nhiều điều kiện, giúp mã nguồn dễ đọc và bảo trì hơn.
 
 #### Integrations

@@ -1,11 +1,14 @@
 package com.example.backend.services;
 
 import com.example.backend.dtos.PriceDTO;
+import com.example.backend.dtos.PriceCalculationFact;
 import com.example.backend.dtos.UpdatePricesRequestDTO;
 import com.example.backend.entities.Price;
 import com.example.backend.entities.enums.RoomType;
 import com.example.backend.entities.enums.SeatType;
 import com.example.backend.repositories.PriceRepository;
+import org.kie.api.runtime.KieContainer;
+import org.kie.api.runtime.KieSession;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,10 +21,12 @@ import java.util.stream.Collectors;
 public class PriceService {
     
     private final PriceRepository priceRepository;
+    private final KieContainer kieContainer;
     
     // Constructor for dependency injection
-    public PriceService(PriceRepository priceRepository) {
+    public PriceService(PriceRepository priceRepository, KieContainer kieContainer) {
         this.priceRepository = priceRepository;
+        this.kieContainer = kieContainer;
     }
     
     /**
@@ -152,7 +157,7 @@ public class PriceService {
     }
     
     /**
-     * Tính giá cuối cùng dựa trên giá gốc và ngày trong tuần
+     * Tính giá cuối cùng dựa trên giá gốc và ngày trong tuần sử dụng Drools
      * Nếu là thứ 7 (6) hoặc chủ nhật (7): nhân 1.3x
      * @param basePrice giá gốc
      * @param showtimeDateTime thời gian chiếu
@@ -163,15 +168,27 @@ public class PriceService {
             return basePrice;
         }
         
-        // dayOfWeek: 1=Mon, 2=Tue, ..., 6=Sat, 7=Sun
-        int dayOfWeek = showtimeDateTime.getDayOfWeek().getValue();
+        // Tạo fact cho Drools
+        PriceCalculationFact fact = PriceCalculationFact.builder()
+                .basePrice(basePrice)
+                .showtimeDateTime(showtimeDateTime)
+                .build();
         
-        // Nếu là thứ 7 (6) hoặc chủ nhật (7), tăng giá 30%
-        if (dayOfWeek == 6 || dayOfWeek == 7) {
-            return basePrice.multiply(new BigDecimal("1.3"));
+        // Tạo KieSession từ KieContainer
+        KieSession kieSession = kieContainer.newKieSession();
+        
+        try {
+            // Insert fact vào KieSession
+            kieSession.insert(fact);
+            
+            // Fire rules
+            kieSession.fireAllRules();
+            
+            // Lấy kết quả
+            return fact.getFinalPrice();
+        } finally {
+            kieSession.dispose();
         }
-        
-        return basePrice;
     }
 }
 

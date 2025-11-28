@@ -27,6 +27,9 @@ public class DroolsConfig {
         kieFileSystem.write(ResourceFactory.newClassPathResource(RULES_PATH + "showtime-date-constraint.drl"));
         kieFileSystem.write(ResourceFactory.newClassPathResource(RULES_PATH + "showtime-time-conflict.drl"));
         kieFileSystem.write(ResourceFactory.newClassPathResource(RULES_PATH + "showtime-validation.drl"));
+        kieFileSystem.write(ResourceFactory.newClassPathResource(RULES_PATH + "voucher-validation.drl"));
+        kieFileSystem.write(ResourceFactory.newClassPathResource(RULES_PATH + "price-calculation.drl"));
+        kieFileSystem.write(ResourceFactory.newClassPathResource(RULES_PATH + "voucher-discount-calculation.drl"));
         
         KieBuilder kieBuilder = kieServices.newKieBuilder(kieFileSystem);
         kieBuilder.buildAll();

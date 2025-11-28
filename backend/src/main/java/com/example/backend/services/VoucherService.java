@@ -3,6 +3,8 @@ package com.example.backend.services;
 import com.example.backend.dtos.CreateVoucherDTO;
 import com.example.backend.dtos.UpdateVoucherDTO;
 import com.example.backend.dtos.VoucherResponseDTO;
+import com.example.backend.dtos.VoucherValidationFact;
+import com.example.backend.dtos.VoucherDiscountFact;
 import com.example.backend.entities.Voucher;
 import com.example.backend.entities.Customer;
 import com.example.backend.entities.enums.VoucherScope;
@@ -10,9 +12,13 @@ import com.example.backend.repositories.VoucherRepository;
 import com.example.backend.repositories.CustomerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.kie.api.runtime.KieContainer;
+import org.kie.api.runtime.KieSession;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 import com.example.backend.entities.enums.Action;
@@ -28,6 +34,7 @@ public class VoucherService {
     private final CustomerRepository customerRepository;
     private final NotificationService notificationService;
     private final ActivityLogService activityLogService;
+    private final KieContainer kieContainer;
     
     @Transactional
     public VoucherResponseDTO createVoucher(CreateVoucherDTO createDTO, String username) {
@@ -36,17 +43,10 @@ public class VoucherService {
             throw new RuntimeException("Mã voucher đã tồn tại: " + createDTO.getCode());
         }
         
-        // Kiểm tra ngày bắt đầu phải trước ngày kết thúc
-        if (createDTO.getStartDate().isAfter(createDTO.getEndDate())) {
-            throw new RuntimeException("Ngày bắt đầu phải trước ngày kết thúc");
-        }
-        
-        // Kiểm tra giá trị giảm giá hợp lệ
-        if (createDTO.getDiscountType() == com.example.backend.entities.enums.DiscountType.PERCENT) {
-            if (createDTO.getDiscountValue().compareTo(java.math.BigDecimal.valueOf(100)) > 0) {
-                throw new RuntimeException("Giảm giá phần trăm không được vượt quá 100%");
-            }
-        }
+        // Validate voucher sử dụng Drools
+        validateVoucherWithDrools(createDTO.getDiscountType(), createDTO.getDiscountValue(),
+                createDTO.getMaxDiscountAmount(), createDTO.getMinOrderAmount(),
+                createDTO.getStartDate(), createDTO.getEndDate(), createDTO.getScope());
         
         Voucher voucher = Voucher.builder()
                 .code(createDTO.getCode().trim().toUpperCase())
@@ -128,17 +128,10 @@ public class VoucherService {
             voucher.setImage(updateDTO.getImage().trim());
         }
         
-        // Kiểm tra ngày bắt đầu phải trước ngày kết thúc
-        if (voucher.getStartDate().isAfter(voucher.getEndDate())) {
-            throw new RuntimeException("Ngày bắt đầu phải trước ngày kết thúc");
-        }
-        
-        // Kiểm tra giá trị giảm giá hợp lệ
-        if (voucher.getDiscountType() == com.example.backend.entities.enums.DiscountType.PERCENT) {
-            if (voucher.getDiscountValue().compareTo(java.math.BigDecimal.valueOf(100)) > 0) {
-                throw new RuntimeException("Giảm giá phần trăm không được vượt quá 100%");
-            }
-        }
+        // Validate voucher sử dụng Drools
+        validateVoucherWithDrools(voucher.getDiscountType(), voucher.getDiscountValue(),
+                voucher.getMaxDiscountAmount(), voucher.getMinOrderAmount(),
+                voucher.getStartDate(), voucher.getEndDate(), voucher.getScope());
         
         Voucher updatedVoucher = voucherRepository.save(voucher);
         
@@ -248,6 +241,98 @@ public class VoucherService {
         customerRepository.save(customer);
         
         log.info("Unassigned voucher ID: {} from customer ID: {}", voucherId, customerId);
+    }
+    
+    /**
+     * Validate voucher sử dụng Drools
+     */
+    private void validateVoucherWithDrools(
+            com.example.backend.entities.enums.DiscountType discountType,
+            java.math.BigDecimal discountValue,
+            java.math.BigDecimal maxDiscountAmount,
+            java.math.BigDecimal minOrderAmount,
+            java.time.LocalDateTime startDate,
+            java.time.LocalDateTime endDate,
+            com.example.backend.entities.enums.VoucherScope scope) {
+        
+        // Tạo fact cho Drools
+        VoucherValidationFact fact = VoucherValidationFact.builder()
+                .code(null) // Không cần code cho validation
+                .discountType(discountType)
+                .discountValue(discountValue)
+                .maxDiscountAmount(maxDiscountAmount)
+                .minOrderAmount(minOrderAmount)
+                .startDate(startDate)
+                .endDate(endDate)
+                .scope(scope)
+                .valid(true) // Mặc định là hợp lệ
+                .build();
+        
+        // Tạo KieSession từ KieContainer
+        KieSession kieSession = kieContainer.newKieSession();
+        
+        try {
+            // Insert fact vào KieSession
+            kieSession.insert(fact);
+            
+            // Fire rules
+            kieSession.fireAllRules();
+            
+            // Kiểm tra kết quả
+            if (!fact.isValid() && fact.getErrorMessage() != null) {
+                throw new RuntimeException(fact.getErrorMessage());
+            }
+        } finally {
+            kieSession.dispose();
+        }
+    }
+    
+    /**
+     * Tính giảm giá voucher sử dụng Drools
+     * @param voucher Voucher cần tính
+     * @param orderAmount Tổng tiền đơn hàng
+     * @param orderDate Ngày đặt hàng
+     * @return VoucherDiscountFact chứa kết quả tính toán
+     */
+    public VoucherDiscountFact calculateVoucherDiscount(Voucher voucher, BigDecimal orderAmount, LocalDateTime orderDate) {
+        if (voucher == null || orderAmount == null) {
+            VoucherDiscountFact fact = VoucherDiscountFact.builder()
+                    .discountAmount(BigDecimal.ZERO)
+                    .finalAmount(orderAmount != null ? orderAmount : BigDecimal.ZERO)
+                    .applicable(false)
+                    .errorMessage("Voucher hoặc tổng tiền đơn hàng không hợp lệ")
+                    .build();
+            return fact;
+        }
+        
+        // Tạo fact cho Drools
+        VoucherDiscountFact fact = VoucherDiscountFact.builder()
+                .discountType(voucher.getDiscountType())
+                .discountValue(voucher.getDiscountValue())
+                .maxDiscountAmount(voucher.getMaxDiscountAmount())
+                .minOrderAmount(voucher.getMinOrderAmount())
+                .startDate(voucher.getStartDate())
+                .endDate(voucher.getEndDate())
+                .scope(voucher.getScope())
+                .orderAmount(orderAmount)
+                .orderDate(orderDate != null ? orderDate : LocalDateTime.now())
+                .isPublicVoucher(voucher.getScope() == VoucherScope.PUBLIC)
+                .build();
+        
+        // Tạo KieSession từ KieContainer
+        KieSession kieSession = kieContainer.newKieSession();
+        
+        try {
+            // Insert fact vào KieSession
+            kieSession.insert(fact);
+            
+            // Fire rules
+            kieSession.fireAllRules();
+            
+            return fact;
+        } finally {
+            kieSession.dispose();
+        }
     }
     
     private VoucherResponseDTO convertToDTO(Voucher voucher) {
