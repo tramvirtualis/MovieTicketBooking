@@ -90,6 +90,12 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
             // Food-only order (no tickets)
             const comboTotal = order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0);
             
+            // Lấy cinemaComplexId từ order (backend đã map)
+            const cinemaComplexId = order.cinemaComplexId || null;
+            // Tìm tên cụm rạp từ danh sách
+            const cinema = cinemasList.find(c => c.complexId === cinemaComplexId);
+            const cinemaName = cinema ? cinema.name : null;
+            
             mappedOrders.push({
               bookingId: order.orderId,
               orderType: 'FOOD_ONLY',
@@ -100,8 +106,8 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
               },
               movieId: null,
               movieTitle: null,
-              cinemaComplexId: null,
-              cinemaName: null,
+              cinemaComplexId: cinemaComplexId,
+              cinemaName: cinemaName,
               roomId: null,
               roomName: null,
               showtime: order.orderDate, // Use order date for food-only orders
@@ -118,11 +124,12 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
         
         // Validation: Đảm bảo không có đơn hàng FOOD_ONLY nhưng lại có thông tin vé
         // Nếu phát hiện, tự động sửa lại orderType thành TICKET
+        // LƯU Ý: cinemaComplexId và cinemaName có thể có ở đơn đồ ăn (food-only orders), không phải là thông tin vé
         mappedOrders.forEach(order => {
           if (order.orderType === 'FOOD_ONLY') {
-            // Kiểm tra xem có thông tin vé không
+            // Kiểm tra xem có thông tin vé không (KHÔNG bao gồm cinemaComplexId/cinemaName vì đơn đồ ăn cũng có)
             if (order.movieId || order.movieTitle || (order.seats && order.seats.length > 0) || 
-                order.showtimeId || order.roomId || order.roomName || order.cinemaComplexId || order.cinemaName) {
+                order.showtimeId || order.roomId || order.roomName) {
               console.warn('Found FOOD_ONLY order with ticket info, fixing orderType to TICKET:', order.bookingId);
               order.orderType = 'TICKET';
             }
@@ -182,15 +189,14 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
       if (o.orderType !== 'TICKET') return false;
     } else if (orderTypeFilter === 'FOOD_ONLY') {
       // Đơn đồ ăn: Phải là FOOD_ONLY và không có bất kỳ thông tin vé nào
+      // LƯU Ý: cinemaComplexId và cinemaName có thể có ở đơn đồ ăn, không phải là thông tin vé
       if (o.orderType !== 'FOOD_ONLY') return false;
       if (o.movieId || 
           o.movieTitle || 
           (o.seats && o.seats.length > 0) || 
           o.showtimeId ||
           o.roomId ||
-          o.roomName ||
-          o.cinemaComplexId ||
-          o.cinemaName) {
+          o.roomName) {
         return false;
       }
     }
@@ -208,8 +214,9 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
       if (!matches) return false;
     }
     
-    // Cinema filter - chỉ áp dụng khi có filterCinema
+    // Cinema filter - áp dụng cho cả đơn vé (TICKET) và đơn đồ ăn (FOOD_ONLY) nếu có cinemaComplexId
     if (filterCinema && filterCinema !== '') {
+      // Filter theo cụm rạp cho cả đơn vé và đơn đồ ăn
       if (!o.cinemaComplexId || String(o.cinemaComplexId) !== String(filterCinema)) {
         return false;
       }
@@ -354,8 +361,9 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
       if (!matches) return false;
     }
     
-    // Cinema filter - QUAN TRỌNG: phải filter theo cụm rạp nếu có
+    // Cinema filter - QUAN TRỌNG: áp dụng cho cả đơn vé (TICKET) và đơn đồ ăn (FOOD_ONLY) nếu có cinemaComplexId
     if (filterCinema && filterCinema !== '') {
+      // Filter theo cụm rạp cho cả đơn vé và đơn đồ ăn
       if (!o.cinemaComplexId || String(o.cinemaComplexId) !== String(filterCinema)) {
         return false;
       }
@@ -387,22 +395,24 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
   };
   
   // Đếm đơn vé: orderType === 'TICKET' HOẶC có thông tin vé (dù orderType là gì)
+  // LƯU Ý: cinemaComplexId và cinemaName KHÔNG phải là thông tin vé (đơn đồ ăn cũng có)
   const ticketOrdersCount = orders.filter(o => {
     if (!passesOtherFilters(o)) return false;
     if (o.orderType === 'TICKET') return true;
-    // Nếu có thông tin vé, tính là đơn vé
-    if (o.movieId || o.movieTitle || (o.seats && o.seats.length > 0) || o.showtimeId || o.roomId || o.roomName || o.cinemaComplexId || o.cinemaName) {
+    // Nếu có thông tin vé (KHÔNG bao gồm cinemaComplexId/cinemaName), tính là đơn vé
+    if (o.movieId || o.movieTitle || (o.seats && o.seats.length > 0) || o.showtimeId || o.roomId || o.roomName) {
       return true;
     }
     return false;
   }).length;
   
   // Đếm đơn đồ ăn: orderType === 'FOOD_ONLY' VÀ không có thông tin vé
+  // LƯU Ý: cinemaComplexId và cinemaName có thể có ở đơn đồ ăn, không phải là thông tin vé
   const foodOrdersCount = orders.filter(o => {
     if (!passesOtherFilters(o)) return false;
     if (o.orderType !== 'FOOD_ONLY') return false;
-    // Không được có bất kỳ thông tin vé nào
-    if (o.movieId || o.movieTitle || (o.seats && o.seats.length > 0) || o.showtimeId || o.roomId || o.roomName || o.cinemaComplexId || o.cinemaName) {
+    // Không được có bất kỳ thông tin vé nào (KHÔNG bao gồm cinemaComplexId/cinemaName)
+    if (o.movieId || o.movieTitle || (o.seats && o.seats.length > 0) || o.showtimeId || o.roomId || o.roomName) {
       return false;
     }
     return true;
@@ -576,6 +586,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                           <div>
                             <div className="movie-table-title" style={{ color: '#fbbf24', fontWeight: 600 }}>Đơn hàng đồ ăn</div>
                             <div className="movie-table-rating">
+                              {o.cinemaName ? `${o.cinemaName} • ` : ''}
                               {o.combos && o.combos.length > 0 
                                 ? `${o.combos.length} combo${o.combos.length > 1 ? 's' : ''} • ${o.combos.reduce((sum, c) => sum + (c.quantity || 0), 0)} sản phẩm`
                                 : 'Không có thông tin'}
