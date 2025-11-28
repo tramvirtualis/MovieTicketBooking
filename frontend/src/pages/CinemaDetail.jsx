@@ -418,6 +418,8 @@ export default function CinemaDetail() {
                             const ageNumber = rating && /^\d+/.test(rating) ? rating.replace(/[^0-9]/g, '') : null;
                             if (rating === 'P') {
                               return 'P: Phim dành cho mọi lứa tuổi';
+                            } else if (rating === 'K') {
+                              return 'K: Phim dành cho khán giả dưới 13 tuổi, cần có ba mẹ đi cùng';
                             } else if (ageNumber) {
                               return `${rating}: Phim dành cho khán giả từ đủ ${ageNumber} tuổi trở lên (${rating})`;
                             } else {

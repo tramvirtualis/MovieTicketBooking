@@ -1503,6 +1503,8 @@ export default function BookTicket() {
             {pendingShowtime && (() => {
               const rating = movieData?.ageRating ? movieService.mapAgeRatingFromBackend(movieData.ageRating) : 'T16';
               const ageNumber = rating.replace('T', '');
+              const isK = rating === 'K';
+              const isP = rating === 'P';
 
               return (
                 <>
@@ -1526,7 +1528,13 @@ export default function BookTicket() {
                       color: '#c9c4c5',
                       lineHeight: '1.6'
                     }}>
-                      <strong style={{ color: '#ffd159' }}>{rating}:</strong> Phim dành cho khán giả từ đủ {ageNumber} tuổi trở lên ({ageNumber}+)
+                      <strong style={{ color: '#ffd159' }}>{rating}:</strong> {
+                        isP 
+                          ? 'Phim dành cho mọi lứa tuổi'
+                          : isK
+                          ? 'Phim dành cho khán giả dưới 13 tuổi, cần có ba mẹ đi cùng'
+                          : `Phim dành cho khán giả từ đủ ${ageNumber} tuổi trở lên (${ageNumber}+)`
+                      }
                     </div>
                   </div>
 
@@ -1559,7 +1567,12 @@ export default function BookTicket() {
                         flex: 1
                       }}
                     >
-                      Tôi xác nhận rằng tôi đã đủ {ageNumber} tuổi trở lên và đủ điều kiện để xem phim này.
+                      {isP 
+                        ? 'Tôi xác nhận rằng tôi đủ điều kiện để xem phim này.'
+                        : isK
+                        ? 'Tôi đã hiểu và đồng ý.'
+                        : `Tôi xác nhận rằng tôi đã đủ ${ageNumber} tuổi trở lên và đủ điều kiện để xem phim này.`
+                      }
                     </label>
                   </div>
 

@@ -1261,7 +1261,15 @@ export default function MovieDetail() {
                 color: '#c9c4c5',
                 lineHeight: '1.6'
               }}>
-                <strong style={{ color: '#ffd159' }}>{movie?.rating || 'N/A'}:</strong> Phim dành cho khán giả từ đủ {movie?.rating && /^\d+/.test(movie.rating) ? movie.rating.replace(/[^0-9]/g, '') : (movie?.rating === 'P' ? 'mọi' : 'N/A')} tuổi trở lên {movie?.rating && /^\d+/.test(movie.rating) ? `(${movie.rating})` : (movie?.rating === 'P' ? '(P)' : '')}
+                <strong style={{ color: '#ffd159' }}>{movie?.rating || 'N/A'}:</strong> {
+                  movie?.rating === 'P' 
+                    ? 'Phim dành cho mọi lứa tuổi'
+                    : movie?.rating === 'K'
+                    ? 'Phim dành cho khán giả dưới 13 tuổi, cần có ba mẹ đi cùng'
+                    : movie?.rating && /^\d+/.test(movie.rating)
+                    ? `Phim dành cho khán giả từ đủ ${movie.rating.replace(/[^0-9]/g, '')} tuổi trở lên (${movie.rating})`
+                    : 'N/A'
+                }
               </div>
             </div>
 
@@ -1294,7 +1302,14 @@ export default function MovieDetail() {
                   flex: 1
                 }}
               >
-                Tôi xác nhận rằng tôi đã đủ {movie?.rating && /^\d+/.test(movie.rating) ? movie.rating.replace(/[^0-9]/g, '') : (movie?.rating === 'P' ? 'mọi' : 'N/A')} tuổi trở lên và đủ điều kiện để xem phim này.
+                {movie?.rating === 'P'
+                  ? 'Tôi xác nhận rằng tôi đủ điều kiện để xem phim này.'
+                  : movie?.rating === 'K'
+                  ? 'Tôi đã hiểu và đồng ý.'
+                  : movie?.rating && /^\d+/.test(movie.rating)
+                  ? `Tôi xác nhận rằng tôi đã đủ ${movie.rating.replace(/[^0-9]/g, '')} tuổi trở lên và đủ điều kiện để xem phim này.`
+                  : 'Tôi xác nhận rằng tôi đủ điều kiện để xem phim này.'
+                }
               </label>
             </div>
 

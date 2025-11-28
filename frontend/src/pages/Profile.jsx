@@ -539,7 +539,22 @@ export default function Profile() {
       };
   
       setUserData(updatedUserData);
-      localStorage.setItem('user', JSON.stringify(updatedUserData));
+      
+      // Preserve JWT token and other important data when updating localStorage
+      const currentUser = JSON.parse(localStorage.getItem('user')) || {};
+      const updatedUserWithToken = {
+        ...updatedUserData,
+        // Preserve JWT token if it exists
+        token: currentUser.token || undefined,
+        // Preserve role if it exists
+        role: currentUser.role || updatedUserData.role,
+        // Preserve joinDate if it exists
+        joinDate: currentUser.joinDate || updatedUserData.joinDate,
+      };
+      localStorage.setItem('user', JSON.stringify(updatedUserWithToken));
+      
+      // Dispatch event to update header
+      window.dispatchEvent(new Event('userUpdated'));
       
       // Show success message but don't close form
       showFormMessage('success', 'Cập nhật thông tin thành công!');
