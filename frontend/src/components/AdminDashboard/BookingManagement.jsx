@@ -492,17 +492,15 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <input className="movie-search__input" placeholder="Tìm tên KH, sđt, phim, rạp..." value={searchTerm} onChange={(e)=>setSearchTerm(e.target.value)} />
           </div>
+          <select className="movie-filter" value={filterCinema} onChange={(e)=>setFilterCinema(e.target.value)}>
+            <option value="">Tất cả rạp</option>
+            {cinemasList.map(c => <option key={c.complexId} value={c.complexId}>#{c.complexId} - {c.name}</option>)}
+          </select>
           {orderTypeFilter !== 'FOOD_ONLY' && (
-            <>
-              <select className="movie-filter" value={filterCinema} onChange={(e)=>setFilterCinema(e.target.value)}>
-                <option value="">Tất cả rạp</option>
-                {cinemasList.map(c => <option key={c.complexId} value={c.complexId}>#{c.complexId} - {c.name}</option>)}
-              </select>
-              <select className="movie-filter" value={filterMovie} onChange={(e)=>setFilterMovie(e.target.value)}>
-                <option value="">Tất cả phim</option>
-                {moviesList.map(m => <option key={m.movieId} value={m.movieId}>{m.title}</option>)}
-              </select>
-            </>
+            <select className="movie-filter" value={filterMovie} onChange={(e)=>setFilterMovie(e.target.value)}>
+              <option value="">Tất cả phim</option>
+              {moviesList.map(m => <option key={m.movieId} value={m.movieId}>{m.title}</option>)}
+            </select>
           )}
           <select className="movie-filter" value={filterStatus} onChange={(e)=>setFilterStatus(e.target.value)}>
             <option value="">Tất cả trạng thái</option>
@@ -546,12 +544,16 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                     Khách hàng <SortIcon field="customer" />
                   </th>
                   <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('movie')}>
-                    Phim / Rạp / Phòng <SortIcon field="movie" />
+                    {orderTypeFilter === 'FOOD_ONLY' ? 'Sản phẩm' : 'Phim / Rạp / Phòng'} <SortIcon field="movie" />
                   </th>
-                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('showtime')}>
-                    Suất <SortIcon field="showtime" />
-                  </th>
-                  <th>Ghế</th>
+                  {orderTypeFilter !== 'FOOD_ONLY' && (
+                    <>
+                      <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('showtime')}>
+                        Suất <SortIcon field="showtime" />
+                      </th>
+                      <th>Ghế</th>
+                    </>
+                  )}
                   <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('amount')}>
                     Thanh toán <SortIcon field="amount" />
                   </th>
@@ -600,36 +602,32 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                         </>
                       )}
                     </td>
-                    <td>
-                      {o.orderType === 'FOOD_ONLY' ? (
-                        <div className="movie-table-title" style={{ color: '#9e9e9e' }}>—</div>
-                      ) : (
-                        <>
-                          <div className="movie-table-title">{new Date(o.showtime).toLocaleDateString('vi-VN')}</div>
-                          <div className="movie-table-rating">{new Date(o.showtime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
-                        </>
-                      )}
-                    </td>
-                    <td>
-                      {o.orderType === 'FOOD_ONLY' ? (
-                        <div style={{ color: '#9e9e9e' }}>—</div>
-                      ) : (
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {o.seats.map(s => (
-                            <span
-                              key={s}
-                              className="badge-rating"
-                              style={{
-                                background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
-                              }}
-                            >
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </td>
+                    {orderTypeFilter !== 'FOOD_ONLY' && (
+                      <>
+                        <td>
+                          <>
+                            <div className="movie-table-title">{new Date(o.showtime).toLocaleDateString('vi-VN')}</div>
+                            <div className="movie-table-rating">{new Date(o.showtime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+                          </>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {o.seats.map(s => (
+                              <span
+                                key={s}
+                                className="badge-rating"
+                                style={{
+                                  background: 'linear-gradient(180deg,#7b61ff,#4a1a5c)',
+                                  boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
+                                }}
+                              >
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      </>
+                    )}
                     <td>
                       <div className="movie-table-title">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(o.totalAmount)}</div>
                       <div className="movie-table-rating">{o.paymentMethod}</div>
