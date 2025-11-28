@@ -35,6 +35,8 @@ function VoucherManagement({ vouchers: initialVouchersList, users: usersList, on
   const [notification, setNotification] = useState(null);
   const [savingVoucher, setSavingVoucher] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
 
   // Notification component
   const showNotification = (message, type = 'success') => {
@@ -165,6 +167,17 @@ function VoucherManagement({ vouchers: initialVouchersList, users: usersList, on
     const matchesPublic = filterPublic === '' ? true : (filterPublic === 'true' ? v.isPublic : !v.isPublic);
     return matchesSearch && matchesStatus && matchesType && matchesPublic;
   });
+
+  // Pagination calculation
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentVouchers = filtered.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filterType, filterPublic]);
 
   // Get status display info
   const getStatusInfo = (status) => {
@@ -683,7 +696,7 @@ function VoucherManagement({ vouchers: initialVouchersList, users: usersList, on
             </div>
           ) : (
             <div className="movie-grid">
-              {filtered.map(v => (
+              {currentVouchers.map(v => (
                 <div key={v.voucherId} className="movie-card">
                   <div
                     className="movie-card__poster"
@@ -730,6 +743,95 @@ function VoucherManagement({ vouchers: initialVouchersList, users: usersList, on
               ))}
             </div>
           )}
+
+          {/* Pagination */}
+          {filtered.length > 0 && totalPages > 1 && (() => {
+            const getPageNumbers = () => {
+              const pages = [];
+              const maxVisible = 7;
+              
+              if (totalPages <= maxVisible) {
+                for (let i = 1; i <= totalPages; i++) {
+                  pages.push(i);
+                }
+              } else {
+                pages.push(1);
+                
+                if (currentPage <= 4) {
+                  for (let i = 2; i <= 5; i++) {
+                    pages.push(i);
+                  }
+                  pages.push('ellipsis-end');
+                  pages.push(totalPages);
+                } else if (currentPage >= totalPages - 3) {
+                  pages.push('ellipsis-start');
+                  for (let i = totalPages - 4; i <= totalPages; i++) {
+                    pages.push(i);
+                  }
+                } else {
+                  pages.push('ellipsis-start');
+                  pages.push(currentPage - 1);
+                  pages.push(currentPage);
+                  pages.push(currentPage + 1);
+                  pages.push('ellipsis-end');
+                  pages.push(totalPages);
+                }
+              }
+              
+              return pages;
+            };
+            
+            const pageNumbers = getPageNumbers();
+            
+            return (
+              <div className="movie-reviews-pagination mt-8 justify-center" style={{ marginTop: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
+                <button
+                  className="movie-reviews-pagination__btn"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                  </svg>
+                </button>
+                {pageNumbers.map((page, index) => {
+                  if (page === 'ellipsis-start' || page === 'ellipsis-end') {
+                    return (
+                      <span
+                        key={`ellipsis-${index}`}
+                        style={{
+                          padding: '8px 4px',
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          fontSize: '14px',
+                          userSelect: 'none'
+                        }}
+                      >
+                        ...
+                      </span>
+                    );
+                  }
+                  return (
+                    <button
+                      key={page}
+                      className={`movie-reviews-pagination__btn movie-reviews-pagination__btn--number ${currentPage === page ? 'movie-reviews-pagination__btn--active' : ''}`}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+                <button
+                  className="movie-reviews-pagination__btn"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </button>
+              </div>
+            );
+          })()}
         </div>
 
         {showModal && (

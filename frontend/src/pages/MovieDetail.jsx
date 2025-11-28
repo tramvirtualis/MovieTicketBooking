@@ -1060,37 +1060,99 @@ export default function MovieDetail() {
                     );
                   })}
                 </div>
-                {totalPages > 1 && (
-                  <div className="movie-reviews-pagination">
-                    <button
-                      className="movie-reviews-pagination__btn"
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="15 18 9 12 15 6"></polyline>
-                      </svg>
-                    </button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                {totalPages > 1 && (() => {
+                  // Tính toán các trang cần hiển thị
+                  const getPageNumbers = () => {
+                    const pages = [];
+                    const maxVisible = 7; // Số trang tối đa hiển thị
+                    
+                    if (totalPages <= maxVisible) {
+                      // Nếu tổng số trang <= 7, hiển thị tất cả
+                      for (let i = 1; i <= totalPages; i++) {
+                        pages.push(i);
+                      }
+                    } else {
+                      // Luôn hiển thị trang đầu
+                      pages.push(1);
+                      
+                      if (currentPage <= 4) {
+                        // Gần đầu: 1, 2, 3, 4, 5, ..., totalPages
+                        for (let i = 2; i <= 5; i++) {
+                          pages.push(i);
+                        }
+                        pages.push('ellipsis-end');
+                        pages.push(totalPages);
+                      } else if (currentPage >= totalPages - 3) {
+                        // Gần cuối: 1, ..., totalPages-4, totalPages-3, totalPages-2, totalPages-1, totalPages
+                        pages.push('ellipsis-start');
+                        for (let i = totalPages - 4; i <= totalPages; i++) {
+                          pages.push(i);
+                        }
+                      } else {
+                        // Ở giữa: 1, ..., currentPage-1, currentPage, currentPage+1, ..., totalPages
+                        pages.push('ellipsis-start');
+                        pages.push(currentPage - 1);
+                        pages.push(currentPage);
+                        pages.push(currentPage + 1);
+                        pages.push('ellipsis-end');
+                        pages.push(totalPages);
+                      }
+                    }
+                    
+                    return pages;
+                  };
+                  
+                  const pageNumbers = getPageNumbers();
+                  
+                  return (
+                    <div className="movie-reviews-pagination" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <button
-                        key={page}
-                        className={`movie-reviews-pagination__btn movie-reviews-pagination__btn--number ${currentPage === page ? 'movie-reviews-pagination__btn--active' : ''}`}
-                        onClick={() => setCurrentPage(page)}
+                        className="movie-reviews-pagination__btn"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
                       >
-                        {page}
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
                       </button>
-                    ))}
-                    <button
-                      className="movie-reviews-pagination__btn"
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="9 18 15 12 9 6"></polyline>
-                      </svg>
-                    </button>
-                  </div>
-                )}
+                      {pageNumbers.map((page, index) => {
+                        if (page === 'ellipsis-start' || page === 'ellipsis-end') {
+                          return (
+                            <span
+                              key={`ellipsis-${index}`}
+                              style={{
+                                padding: '8px 4px',
+                                color: 'rgba(255, 255, 255, 0.5)',
+                                fontSize: '14px',
+                                userSelect: 'none'
+                              }}
+                            >
+                              ...
+                            </span>
+                          );
+                        }
+                        return (
+                          <button
+                            key={page}
+                            className={`movie-reviews-pagination__btn movie-reviews-pagination__btn--number ${currentPage === page ? 'movie-reviews-pagination__btn--active' : ''}`}
+                            onClick={() => setCurrentPage(page)}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+                      <button
+                        className="movie-reviews-pagination__btn"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>

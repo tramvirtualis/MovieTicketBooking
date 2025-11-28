@@ -1,12 +1,45 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { movieService } from '../services/movieService';
 
 const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
+  const [movies, setMovies] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const recognitionRef = useRef(null);
+  const searchContainerRef = useRef(null);
+  const suggestionsRef = useRef(null);
+
+  // Load danh sách phim để gợi ý
+  useEffect(() => {
+    const loadMovies = async () => {
+      try {
+        const result = await movieService.getPublicMovies();
+        if (result.success && result.data) {
+          setMovies(result.data);
+        }
+      } catch (error) {
+        console.error('Error loading movies for suggestions:', error);
+      }
+    };
+    loadMovies();
+  }, []);
+
+  // Filter movies based on search term
+  const suggestions = useMemo(() => {
+    if (!searchTerm.trim() || searchTerm.length < 2) {
+      return [];
+    }
+    const term = searchTerm.toLowerCase();
+    const filtered = movies.filter(movie => 
+      movie.title?.toLowerCase().includes(term)
+    ).slice(0, 7); // Tối đa 7 gợi ý
+    return filtered;
+  }, [movies, searchTerm]);
 
   // Kiểm tra hỗ trợ Web Speech API
   useEffect(() => {
@@ -70,6 +103,59 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
     };
   }, [onSearch]);
 
+  // Handle click outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+        setSelectedIndex(-1);
+      }
+    };
+
+    if (showSuggestions) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSuggestions]);
+
+  // Handle keyboard navigation
+  const handleKeyDown = (e) => {
+    if (!showSuggestions || suggestions.length === 0) {
+      if (e.key === 'Enter') {
+        handleSearch(e);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex(prev => 
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+          handleSuggestionClick(suggestions[selectedIndex]);
+        } else {
+          handleSearch(e);
+        }
+        break;
+      case 'Escape':
+        setShowSuggestions(false);
+        setSelectedIndex(-1);
+        break;
+    }
+  };
+
   const handleVoiceSearch = () => {
     if (!isSupported) {
       alert('Trình duyệt của bạn không hỗ trợ tìm kiếm bằng giọng nói. Vui lòng sử dụng Chrome, Edge hoặc Safari.');
@@ -92,6 +178,8 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
+      setShowSuggestions(false);
+      setSelectedIndex(-1);
       // Luôn navigate đến trang search results
       navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
       // Nếu có callback onSearch, vẫn gọi nó (cho các trường hợp đặc biệt)
@@ -101,34 +189,52 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
     }
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSearch(e);
+  const handleSuggestionClick = (movie) => {
+    setSearchTerm(movie.title);
+    setShowSuggestions(false);
+    setSelectedIndex(-1);
+    navigate(`/search?q=${encodeURIComponent(movie.title)}`);
+    if (onSearch) {
+      onSearch(movie.title);
     }
   };
 
+  const handleInputChange = (e) => {
+    setSearchTerm(e.target.value);
+    setShowSuggestions(true);
+    setSelectedIndex(-1);
+  };
+
   return (
-    <form 
-      onSubmit={handleSearch}
+    <div 
+      ref={searchContainerRef}
       style={{
         position: 'relative',
         width: '100%',
         maxWidth: '100%'
       }}
     >
-      <div style={{
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        background: 'rgba(45, 38, 39, 0.9)',
-        border: `1.5px solid ${isListening ? '#e83b41' : 'rgba(255, 255, 255, 0.2)'}`,
-        borderRadius: '50px',
-        padding: '4px 10px',
-        transition: 'all 0.3s ease',
-        boxShadow: isListening 
-          ? '0 0 15px rgba(232, 59, 65, 0.4)' 
-          : '0 1px 4px rgba(0, 0, 0, 0.15)'
-      }}>
+      <form 
+        onSubmit={handleSearch}
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '100%'
+        }}
+      >
+        <div style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          background: 'rgba(45, 38, 39, 0.9)',
+          border: `1.5px solid ${isListening ? '#e83b41' : 'rgba(255, 255, 255, 0.2)'}`,
+          borderRadius: '50px',
+          padding: '4px 10px',
+          transition: 'all 0.3s ease',
+          boxShadow: isListening 
+            ? '0 0 15px rgba(232, 59, 65, 0.4)' 
+            : '0 1px 4px rgba(0, 0, 0, 0.15)'
+        }}>
         {/* Search Icon - Clickable */}
         <button
           type="submit"
@@ -166,8 +272,13 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
         <input
           type="text"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            if (suggestions.length > 0) {
+              setShowSuggestions(true);
+            }
+          }}
           placeholder={placeholder}
           style={{
             flex: 1,
@@ -253,6 +364,91 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
           )}
         </button>
       </div>
+      </form>
+
+      {/* Suggestions Dropdown */}
+      {showSuggestions && suggestions.length > 0 && (
+        <div
+          ref={suggestionsRef}
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            marginTop: '8px',
+            background: 'rgba(30, 24, 25, 0.98)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: '12px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
+            zIndex: 1000,
+            maxHeight: '300px',
+            overflowY: 'auto',
+            backdropFilter: 'blur(10px)'
+          }}
+        >
+          {suggestions.map((movie, index) => (
+            <div
+              key={movie.movieId}
+              onClick={() => handleSuggestionClick(movie)}
+              onMouseEnter={() => setSelectedIndex(index)}
+              style={{
+                padding: '12px 16px',
+                cursor: 'pointer',
+                borderBottom: index < suggestions.length - 1 
+                  ? '1px solid rgba(255, 255, 255, 0.1)' 
+                  : 'none',
+                background: selectedIndex === index 
+                  ? 'rgba(232, 59, 65, 0.2)' 
+                  : 'transparent',
+                transition: 'background 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+            >
+              {movie.poster && (
+                <img
+                  src={movie.poster}
+                  alt={movie.title}
+                  style={{
+                    width: '40px',
+                    height: '56px',
+                    objectFit: 'cover',
+                    borderRadius: '4px',
+                    flexShrink: 0
+                  }}
+                />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  color: '#e6e1e2',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  marginBottom: '4px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {movie.title}
+                </div>
+                {movie.genre && movie.genre.length > 0 && (
+                  <div style={{
+                    color: 'rgba(255, 255, 255, 0.6)',
+                    fontSize: '12px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
+                    {Array.isArray(movie.genre) 
+                      ? movie.genre.join(', ') 
+                      : movie.genre}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* CSS Animation for pulse */}
       <style>{`
@@ -267,7 +463,7 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
           }
         }
       `}</style>
-    </form>
+    </div>
   );
 };
 
