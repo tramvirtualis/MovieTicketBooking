@@ -757,19 +757,31 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                 <div className="admin-card">
                   <div className="admin-card__header"><h3 className="admin-card__title">Thông tin</h3></div>
                   <div className="admin-card__content">
-                    <div className="movie-table-title">{selected.user.name}</div>
-                    <div className="movie-table-rating">{selected.user.email} • {selected.user.phone}</div>
+                    <div className="movie-table-title" style={{ color: '#fff', fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>{selected.user.name}</div>
+                    <div className="movie-table-rating" style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '14px', marginBottom: '12px' }}>{selected.user.email} • {selected.user.phone}</div>
                     {selected.orderType === 'FOOD_ONLY' ? (
-                      <div style={{ marginTop: 8 }}>
-                        <strong>🍿 Đơn hàng đồ ăn</strong>
-                      </div>
+                      <>
+                        <div style={{ marginTop: 8, marginBottom: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '20px' }}>🍿</span>
+                            <strong style={{ color: '#ffd159', fontSize: '15px', fontWeight: 600 }}>Đơn hàng đồ ăn</strong>
+                          </div>
+                          {selected.cinemaName && (
+                            <div style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '14px', marginTop: '4px' }}>
+                              <span style={{ color: 'rgba(255, 255, 255, 0.6)' }}>Cụm rạp:</span> {selected.cinemaName}
+                            </div>
+                          )}
+                        </div>
+                      </>
                     ) : (
                       <>
-                        <div style={{ marginTop: 8 }}>{selected.movieTitle} • {selected.cinemaName} • {selected.roomName}</div>
-                        <div>Suất: {new Date(selected.showtime).toLocaleString('vi-VN')}</div>
+                        <div style={{ marginTop: 8, color: 'rgba(255, 255, 255, 0.9)', fontSize: '14px', marginBottom: '4px' }}>{selected.movieTitle} • {selected.cinemaName} • {selected.roomName}</div>
+                        <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '14px' }}>Suất: {new Date(selected.showtime).toLocaleString('vi-VN')}</div>
                       </>
                     )}
-                    <div style={{ marginTop: 8 }}>Ngày đặt: {new Date(selected.showtime).toLocaleString('vi-VN')}</div>
+                    <div style={{ marginTop: 12, color: 'rgba(255, 255, 255, 0.7)', fontSize: '14px', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                      Ngày đặt: {new Date(selected.showtime).toLocaleString('vi-VN')}
+                    </div>
                   </div>
                 </div>
                 <div className="admin-card">
@@ -784,18 +796,24 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                         {selected.combos && selected.combos.length > 0 ? (
                           <div style={{ marginBottom: 12 }}>
                             {selected.combos.map((combo, idx) => (
-                              <div key={idx} style={{ marginBottom: 8, padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-                                <div style={{ fontWeight: 600 }}>{combo.comboName}</div>
-                                <div style={{ fontSize: '14px', color: '#666' }}>
-                                  Số lượng: {combo.quantity} × {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(combo.price / combo.quantity)} = {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(combo.price)}
+                              <div key={idx} style={{ marginBottom: 8, padding: '12px', backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                <div style={{ fontWeight: 600, color: '#fff', fontSize: '15px', marginBottom: '4px' }}>{combo.comboName}</div>
+                                <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.7)' }}>
+                                  Số lượng: {combo.quantity} × {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(combo.price / combo.quantity)} = <strong style={{ color: '#ffd159' }}>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(combo.price)}</strong>
                                 </div>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <div style={{ color: '#9e9e9e' }}>Không có thông tin đồ ăn</div>
+                          <div style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Không có thông tin đồ ăn</div>
                         )}
-                        <div>Tổng: <strong>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.totalAmount)}</strong> • {selected.paymentMethod}</div>
+                        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                          <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '14px', marginBottom: '4px' }}>Tổng tiền:</div>
+                          <div style={{ color: '#fff', fontSize: '18px', fontWeight: 700 }}>
+                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selected.totalAmount)}
+                          </div>
+                          <div style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '13px', marginTop: '4px' }}>Phương thức: {selected.paymentMethod}</div>
+                        </div>
                       </>
                     ) : (
                       <>

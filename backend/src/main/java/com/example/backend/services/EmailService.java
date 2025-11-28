@@ -1,6 +1,7 @@
 package com.example.backend.services;
 
 import com.example.backend.entities.*;
+import com.example.backend.repositories.CinemaComplexRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 public class EmailService {
     
     private final JavaMailSender mailSender;
+    private final CinemaComplexRepository cinemaComplexRepository;
     
     @Value("${spring.mail.username}")
     private String fromEmail;
@@ -674,6 +676,23 @@ public class EmailService {
         if (hasCombos && order.getOrderCombos() != null && !order.getOrderCombos().isEmpty()) {
             html.append("<div class=\"food-section\">");
             html.append("<h3 class=\"section-title\">🍿 Đồ ăn & Nước uống</h3>");
+            
+            // Hiển thị cụm rạp cho đơn hàng đồ ăn (nếu chỉ có đồ ăn, không có vé)
+            if (!hasTickets && order.getCinemaComplexId() != null) {
+                try {
+                    CinemaComplex cinema = cinemaComplexRepository.findByComplexId(order.getCinemaComplexId())
+                        .orElse(null);
+                    if (cinema != null) {
+                        html.append("<div style=\"background-color: #fff; padding: 12px; margin-bottom: 12px; border-radius: 6px; border-left: 3px solid #fbbf24; box-shadow: 0 1px 3px rgba(0,0,0,0.08);\">");
+                        html.append("<div style=\"font-weight: 600; color: #555; margin-bottom: 4px; font-size: 13px;\">Cụm rạp:</div>");
+                        html.append("<div style=\"font-weight: 600; color: #333; font-size: 15px;\">").append(escapeHtml(cinema.getName())).append("</div>");
+                        html.append("</div>");
+                    }
+                } catch (Exception e) {
+                    // Nếu không tìm thấy cụm rạp, bỏ qua
+                    System.err.println("Error loading cinema complex for order " + order.getOrderId() + ": " + e.getMessage());
+                }
+            }
             
             for (OrderCombo combo : order.getOrderCombos()) {
                 if (combo.getFoodCombo() != null) {

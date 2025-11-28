@@ -344,6 +344,21 @@ const TicketModal = ({ order, isOpen, onClose }) => {
                 🍿 Đồ ăn & Nước uống
               </h3>
               
+              {/* Hiển thị cụm rạp cho đơn đồ ăn */}
+              {!hasTickets && order.cinemaName && (
+                <div style={{
+                  marginBottom: '12px',
+                  padding: '8px 12px',
+                  backgroundColor: '#fff',
+                  borderRadius: '6px',
+                  borderLeft: '3px solid #fbbf24',
+                  fontSize: '14px',
+                  color: '#333'
+                }}>
+                  <span style={{ fontWeight: 600, color: '#555' }}>Cụm rạp:</span> {order.cinemaName}
+                </div>
+              )}
+              
               {order.foodItems.map((foodItem, index) => (
                 <div key={foodItem.id || index} style={{
                   backgroundColor: '#ffffff',

@@ -4,6 +4,7 @@ import Footer from '../components/Footer.jsx';
 import TicketModal from '../components/TicketModal.jsx';
 import { getMyOrders } from '../services/customer';
 import { useNavigate } from 'react-router-dom';
+import { cinemaComplexService } from '../services/cinemaComplexService';
 
 export default function Orders() {
   const navigate = useNavigate();
@@ -13,7 +14,23 @@ export default function Orders() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [cinemasList, setCinemasList] = useState([]);
   const ordersPerPage = 5;
+
+  // Load cinemas list
+  useEffect(() => {
+    const loadCinemas = async () => {
+      try {
+        const result = await cinemaComplexService.getAllCinemaComplexes();
+        if (result.success && result.data) {
+          setCinemasList(result.data);
+        }
+      } catch (error) {
+        console.error('Error loading cinemas:', error);
+      }
+    };
+    loadCinemas();
+  }, []);
 
   // Load orders from API
   useEffect(() => {
@@ -87,6 +104,12 @@ export default function Orders() {
           const originalTotal = Object.values(itemsByShowtime).reduce((sum, item) => sum + item.price, 0) +
                                 foodItems.reduce((sum, item) => sum + item.totalPrice, 0);
 
+          // Lấy cinemaComplexId từ order (cho đơn đồ ăn)
+          const cinemaComplexId = order.cinemaComplexId || null;
+          // Tìm tên cụm rạp từ danh sách
+          const cinema = cinemasList.find(c => c.complexId === cinemaComplexId);
+          const cinemaName = cinema ? cinema.name : null;
+
           return {
             orderId: `ORD-${order.orderId}`,
             orderDate: order.orderDate,
@@ -97,6 +120,8 @@ export default function Orders() {
             items: Object.values(itemsByShowtime),
             foodItems: foodItems.length > 0 ? foodItems : undefined,
             paymentMethod: order.paymentMethod || 'Chưa xác định',
+            cinemaComplexId: cinemaComplexId, // Lưu cinemaComplexId cho đơn đồ ăn
+            cinemaName: cinemaName, // Lưu tên cụm rạp cho đơn đồ ăn
             bookingDate: new Date(order.orderDate).toLocaleString('vi-VN', {
               day: '2-digit',
               month: '2-digit',
@@ -117,7 +142,7 @@ export default function Orders() {
     };
 
     loadOrders();
-  }, [navigate]);
+  }, [navigate, cinemasList]);
 
   // Calculate pagination
   const totalPages = Math.ceil(orders.length / ordersPerPage);
