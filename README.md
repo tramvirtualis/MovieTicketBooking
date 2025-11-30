@@ -101,11 +101,3 @@ You may need to configure environment variables or `application.properties` for 
 
 **Frontend (`.env`):**
 -   `VITE_API_BASE_URL` (Pointer to backend API)
-
-## 🤝 Contributing
-
-Contributions are welcome! Please fork the repository and submit a pull request for any enhancements or bug fixes.
-
-## 📄 License
-
-This project is licensed under the MIT License.
