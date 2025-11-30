@@ -319,6 +319,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
                             const timeStr = typeof timeData === 'string' ? timeData : timeData.time;
                             const showtimeId = typeof timeData === 'object' && timeData.showtimeId ? timeData.showtimeId : null;
                             const showtimeDate = typeof timeData === 'object' && timeData.date ? timeData.date : dateKey;
+                            const language = typeof timeData === 'object' && timeData.language ? timeData.language : '';
                             
                             // Build booking URL with parameters
                             const bookingParams = new URLSearchParams({
@@ -358,7 +359,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
                                 className="btn" 
                                 style={{ padding: '8px 12px', background: '#2d2627', border: '1px solid #4a3f41', color: '#fff', cursor: 'pointer' }}
                               >
-                                {timeStr}
+                                {timeStr}{language ? ` ${language}` : ''}
                               </button>
                             );
                           })}
@@ -375,6 +376,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
                           const timeStr = typeof timeData === 'string' ? timeData : timeData.time;
                           const showtimeId = typeof timeData === 'object' && timeData.showtimeId ? timeData.showtimeId : null;
                           const showtimeDate = typeof timeData === 'object' && timeData.date ? timeData.date : date;
+                          const language = typeof timeData === 'object' && timeData.language ? timeData.language : '';
                           
                           // Build booking URL with parameters
                           const bookingParams = new URLSearchParams({
@@ -414,7 +416,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
                               className="btn" 
                               style={{ padding: '8px 12px', background: '#2d2627', border: '1px solid #4a3f41', color: '#fff', cursor: 'pointer' }}
                             >
-                              {timeStr}
+                              {timeStr}{language ? ` ${language}` : ''}
                             </button>
                           );
                         })

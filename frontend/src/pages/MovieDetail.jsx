@@ -217,6 +217,24 @@ export default function MovieDetail() {
     return roomTypePart;
   }, []);
 
+  // Extract language from formatLabel and map to Vietnamese
+  const extractLanguage = useCallback((formatLabel) => {
+    if (!formatLabel) return '';
+    // formatLabel có thể là "TYPE_2D • VIETSUB" hoặc chỉ "TYPE_2D"
+    const parts = formatLabel.split(' • ');
+    if (parts.length > 1) {
+      const languagePart = parts[1];
+      // Map language enum to Vietnamese
+      const languageMapping = {
+        'VIETSUB': 'Phụ đề',
+        'VIETDUB': 'Lồng tiếng',
+        'VIETNAMESE': 'Tiếng Việt',
+      };
+      return languageMapping[languagePart] || languagePart;
+    }
+    return '';
+  }, []);
+
   // Load showtimes when filters change - sử dụng scheduleService giống như Schedule.jsx
   const loadShowtimes = useCallback(async (movieId, province, date) => {
     if (!movieId) {
@@ -296,13 +314,15 @@ export default function MovieDetail() {
             // Get date in YYYY-MM-DD format for grouping
             const dateKey = startTime ? startTime.toISOString().slice(0, 10) : null;
             
-            // Store as object with time, showtimeId, and date
+            // Store as object with time, showtimeId, date, and language
             if (time) {
+              const language = extractLanguage(item.formatLabel);
               const showtimeData = {
                 time: time,
                 showtimeId: item.showtimeId,
                 date: dateKey, // Store date for grouping when "Tất cả" is selected
-                startTime: item.startTime // Keep original startTime for date formatting
+                startTime: item.startTime, // Keep original startTime for date formatting
+                language: language // Store language for display
               };
               // Check if time already exists for this date
               const existingIndex = showtimesByCinema[cinemaId][format].findIndex(
