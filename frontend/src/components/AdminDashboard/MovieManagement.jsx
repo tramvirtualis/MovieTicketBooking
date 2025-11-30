@@ -354,13 +354,22 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
           }
         }
         
-        // Chỉ hiển thị notification nếu không có validation errors (validation errors đã hiển thị ở form)
-        if (!hasValidationErrors) {
+        // Kiểm tra xem có phải lỗi về suất chiếu trong tương lai không (đã hiển thị trong modal)
+        const isShowtimeError = errorMessage.includes('suất chiếu trong tương lai') || 
+                                errorMessage.includes('vé đã được đặt cho các suất chiếu');
+        
+        // Chỉ hiển thị notification nếu không có validation errors và không phải lỗi showtime
+        // (validation errors và showtime errors đã hiển thị trong modal)
+        if (!hasValidationErrors && !isShowtimeError) {
           setError(errorMessage);
           showNotification(errorMessage, 'error');
         } else {
-          // Nếu có validation errors, chỉ set error state, không hiển thị notification (để tránh duplicate)
-          setError(null);
+          // Nếu có validation errors hoặc showtime error, chỉ set error state, không hiển thị notification (để tránh duplicate)
+          if (isShowtimeError) {
+            setError(errorMessage);
+          } else {
+            setError(null);
+          }
         }
       }
     } catch (err) {
@@ -544,8 +553,8 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
         }
       `}</style>
     <div className="movie-management">
-      {/* Error Modal Popup */}
-      {error && (
+      {/* Error Modal Popup - Only show when form modal is NOT open */}
+      {error && !showModal && (
         <div 
           style={{
             position: 'fixed',
@@ -1080,7 +1089,129 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                 </svg>
               </button>
             </div>
-            <div className="movie-modal__content">
+            <div className="movie-modal__content" style={{ position: 'relative' }}>
+              {/* Error Overlay - Hiển thị chồng lên form */}
+              {error && (
+                <div 
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10001,
+                    borderRadius: '8px',
+                    animation: 'fadeIn 0.2s ease-out'
+                  }}
+                  onClick={() => setError(null)}
+                >
+                  <div 
+                    style={{
+                      background: 'linear-gradient(135deg, #e83b41 0%, #c62828 100%)',
+                      borderRadius: '16px',
+                      padding: '32px',
+                      maxWidth: '500px',
+                      width: '90%',
+                      boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
+                      border: '2px solid rgba(255, 255, 255, 0.1)',
+                      animation: 'slideUp 0.3s ease-out',
+                      position: 'relative'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => setError(null)}
+                      style={{
+                        position: 'absolute',
+                        top: '16px',
+                        right: '16px',
+                        background: 'rgba(255, 255, 255, 0.2)',
+                        border: 'none',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '20px',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseOver={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.3)'}
+                      onMouseOut={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.2)'}
+                      title="Đóng"
+                    >
+                      ×
+                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+                      <div style={{
+                        width: '64px',
+                        height: '64px',
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <circle cx="12" cy="12" r="10"/>
+                          <line x1="12" y1="8" x2="12" y2="12"/>
+                          <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <h3 style={{ 
+                          margin: 0, 
+                          marginBottom: '12px', 
+                          fontSize: '20px', 
+                          fontWeight: 700, 
+                          color: '#fff' 
+                        }}>
+                          Lỗi
+                        </h3>
+                        <p style={{ 
+                          margin: 0, 
+                          fontSize: '16px', 
+                          color: '#fff', 
+                          lineHeight: '1.6',
+                          wordBreak: 'break-word'
+                        }}>
+                          {error}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setError(null)}
+                        style={{
+                          padding: '12px 32px',
+                          background: 'rgba(255, 255, 255, 0.2)',
+                          border: '2px solid rgba(255, 255, 255, 0.3)',
+                          borderRadius: '8px',
+                          color: '#fff',
+                          fontSize: '16px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseOver={(e) => {
+                          e.target.style.background = 'rgba(255, 255, 255, 0.3)';
+                          e.target.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.target.style.background = 'rgba(255, 255, 255, 0.2)';
+                          e.target.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                        }}
+                      >
+                        Đóng
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Notification Toast - Hiển thị trong modal */}
               {notification && (
                 <div style={{
