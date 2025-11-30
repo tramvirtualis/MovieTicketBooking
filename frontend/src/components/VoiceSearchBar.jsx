@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { movieService } from '../services/movieService';
+import { enumService } from '../services/enumService';
 
 const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
   const navigate = useNavigate();
@@ -440,8 +441,11 @@ const VoiceSearchBar = ({ onSearch, placeholder = "Tìm kiếm phim..." }) => {
                     textOverflow: 'ellipsis'
                   }}>
                     {Array.isArray(movie.genre) 
-                      ? movie.genre.join(', ') 
-                      : movie.genre}
+                      ? movie.genre.map(g => {
+                          const genreValue = typeof g === 'string' ? g.toUpperCase() : g;
+                          return enumService.mapGenreToVietnamese(genreValue);
+                        }).join(', ') 
+                      : enumService.mapGenreToVietnamese(typeof movie.genre === 'string' ? movie.genre.toUpperCase() : movie.genre)}
                   </div>
                 )}
               </div>

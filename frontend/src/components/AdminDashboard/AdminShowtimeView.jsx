@@ -108,9 +108,11 @@ export default function AdminShowtimeView() {
         setLoadingShowtimes(true);
         const allShowtimes = [];
         const monday = getMondayOfWeek(currentDate);
-        const startDate = new Date(monday);
-        const endDate = new Date(monday);
-        endDate.setDate(endDate.getDate() + 6);
+        // Get date strings for the week range
+        const startDateStr = formatDateLocal(monday);
+        const endDateObj = new Date(monday);
+        endDateObj.setDate(endDateObj.getDate() + 6);
+        const endDateStr = formatDateLocal(endDateObj);
 
         for (const roomId of selectedRooms) {
           const result = await showtimeService.getShowtimesByRoomIdAdmin(roomId);
@@ -119,9 +121,9 @@ export default function AdminShowtimeView() {
               const startDateTime = new Date(st.startTime);
               const endDateTime = new Date(st.endTime);
               const date = formatDateLocal(startDateTime);
-              const showtimeDate = new Date(startDateTime.getFullYear(), startDateTime.getMonth(), startDateTime.getDate());
               
-              if (showtimeDate < startDate || showtimeDate > endDate) {
+              // Compare using date strings to avoid timezone issues
+              if (date < startDateStr || date > endDateStr) {
                 return null;
               }
               

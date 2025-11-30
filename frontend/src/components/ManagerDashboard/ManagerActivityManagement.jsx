@@ -387,9 +387,9 @@ function ManagerActivityManagement({ managerUsername, onNewActivity }) {
                   <tr>
                     <th style={{ width: '160px' }}>Thời gian</th>
                     <th style={{ width: '120px' }}>Hành động</th>
-                    <th style={{ width: '180px' }}>Đối tượng</th>
+                    <th style={{ width: '280px' }}>Đối tượng</th>
                     <th style={{ width: '200px' }}>Tên đối tượng</th>
-                    <th>Mô tả</th>
+                    <th style={{ width: '300px' }}>Mô tả</th>
                     <th style={{ width: '100px' }}>Thao tác</th>
                   </tr>
                 </thead>
@@ -477,7 +477,7 @@ function ManagerActivityManagement({ managerUsername, onNewActivity }) {
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
-                            maxWidth: '100%',
+                            maxWidth: '300px',
                           }}
                           title={activity.description}
                         >

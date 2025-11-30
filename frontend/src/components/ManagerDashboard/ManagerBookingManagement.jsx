@@ -466,30 +466,30 @@ function ManagerBookingManagement({ orders: initialOrders, cinemas, movies, mana
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <div className="movie-search">
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="movie-search" style={{ flex: '1 1 300px', minWidth: '250px' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <input className="movie-search__input" placeholder="Tìm tên KH, sđt, phim, rạp..." value={searchTerm} onChange={(e)=>setSearchTerm(e.target.value)} />
           </div>
           {orderTypeFilter !== 'FOOD_ONLY' && (
             <>
-              <select className="movie-filter" value={filterCinema} onChange={(e)=>setFilterCinema(e.target.value)}>
+              <select className="movie-filter" value={filterCinema} onChange={(e)=>setFilterCinema(e.target.value)} style={{ flex: '0 1 200px', minWidth: '150px' }}>
                 <option value="">Tất cả rạp</option>
                 {scopedCinemas.map(c => <option key={c.complexId} value={c.complexId}>#{c.complexId} - {c.name}</option>)}
               </select>
-              <select className="movie-filter" value={filterMovie} onChange={(e)=>setFilterMovie(e.target.value)}>
+              <select className="movie-filter" value={filterMovie} onChange={(e)=>setFilterMovie(e.target.value)} style={{ flex: '0 1 200px', minWidth: '150px' }}>
                 <option value="">Tất cả phim</option>
                 {(movies || []).map(m => <option key={m.movieId} value={m.movieId}>{m.title}</option>)}
               </select>
             </>
           )}
-          <select className="movie-filter" value={filterStatus} onChange={(e)=>setFilterStatus(e.target.value)}>
+          <select className="movie-filter" value={filterStatus} onChange={(e)=>setFilterStatus(e.target.value)} style={{ flex: '0 1 180px', minWidth: '150px' }}>
             <option value="">Tất cả trạng thái</option>
             <option value="ACTIVE">Còn hạn</option>
             <option value="EXPIRED">Hết hạn</option>
           </select>
-          <input type="date" className="movie-filter" value={dateFrom} onChange={(e)=>setDateFrom(e.target.value)} />
-          <input type="date" className="movie-filter" value={dateTo} onChange={(e)=>setDateTo(e.target.value)} />
+          <input type="date" className="movie-filter" value={dateFrom} onChange={(e)=>setDateFrom(e.target.value)} style={{ flex: '0 1 160px', minWidth: '140px' }} />
+          <input type="date" className="movie-filter" value={dateTo} onChange={(e)=>setDateTo(e.target.value)} style={{ flex: '0 1 160px', minWidth: '140px' }} />
         </div>
       </div>
 
