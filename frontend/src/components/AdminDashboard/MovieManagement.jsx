@@ -255,6 +255,14 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
     if (!formData.poster || formData.poster.trim() === '') {
       errors.poster = 'Vui lòng upload poster';
     }
+    // Định dạng: yêu cầu chọn ít nhất 1 định dạng chiếu
+    if (!formData.formats || formData.formats.length === 0) {
+      errors.formats = 'Vui lòng chọn ít nhất 1 định dạng chiếu';
+    }
+    // Ngôn ngữ: yêu cầu chọn ít nhất 1 ngôn ngữ
+    if (!formData.languages || formData.languages.length === 0) {
+      errors.languages = 'Vui lòng chọn ít nhất 1 ngôn ngữ';
+    }
 
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
@@ -1212,8 +1220,8 @@ function MovieManagement({ movies: initialMoviesList, onMoviesChange }) {
                   </div>
                 </div>
               )}
-              {/* Notification Toast - Hiển thị trong modal */}
-              {notification && (
+              {/* Notification Toast - Hiển thị trong modal (chỉ cho lỗi, tránh trùng với toast bên ngoài) */}
+              {notification && notification.type === 'error' && (
                 <div style={{
                   position: 'sticky',
                   top: '0',

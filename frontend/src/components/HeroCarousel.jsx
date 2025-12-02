@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './carousel.css';
+import ProgressiveImage from './ProgressiveImage.jsx';
 
 const defaultPosters = [
   // royalty-free/sample posters
@@ -105,7 +106,11 @@ export default function HeroCarousel({ posters = defaultPosters, autoplayMs = 30
         <div className="poster-carousel__track" role="list" ref={trackRef}>
           {posters.map((src, i) => (
             <div className="poster-carousel__slide" role="listitem" aria-label={`Slide ${i + 1}`} key={i}>
-              <img src={src} alt={`Featured movie poster ${i + 1}`} />
+              <ProgressiveImage
+                src={src}
+                alt={`Featured movie poster ${i + 1}`}
+                className=""
+              />
             </div>
           ))}
         </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import ProgressiveImage from './ProgressiveImage.jsx';
 
 export function Section({ id, title, linkText, children }) {
   return (
@@ -149,7 +150,11 @@ export function CardsGrid({ items, isNowShowing = false, onPlayTrailer }) {
                   {m.rating && (
                     <span className="card__rating-badge">{m.rating}</span>
                   )}
-                  <img src={m.poster} alt={m.title} className="card__img" />
+                  <ProgressiveImage
+                    src={m.poster}
+                    alt={m.title}
+                    className="card__img"
+                  />
                   <div className="card__play-overlay">
                     <div className="card__buttons">
                       <button 
@@ -333,7 +338,11 @@ export function HallsGrid({ items }) {
     <div className="grid grid--halls">
       {items.map((h, idx) => (
         <article key={idx} className="card hall">
-          <img src={h.image} alt={h.name} className="card__img" />
+          <ProgressiveImage
+            src={h.image}
+            alt={h.name}
+            className="card__img"
+          />
           <div className="card__body">
             <h3 className="card__title">{h.name}</h3>
             {h.desc ? <p className="card__meta">{h.desc}</p> : null}
@@ -352,7 +361,7 @@ export function PromosGrid({ items }) {
           <div className="flex flex-col md:flex-row h-full">
             {/* Poster */}
             <div className="promo-card__poster w-full md:w-36 h-40 md:h-auto flex-shrink-0 overflow-hidden relative">
-              <img
+              <ProgressiveImage
                 src={p.image || 'https://via.placeholder.com/1000x430?text=Promotion'}
                 alt={p.title}
                 className="w-full h-full object-cover"
