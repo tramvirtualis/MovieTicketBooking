@@ -180,7 +180,7 @@ export default function BookTicket() {
     email: 'nguyenvana@example.com'
   });
   const [paymentMethod, setPaymentMethod] = useState('vnpay');
-  const [step, setStep] = useState(movieIdFromUrl && cinemaIdFromUrl && showtimeFromUrl ? 2 : 1); // Start at step 2 if params exist
+  const [step, setStep] = useState((movieIdFromUrl && cinemaIdFromUrl && showtimeFromUrl) || showtimeIdFromUrl ? 2 : 1); // Start at step 2 if params exist or showtimeId is provided
   const [showAgeConfirmModal, setShowAgeConfirmModal] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [pendingShowtime, setPendingShowtime] = useState(null);
@@ -260,8 +260,8 @@ export default function BookTicket() {
 
   // Initialize showtime from URL params - load from database
   useEffect(() => {
-    if (movieIdFromUrl && showtimeIdFromUrl && !selectedShowtime && !loadingShowtime) {
-      // If showtimeId is provided, load showtime directly by ID
+    // Priority 1: If showtimeId is provided (with or without movieId), load showtime directly by ID
+    if (showtimeIdFromUrl && !selectedShowtime && !loadingShowtime) {
       const loadShowtimeById = async () => {
         setLoadingShowtime(true);
         setShowtimeError(null);
@@ -290,11 +290,22 @@ export default function BookTicket() {
             };
             console.log('[BookTicket] Loaded showtime:', mockShowtime);
             setSelectedShowtime(mockShowtime);
+            
+            // Set movie and cinema from showtime data if available
+            if (st.movieId) {
+              setSelectedMovie(String(st.movieId));
+            } else if (movieIdFromUrl) {
+              setSelectedMovie(movieIdFromUrl);
+            }
+            
             if (st.cinemaComplexId) {
               setSelectedCinema(String(st.cinemaComplexId));
+            } else if (cinemaIdFromUrl) {
+              setSelectedCinema(cinemaIdFromUrl);
             }
-            setSelectedMovie(movieIdFromUrl);
-            setStep(2); // Ensure we're on step 2
+            
+            // Directly go to step 2 (seat selection) since we have showtime
+            setStep(2);
           } else {
             const errorMsg = showtimeResult.error || 'Không thể tải thông tin suất chiếu';
             console.error('[BookTicket] Failed to load showtime:', errorMsg);
