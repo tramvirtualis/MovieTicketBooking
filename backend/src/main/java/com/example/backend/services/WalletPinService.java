@@ -171,8 +171,11 @@ public class WalletPinService {
      * Xác thực mã PIN (dùng cho các giao dịch quan trọng)
      * Trả về true nếu PIN đúng, false nếu sai
      * Tự động tăng failed attempts và lock nếu cần
+     * 
+     * Note: noRollbackFor để đảm bảo failedAttempts được lưu vào DB
+     * ngay cả khi throw exception (vì RuntimeException sẽ rollback transaction)
      */
-    @Transactional
+    @Transactional(noRollbackFor = {IllegalArgumentException.class, IllegalStateException.class})
     public boolean verifyPin(Long userId, VerifyPinRequestDTO request) {
         WalletPin walletPin = walletPinRepository.findByCustomerUserId(userId)
                 .orElseThrow(() -> new IllegalStateException("Bạn chưa có mã PIN. Vui lòng tạo mã PIN trước."));
@@ -207,7 +210,10 @@ public class WalletPinService {
             }
             
             walletPinRepository.save(walletPin);
+            walletPinRepository.flush(); // Force flush để đảm bảo save được commit ngay
             int remainingAttempts = MAX_FAILED_ATTEMPTS - walletPin.getFailedAttempts();
+            log.info("PIN verification failed for customer ID: {}. Failed attempts: {}, Remaining: {}", 
+                    userId, walletPin.getFailedAttempts(), remainingAttempts);
             throw new IllegalArgumentException("Mã PIN không đúng. Còn " + remainingAttempts + " lần thử.");
         }
     }

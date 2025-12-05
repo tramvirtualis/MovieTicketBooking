@@ -1554,6 +1554,8 @@ public class PaymentController {
                 } catch (IllegalArgumentException | IllegalStateException e) {
                     // PIN sai hoặc bị lock
                     log.warn("PIN verification failed for user {}: {}", finalUser.getUserId(), e.getMessage());
+                    log.info("Error message to return: {}", e.getMessage());
+                    
                     // Xóa order nếu chưa PAID
                     if (order != null && order.getStatus() != OrderStatus.PAID) {
                         try {
@@ -1562,8 +1564,12 @@ public class PaymentController {
                             log.error("Failed to delete order after PIN validation error: {}", deleteEx.getMessage());
                         }
                     }
+                    
+                    // Đảm bảo error message được truyền đúng
+                    String errorMsg = e.getMessage();
+                    log.info("Returning error response with message: {}", errorMsg);
                     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(createErrorResponse(e.getMessage(), null));
+                        .body(createErrorResponse(errorMsg, null));
                 }
             } else {
                 // User chưa có PIN, yêu cầu tạo PIN trước

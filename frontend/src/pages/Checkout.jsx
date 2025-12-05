@@ -264,10 +264,51 @@ export default function Checkout() {
       await processWalletPayment(pinToSend);
     } catch (error) {
       console.error('Error in processWalletPayment:', error);
-      // Nếu thanh toán thất bại do PIN sai, hiển thị lại modal
+      // Nếu thanh toán thất bại do PIN sai, parse error message từ backend để lấy số lần thử còn lại
+      const errorMessage = error.message || error.response?.data?.message || 'Mã PIN không đúng. Vui lòng thử lại.';
+      
+      // Parse error message từ backend để lấy số lần thử còn lại
+      // Backend trả về: "Mã PIN không đúng. Còn X lần thử."
+      const remainingAttemptsMatch = errorMessage.match(/Còn (\d+) lần thử/);
+      if (remainingAttemptsMatch) {
+        // Dùng error message từ backend (đã có số lần thử còn lại chính xác)
+        setPinError(errorMessage);
+      } else {
+        // Nếu không parse được, reload PIN status để lấy số lần thử còn lại
+        // Thêm delay nhỏ để đảm bảo backend đã commit transaction
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        try {
+          const pinStatus = await walletPinService.getPinStatus();
+          console.log('PIN Status after error:', pinStatus);
+          
+          if (pinStatus.locked) {
+            setPinError('Mã PIN của bạn đang bị khóa. Vui lòng thử lại sau.');
+          } else if (pinStatus.failedAttempts !== undefined && pinStatus.failedAttempts !== null) {
+            // Tính số lần thử còn lại từ status
+            const MAX_ATTEMPTS = 5; // Số lần thử tối đa
+            const remainingAttempts = MAX_ATTEMPTS - pinStatus.failedAttempts;
+            console.log(`Failed attempts: ${pinStatus.failedAttempts}, Remaining: ${remainingAttempts}`);
+            
+            if (remainingAttempts > 0) {
+              setPinError(`Mã PIN không đúng. Còn ${remainingAttempts} lần thử.`);
+            } else {
+              setPinError('Mã PIN không đúng. Còn 0 lần thử.');
+            }
+          } else {
+            // Nếu không có thông tin từ status, dùng error message từ backend
+            console.log('No failedAttempts in status, using error message:', errorMessage);
+            setPinError(errorMessage);
+          }
+        } catch (statusError) {
+          // Nếu không load được status, dùng error message từ backend
+          console.error('Error loading PIN status:', statusError);
+          setPinError(errorMessage);
+        }
+      }
+      
       setVerifiedPin(null);
       setShowPinModal(true);
-      setPinError(error.message || 'Mã PIN không đúng. Vui lòng thử lại.');
     }
   };
 
@@ -324,12 +365,57 @@ export default function Checkout() {
         return;
         } else {
           const errorMessage = response.message || 'Không thể thanh toán bằng ví Cinesmart. Vui lòng thử lại.';
-          console.error('Wallet payment failed:', errorMessage, response);
-          // Nếu lỗi liên quan đến PIN, hiển thị lại modal
+          console.error('Wallet payment failed - Full response:', response);
+          console.error('Wallet payment failed - Error message:', errorMessage);
+          
+          // Nếu lỗi liên quan đến PIN, parse error message từ backend để lấy số lần thử còn lại
           if (errorMessage.includes('PIN') || errorMessage.includes('pin') || errorMessage.includes('mã PIN')) {
+            // Parse error message từ backend để lấy số lần thử còn lại
+            // Backend trả về: "Mã PIN không đúng. Còn X lần thử."
+            console.log('PIN error detected, parsing message:', errorMessage);
+            const remainingAttemptsMatch = errorMessage.match(/Còn (\d+) lần thử/);
+            console.log('Remaining attempts match:', remainingAttemptsMatch);
+            
+            if (remainingAttemptsMatch) {
+              // Dùng error message từ backend (đã có số lần thử còn lại chính xác)
+              console.log('Using error message from backend:', errorMessage);
+              setPinError(errorMessage);
+            } else {
+              // Nếu không parse được, reload PIN status để lấy số lần thử còn lại
+              // Thêm delay nhỏ để đảm bảo backend đã commit transaction
+              console.log('Cannot parse error message, reloading PIN status...');
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
+              try {
+                const pinStatus = await walletPinService.getPinStatus();
+                console.log('PIN Status after error:', pinStatus);
+                
+                if (pinStatus.locked) {
+                  setPinError('Mã PIN của bạn đang bị khóa. Vui lòng thử lại sau.');
+                } else if (pinStatus.failedAttempts !== undefined && pinStatus.failedAttempts !== null) {
+                  // Tính số lần thử còn lại từ status
+                  const MAX_ATTEMPTS = 5; // Số lần thử tối đa
+                  const remainingAttempts = MAX_ATTEMPTS - pinStatus.failedAttempts;
+                  console.log(`Failed attempts: ${pinStatus.failedAttempts}, Remaining: ${remainingAttempts}`);
+                  
+                  if (remainingAttempts > 0) {
+                    setPinError(`Mã PIN không đúng. Còn ${remainingAttempts} lần thử.`);
+                  } else {
+                    setPinError('Mã PIN không đúng. Còn 0 lần thử.');
+                  }
+                } else {
+                  // Nếu không có thông tin từ status, dùng error message từ backend
+                  console.log('No failedAttempts in status, using error message:', errorMessage);
+                  setPinError(errorMessage);
+                }
+              } catch (statusError) {
+                // Nếu không load được status, dùng error message từ backend
+                console.error('Error loading PIN status:', statusError);
+                setPinError(errorMessage);
+              }
+            }
             setVerifiedPin(null);
             setShowPinModal(true);
-            setPinError(errorMessage);
           } else {
             showAlert('Lỗi', errorMessage);
           }
@@ -346,11 +432,54 @@ export default function Checkout() {
       } catch (error) {
         console.error('Error creating wallet payment:', error);
         const errorMessage = error.message || error.response?.data?.message || 'Có lỗi xảy ra khi thanh toán bằng ví Cinesmart. Vui lòng thử lại.';
-        // Nếu lỗi liên quan đến PIN, hiển thị lại modal
+        // Nếu lỗi liên quan đến PIN, reload PIN status để lấy số lần thử còn lại chính xác
         if (errorMessage.includes('PIN') || errorMessage.includes('pin') || errorMessage.includes('mã PIN')) {
+          // Parse error message từ backend để lấy số lần thử còn lại
+          // Backend trả về: "Mã PIN không đúng. Còn X lần thử."
+          console.log('PIN error detected in catch, parsing message:', errorMessage);
+          const remainingAttemptsMatch = errorMessage.match(/Còn (\d+) lần thử/);
+          console.log('Remaining attempts match:', remainingAttemptsMatch);
+          
+          if (remainingAttemptsMatch) {
+            // Dùng error message từ backend (đã có số lần thử còn lại chính xác)
+            console.log('Using error message from backend:', errorMessage);
+            setPinError(errorMessage);
+          } else {
+            // Nếu không parse được, reload PIN status để lấy số lần thử còn lại
+            // Thêm delay nhỏ để đảm bảo backend đã commit transaction
+            console.log('Cannot parse error message, reloading PIN status...');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            try {
+              const pinStatus = await walletPinService.getPinStatus();
+              console.log('PIN Status after error:', pinStatus);
+              
+              if (pinStatus.locked) {
+                setPinError('Mã PIN của bạn đang bị khóa. Vui lòng thử lại sau.');
+              } else if (pinStatus.failedAttempts !== undefined && pinStatus.failedAttempts !== null) {
+                // Tính số lần thử còn lại từ status (luôn tính, kể cả khi failedAttempts = 0)
+                const MAX_ATTEMPTS = 5; // Số lần thử tối đa
+                const remainingAttempts = MAX_ATTEMPTS - pinStatus.failedAttempts;
+                console.log(`Failed attempts: ${pinStatus.failedAttempts}, Remaining: ${remainingAttempts}`);
+                
+                if (remainingAttempts > 0) {
+                  setPinError(`Mã PIN không đúng. Còn ${remainingAttempts} lần thử.`);
+                } else {
+                  setPinError('Mã PIN không đúng. Còn 0 lần thử.');
+                }
+              } else {
+                // Nếu không có thông tin từ status, dùng error message từ backend
+                console.log('No failedAttempts in status, using error message:', errorMessage);
+                setPinError(errorMessage);
+              }
+            } catch (statusError) {
+              // Nếu không load được status, dùng error message từ backend
+              console.error('Error loading PIN status:', statusError);
+              setPinError(errorMessage);
+            }
+          }
           setVerifiedPin(null);
           setShowPinModal(true);
-          setPinError(errorMessage);
         } else {
             showAlert('Lỗi', errorMessage);
         }

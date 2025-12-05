@@ -45,6 +45,8 @@ export default function ManagerShowtimeManagement({ complexId }) {
   const dateRange = 7; // Always 7 days (Monday to Sunday)
   const [selectedShowtime, setSelectedShowtime] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [movieSearchInput, setMovieSearchInput] = useState('');
+  const [showMovieSuggestions, setShowMovieSuggestions] = useState(false);
   
   const [createForm, setCreateForm] = useState({
     movieId: '',
@@ -1233,7 +1235,7 @@ export default function ManagerShowtimeManagement({ complexId }) {
 
       {/* Create Modal - Keep existing create modal */}
       {showCreateModal && (
-        <div className="showtime-timeline-create-modal" onClick={() => !creating && (setShowCreateModal(false), setQuickCreateData(null))}>
+        <div className="showtime-timeline-create-modal" onClick={() => !creating && (setShowCreateModal(false), setQuickCreateData(null), setMovieSearchInput(''), setShowMovieSuggestions(false))}>
           <div className="showtime-timeline-create-modal-content" onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
             {/* Notification bên trong modal - hiển thị ở phía trên form */}
             {notification && (
@@ -1325,7 +1327,131 @@ export default function ManagerShowtimeManagement({ complexId }) {
               
               <div className="showtime-timeline-create-form-group">
                 <label>Chọn phim *</label>
+                <input
+                  type="text"
+                  value={movieSearchInput || (createForm.movieId ? movies.find(m => String(m.movieId) === createForm.movieId)?.title || '' : '') || (quickCreateData?.movieTitle || '')}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setMovieSearchInput(value);
+                    setShowMovieSuggestions(true);
+                    
+                    // Nếu xóa hết, reset form
+                    if (!value.trim()) {
+                      setAvailableFormats([]);
+                      setAvailableLanguages([]);
+                      setAvailableRooms([]);
+                      setCreateForm({
+                        ...createForm,
+                        movieId: '',
+                        format: '',
+                        language: '',
+                        roomIds: []
+                      });
+                      return;
+                    }
+                  }}
+                  onFocus={() => setShowMovieSuggestions(true)}
+                  onBlur={() => {
+                    setTimeout(() => setShowMovieSuggestions(false), 200);
+                  }}
+                  placeholder="Nhập tên phim để tìm kiếm..."
+                  disabled={creating}
+                  className="showtime-timeline-create-select"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    backgroundColor: creating ? '#f5f5f5' : '#fff'
+                  }}
+                />
+                {showMovieSuggestions && (movieSearchInput || !createForm.movieId) && movies.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: '#fff',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    zIndex: 1000,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    marginTop: '4px'
+                  }}>
+                    {movies
+                      .filter(movie => 
+                        !movieSearchInput || movie.title.toLowerCase().includes(movieSearchInput.toLowerCase())
+                      )
+                      .map(movie => (
+                        <div
+                          key={movie.movieId}
+                          onClick={() => {
+                            const selectedMovie = movie;
+                            
+                            // Extract formats and languages from movie
+                            const extracted = movieService.extractFormatsAndLanguages(selectedMovie);
+                            const movieFormats = extracted.formats || [];
+                            const movieLanguages = extracted.languages || [];
+                            
+                            // Map to display format
+                            const displayFormats = movieFormats.map(f => {
+                              if (['2D', '3D', 'DELUXE'].includes(f)) return f;
+                              return movieService.mapRoomTypeFromBackend(f);
+                            });
+                            const displayLanguages = movieLanguages.map(l => {
+                              if (['Phụ đề', 'Lồng tiếng', 'Tiếng Việt'].includes(l)) return l;
+                              return showtimeService.mapLanguageFromBackend(l);
+                            });
+                            
+                            setAvailableFormats(displayFormats);
+                            setAvailableLanguages(displayLanguages);
+                            
+                            // Filter rooms based on movie formats
+                            const compatibleRooms = rooms.filter(room => {
+                              const roomFormat = cinemaRoomService.mapRoomTypeFromBackend(room.roomType);
+                              return displayFormats.includes(roomFormat);
+                            });
+                            setAvailableRooms(compatibleRooms);
+                            
+                            // Set form
+                            setCreateForm({
+                              ...createForm,
+                              movieId: String(movie.movieId),
+                              format: displayFormats[0] || '',
+                              language: displayLanguages[0] || '',
+                              roomIds: []
+                            });
+                            
+                            setMovieSearchInput(selectedMovie.title);
+                            setShowMovieSuggestions(false);
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #f0f0f0'
+                          }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = '#fff'}
+                        >
+                          {movie.title} {movie.duration ? `(${movie.duration} phút)` : ''}
+                        </div>
+                      ))
+                    }
+                    {movieSearchInput && movies.filter(movie => 
+                      movie.title.toLowerCase().includes(movieSearchInput.toLowerCase())
+                    ).length === 0 && (
+                      <div style={{ padding: '10px 12px', color: '#999', fontSize: '14px' }}>
+                        Không tìm thấy phim
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Old select code - removed */}
                 <select
+                  style={{ display: 'none' }}
                   value={quickCreateData?.movieId ? String(quickCreateData.movieId) : createForm.movieId}
                   onChange={(e) => {
                     const selectedMovieId = e.target.value;
@@ -1585,6 +1711,8 @@ export default function ManagerShowtimeManagement({ complexId }) {
                 if (creating) return;
                 setShowCreateModal(false);
                 setQuickCreateData(null);
+                setMovieSearchInput('');
+                setShowMovieSuggestions(false);
                 setCreateForm({
                   movieId: '',
                   roomId: null,
