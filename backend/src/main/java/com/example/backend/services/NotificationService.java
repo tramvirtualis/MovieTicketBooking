@@ -316,6 +316,59 @@ public class NotificationService {
     }
     
     /**
+     * Gửi thông báo nạp tiền vào ví thành công
+     */
+    @Transactional
+    public synchronized void notifyTopUpSuccess(Long userId, Long orderId, String amount) {
+        log.info("notifyTopUpSuccess called for order {} and user {}", orderId, userId);
+        
+        // Kiểm tra xem đã có notification cho order này chưa (tránh duplicate)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+        
+        List<Notification> allNotifications = notificationRepository.findByUserOrderByTimestampDesc(user);
+        
+        boolean hasTopUpNotification = allNotifications.stream()
+            .filter(n -> n.getType().equals("TOPUP_SUCCESS"))
+            .anyMatch(n -> {
+                if (n.getMessage() != null) {
+                    String message = n.getMessage();
+                    String orderIdStr = orderId.toString();
+                    if (message.contains("#" + orderId) || message.contains("#" + orderIdStr)) {
+                        log.info("Found existing top-up notification for order {}", orderId);
+                        return true;
+                    }
+                }
+                if (n.getData() != null && !n.getData().isEmpty()) {
+                    String dataStr = n.getData();
+                    String orderIdStr = orderId.toString();
+                    if (dataStr.contains(orderIdStr)) {
+                        log.info("Found existing top-up notification in data for order {}", orderId);
+                        return true;
+                    }
+                }
+                return false;
+            });
+        
+        if (hasTopUpNotification) {
+            log.info("Top-up notification already exists for order {} and user {}. Skipping creation.", orderId, userId);
+            return;
+        }
+        
+        log.info("Creating NEW top-up notification for order {} and user {}", orderId, userId);
+        
+        NotificationDTO notification = NotificationDTO.builder()
+                .type("TOPUP_SUCCESS")
+                .title("Nạp tiền thành công")
+                .message("Bạn đã nạp tiền vào ví Cinesmart thành công! Số tiền: " + amount + ", Mã đơn hàng: #" + orderId)
+                .timestamp(LocalDateTime.now().toString())
+                .data(java.util.Map.of("orderId", orderId, "amount", amount, "type", "topup"))
+                .build();
+        sendNotificationToUser(userId, notification);
+        log.info("Top-up notification created and sent for order {} and user {}", orderId, userId);
+    }
+    
+    /**
      * Trigger notification cho order thành công (được gọi từ frontend khi thanh toán thành công)
      * Chỉ tạo notification nếu order thuộc về user và chưa có notification cho order này
      */

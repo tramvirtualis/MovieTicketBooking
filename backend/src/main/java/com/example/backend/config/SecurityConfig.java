@@ -10,6 +10,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -57,6 +58,7 @@ public class SecurityConfig {
                 // Public endpoints - không cần authentication
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
+                .requestMatchers("/api/payment/wallet/**").permitAll() // Wallet - xử lý auth trong controller
                 .requestMatchers("/api/reviews/movie/**").permitAll() // Public access to movie reviews
                 .requestMatchers("/api/enums/**").permitAll() // Public access to enum values
                 .requestMatchers("/api/public/showtimes/**").permitAll() // Public access to showtimes
@@ -70,11 +72,17 @@ public class SecurityConfig {
                 // Customer endpoints - cần authentication, @PreAuthorize sẽ kiểm tra role
                 .requestMatchers("/api/customer/**").authenticated()
                 
+                // Payment endpoints - cần authentication, @PreAuthorize sẽ kiểm tra role
+                .requestMatchers("/api/payment/**").authenticated()
+                
                 // Admin endpoints - cần role ADMIN
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 
                 // Manager endpoints - cần authenticated
                 .requestMatchers("/api/manager/**").authenticated()
+                
+                // Wallet endpoints - cần authentication, @PreAuthorize sẽ kiểm tra role
+                .requestMatchers("/api/wallet/**").authenticated()
                 
                 // Tất cả request khác cần authentication
                 .anyRequest().authenticated()

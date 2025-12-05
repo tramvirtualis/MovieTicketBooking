@@ -4,7 +4,6 @@ import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import './PaymentSuccess.css';
 import { paymentService } from '../services/paymentService';
-import { notificationService } from '../services/notificationService';
 
 const PaymentSuccess = () => {
   const navigate = useNavigate();
@@ -16,20 +15,21 @@ const PaymentSuccess = () => {
     status: '',
     orderId: '',
     txnRef: '',
-    message: ''
+    message: '',
+    isTopUp: false
   });
   const [loading, setLoading] = useState(true);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [notificationTriggered, setNotificationTriggered] = useState(false);
 
   useEffect(() => {
     // Xác định payment method từ URL params
     const apptransid = searchParams.get('apptransid'); // ZaloPay
-    const orderId = searchParams.get('orderId'); // MoMo
+    const orderId = searchParams.get('orderId'); // MoMo hoặc WALLET
     const vnp_TxnRef = searchParams.get('vnp_TxnRef'); // VNPay
-    const status = searchParams.get('status'); // ZaloPay status
+    const status = searchParams.get('status'); // ZaloPay status hoặc WALLET status
     const resultCode = searchParams.get('resultCode'); // MoMo resultCode
     const vnp_ResponseCode = searchParams.get('vnp_ResponseCode'); // VNPay response code
+    const paymentMethodParam = searchParams.get('paymentMethod'); // WALLET
     const amount = searchParams.get('amount') || searchParams.get('vnp_Amount'); // Amount
     const txnRef = orderId || vnp_TxnRef || apptransid;
 
@@ -41,6 +41,7 @@ const PaymentSuccess = () => {
       status,
       resultCode,
       vnp_ResponseCode,
+      paymentMethodParam,
       amount,
       txnRef,
       allParams: Object.fromEntries(searchParams.entries())
@@ -52,7 +53,37 @@ const PaymentSuccess = () => {
     let paymentStatus = '';
     let isPaymentSuccess = false;
 
-    if (apptransid) {
+    // Kiểm tra WALLET payment trước
+    if (paymentMethodParam === 'WALLET' && orderId && status === 'PAID') {
+      // WALLET payment - đã thanh toán thành công
+      paymentMethod = 'WALLET';
+      transactionId = orderId;
+      console.log('Detected WALLET payment, orderId:', orderId);
+      paymentStatus = 'Thành công';
+      isPaymentSuccess = true;
+      
+      // Set success info ngay lập tức, không cần fetch order
+      setIsSuccess(true);
+      setPaymentInfo({
+        paymentMethod: 'WALLET',
+        transactionId: orderId,
+        amount: amount ? (parseInt(amount) / 100).toLocaleString('vi-VN') + ' đ' : '',
+        status: 'Thành công',
+        orderId: orderId,
+        txnRef: orderId,
+        message: 'Thanh toán thành công bằng ví Cinesmart!'
+      });
+      
+      // Xóa cart và booking data
+      localStorage.removeItem('checkoutCart');
+      localStorage.removeItem('pendingBooking');
+      
+      // Dispatch event để NotificationBell reload notifications
+      window.dispatchEvent(new CustomEvent('paymentSuccess'));
+      
+      setLoading(false);
+      return;
+    } else if (apptransid) {
       // ZaloPay
       paymentMethod = 'ZaloPay';
       transactionId = apptransid;
@@ -173,7 +204,8 @@ const PaymentSuccess = () => {
             currency: 'VND',
           }).format(orderData.totalAmount || 0),
           status: 'Thành công',
-          message: 'Thanh toán thành công!'
+          message: 'Thanh toán thành công!',
+          isTopUp: orderData.isTopUp === true || orderData.isTopUp === 'true' || false
         }));
 
         // Xóa cart và booking data
@@ -183,43 +215,28 @@ const PaymentSuccess = () => {
         // Dispatch event ngay để NotificationBell reload notifications
         // Backend sẽ tự động tạo notification qua IPN/callback, nhưng có thể mất thời gian
         const orderId = orderData?.orderId;
+        const isTopUp = orderData.isTopUp === true || orderData.isTopUp === 'true';
+        
         if (orderId) {
           // Dispatch event ngay lập tức để NotificationBell biết có order mới
           window.dispatchEvent(new CustomEvent('paymentSuccess', {
             detail: { orderId: orderId }
           }));
           console.log('Payment success event dispatched for order:', orderId);
+          
+          // Nếu là top-up, dispatch event để Header cập nhật wallet balance
+          if (isTopUp) {
+            window.dispatchEvent(new CustomEvent('walletUpdated'));
+            console.log('Wallet updated event dispatched for top-up order:', orderId);
+          }
         }
 
-        // Trigger notification và email từ frontend làm FALLBACK (chỉ 1 lần duy nhất)
-        // Vì callback/IPN có thể không được gọi (localhost, firewall, etc.)
-        const storedUser = JSON.parse(localStorage.getItem('user'));
-        if (storedUser && storedUser.userId && orderId && !notificationTriggered) {
-          setNotificationTriggered(true);
-
-          // Đợi 2 giây rồi trigger notification và email
-          setTimeout(async () => {
-            try {
-              await notificationService.triggerOrderSuccessNotification(orderId);
-              console.log('Notification triggered for order:', orderId);
-              
-              // Dispatch event lại sau khi notification đã được tạo
-              window.dispatchEvent(new CustomEvent('paymentSuccess', {
-                detail: { orderId: orderId }
-              }));
-            } catch (notifError) {
-              console.error('Error triggering notification:', notifError);
-              // Không fail flow chính
-            }
-
-            // Gửi email xác nhận đặt vé (fallback - chỉ khi callback/IPN chưa gửi)
-            try {
-              await paymentService.sendBookingConfirmationEmail(orderId);
-            } catch (emailError) {
-              // Không fail flow chính
-            }
-          }, 2000);
-        }
+        // Backend đã xử lý notification và email qua:
+        // - MoMo IPN callback (production) 
+        // - checkMomoStatusAndUpdateOrder (localhost testing)
+        // - ZaloPay callback
+        // Nên KHÔNG cần trigger từ frontend nữa để tránh duplicate
+        console.log('Order found, backend handles notification/email. OrderId:', orderId, 'isTopUp:', orderData.isTopUp);
       } else {
         // Không tìm thấy order sau nhiều lần thử = thanh toán thất bại hoặc đang xử lý
         console.error('Order not found after', maxRetries, 'attempts');
@@ -372,7 +389,7 @@ const PaymentSuccess = () => {
         </div>
 
         <div className="payment-success__actions">
-          {isSuccess && paymentInfo.orderId && (
+          {isSuccess && paymentInfo.orderId && !paymentInfo.isTopUp && (
             <button
               className="payment-success__button payment-success__button--primary"
               onClick={() => navigate('/orders')}
@@ -393,6 +410,29 @@ const PaymentSuccess = () => {
                 />
               </svg>
               Xem đơn hàng
+            </button>
+          )}
+          {isSuccess && paymentInfo.isTopUp && (
+            <button
+              className="payment-success__button payment-success__button--primary"
+              onClick={() => navigate('/wallet')}
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Xem ví Cinesmart
             </button>
           )}
           {!isSuccess && (

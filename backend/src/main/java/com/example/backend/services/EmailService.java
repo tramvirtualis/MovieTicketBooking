@@ -744,6 +744,286 @@ public class EmailService {
         return roomType.name().replace("TYPE_", "");
     }
     
+    /**
+     * Gửi email xác nhận nạp tiền thành công vào ví Cinesmart
+     */
+    public void sendTopUpConfirmationEmail(String toEmail, String userName, BigDecimal amount, 
+                                          BigDecimal newBalance, String transactionRef, 
+                                          LocalDateTime transactionTime, String paymentMethod) {
+        try {
+            String htmlContent = buildTopUpEmailHtml(userName, amount, newBalance, transactionRef, 
+                                                     transactionTime, paymentMethod);
+            
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            
+            helper.setFrom(fromEmail);
+            helper.setTo(toEmail);
+            helper.setSubject("Nạp tiền thành công vào Ví Cinesmart - Cinesmart Cinema");
+            helper.setText(htmlContent, true);
+            
+            mailSender.send(message);
+            System.out.println("Top-up confirmation email sent to: " + toEmail);
+        } catch (Exception e) {
+            System.err.println("Error sending top-up confirmation email: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Tạo HTML template cho email nạp tiền
+     */
+    private String buildTopUpEmailHtml(String userName, BigDecimal amount, BigDecimal newBalance,
+                                      String transactionRef, LocalDateTime transactionTime,
+                                      String paymentMethod) {
+        StringBuilder html = new StringBuilder();
+        html.append("""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body {
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        margin: 0;
+                        padding: 0;
+                        background-color: #f5f5f5;
+                    }
+                    .email-container {
+                        max-width: 600px;
+                        margin: 0 auto;
+                        background-color: #ffffff;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    }
+                    .header {
+                        background: linear-gradient(135deg, #e83b41 0%, #c92e33 100%);
+                        padding: 32px 24px;
+                        text-align: center;
+                        color: #ffffff;
+                    }
+                    .header h1 {
+                        margin: 0;
+                        font-size: 28px;
+                        font-weight: 800;
+                        margin-bottom: 8px;
+                    }
+                    .header p {
+                        margin: 0;
+                        font-size: 15px;
+                        opacity: 0.95;
+                    }
+                    .content {
+                        padding: 32px 24px;
+                    }
+                    .success-message {
+                        text-align: center;
+                        margin-bottom: 32px;
+                    }
+                    .success-title {
+                        font-size: 24px;
+                        font-weight: 700;
+                        color: #2a2a2a;
+                        margin-bottom: 8px;
+                    }
+                    .success-subtitle {
+                        font-size: 15px;
+                        color: #666;
+                    }
+                    .transaction-card {
+                        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+                        border: 2px solid #e0e0e0;
+                        border-radius: 16px;
+                        padding: 24px;
+                        margin-bottom: 24px;
+                    }
+                    .amount-section {
+                        text-align: center;
+                        padding: 20px 0;
+                        border-bottom: 2px dashed #e0e0e0;
+                        margin-bottom: 20px;
+                    }
+                    .amount-label {
+                        font-size: 14px;
+                        color: #666;
+                        margin-bottom: 8px;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                    }
+                    .amount-value {
+                        font-size: 36px;
+                        font-weight: 800;
+                        color: #4caf50;
+                        margin: 0;
+                    }
+                    .transaction-details {
+                        display: grid;
+                        gap: 16px;
+                    }
+                    .detail-row {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 12px 0;
+                        border-bottom: 1px solid #f0f0f0;
+                    }
+                    .detail-row:last-child {
+                        border-bottom: none;
+                    }
+                    .detail-label {
+                        font-size: 14px;
+                        color: #666;
+                        font-weight: 500;
+                    }
+                    .detail-value {
+                        font-size: 15px;
+                        color: #2a2a2a;
+                        font-weight: 700;
+                        text-align: right;
+                    }
+                    .balance-section {
+                        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+                        border: 2px solid #ffd159;
+                        border-radius: 12px;
+                        padding: 20px;
+                        text-align: center;
+                        margin-top: 24px;
+                    }
+                    .balance-label {
+                        font-size: 13px;
+                        color: #856404;
+                        margin-bottom: 8px;
+                        font-weight: 600;
+                    }
+                    .balance-value {
+                        font-size: 32px;
+                        font-weight: 800;
+                        color: #856404;
+                        margin: 0;
+                    }
+                    .info-box {
+                        background-color: #f8f9fa;
+                        border-left: 4px solid #e83b41;
+                        padding: 16px;
+                        border-radius: 8px;
+                        margin-top: 24px;
+                    }
+                    .info-box-title {
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: #2a2a2a;
+                        margin-bottom: 8px;
+                    }
+                    .info-box-text {
+                        font-size: 13px;
+                        color: #555;
+                        line-height: 1.6;
+                        margin: 0;
+                    }
+                    .footer {
+                        padding: 24px;
+                        background-color: #2a2a2a;
+                        color: #ffffff;
+                        text-align: center;
+                        font-size: 13px;
+                    }
+                    .footer-logo {
+                        font-size: 20px;
+                        font-weight: 800;
+                        margin-bottom: 8px;
+                        color: #ffd159;
+                    }
+                    .footer-text {
+                        color: #cccccc;
+                        margin: 4px 0;
+                    }
+                    .footer-link {
+                        color: #ffd159;
+                        text-decoration: none;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="email-container">
+                    <div class="header">
+                        <h1>Nạp tiền thành công</h1>
+                        <p>Ví Cinesmart của bạn đã được cập nhật</p>
+                    </div>
+                    <div class="content">
+                        <div class="success-message">
+                            <h2 class="success-title">Giao dịch thành công!</h2>
+                            <p class="success-subtitle">Số tiền đã được nạp vào ví Cinesmart của bạn</p>
+                        </div>
+                        
+                        <div class="transaction-card">
+                            <div class="amount-section">
+                                <div class="amount-label">Số tiền nạp</div>
+                                <div class="amount-value">""");
+        html.append(formatPrice(amount));
+        html.append("</div>");
+        html.append("</div>");
+        
+        html.append("<div class=\"transaction-details\">");
+        html.append("<div class=\"detail-row\">");
+        html.append("<span class=\"detail-label\">Người nhận:</span>");
+        html.append("<span class=\"detail-value\">").append(escapeHtml(userName != null ? userName : "Khách hàng")).append("</span>");
+        html.append("</div>");
+        html.append("<div class=\"detail-row\">");
+        html.append("<span class=\"detail-label\">Phương thức:</span>");
+        html.append("<span class=\"detail-value\">").append(escapeHtml(paymentMethod != null ? paymentMethod : "Chưa xác định")).append("</span>");
+        html.append("</div>");
+        html.append("<div class=\"detail-row\">");
+        html.append("<span class=\"detail-label\">Thời gian:</span>");
+        html.append("<span class=\"detail-value\">");
+        if (transactionTime != null) {
+            html.append(transactionTime.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")));
+        }
+        html.append("</span>");
+        html.append("</div>");
+        html.append("<div class=\"detail-row\">");
+        html.append("<span class=\"detail-label\">Mã giao dịch:</span>");
+        html.append("<span class=\"detail-value\" style=\"font-size: 13px; font-family: monospace;\">").append(escapeHtml(transactionRef != null ? transactionRef : "")).append("</span>");
+        html.append("</div>");
+        html.append("</div>");
+        html.append("</div>");
+        
+        html.append("<div class=\"balance-section\">");
+        html.append("<div class=\"balance-label\">Số dư hiện tại</div>");
+        html.append("<div class=\"balance-value\">").append(formatPrice(newBalance)).append("</div>");
+        html.append("</div>");
+        
+        html.append("""
+                        <div class="info-box">
+                            <div class="info-box-title">Lưu ý quan trọng</div>
+                            <p class="info-box-text">
+                                • Số tiền đã được cập nhật vào ví Cinesmart của bạn<br>
+                                • Bạn có thể sử dụng số dư này để thanh toán cho các đơn hàng tiếp theo<br>
+                                • Kiểm tra lịch sử giao dịch tại trang quản lý ví Cinesmart<br>
+                                • Nếu có thắc mắc, vui lòng liên hệ bộ phận hỗ trợ khách hàng
+                            </p>
+                        </div>
+                    </div>
+                    <div class="footer">
+                        <div class="footer-logo">CINESMART CINEMA</div>
+                        <div class="footer-text">Hệ thống rạp chiếu phim hàng đầu Việt Nam</div>
+                        <div class="footer-text">
+                            <a href="#" class="footer-link">Trang chủ</a> | 
+                            <a href="#" class="footer-link">Hỗ trợ</a> | 
+                            <a href="#" class="footer-link">Liên hệ</a>
+                        </div>
+                        <div class="footer-text" style="margin-top: 12px; font-size: 12px; color: #999;">
+                            Email này được gửi tự động, vui lòng không trả lời.
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """);
+        
+        return html.toString();
+    }
+    
     private String escapeHtml(String text) {
         if (text == null) return "";
         return text.replace("&", "&amp;")

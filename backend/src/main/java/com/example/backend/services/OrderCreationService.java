@@ -1,6 +1,7 @@
 package com.example.backend.services;
 
 import com.example.backend.entities.*;
+import com.example.backend.entities.enums.OrderStatus;
 import com.example.backend.entities.enums.PaymentMethod;
 import com.example.backend.repositories.*;
 import lombok.RequiredArgsConstructor;
@@ -80,6 +81,7 @@ public class OrderCreationService {
                 .totalAmount(totalAmount)
                 .orderDate(LocalDateTime.now())
                 .paymentMethod(paymentMethod)
+                .status(OrderStatus.PENDING)
                 .tickets(new ArrayList<>())
                 .orderCombos(new ArrayList<>())
                 .cinemaComplexId(finalCinemaComplexId) // Lưu cinemaComplexId vào Order

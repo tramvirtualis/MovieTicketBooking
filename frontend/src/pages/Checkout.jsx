@@ -5,6 +5,7 @@ import Footer from '../components/Footer.jsx';
 import { customerVoucherService } from '../services/customerVoucherService.js';
 import { paymentService } from '../services/paymentService.js';
 import { websocketService } from '../services/websocketService';
+import { walletService } from '../services/walletService.js';
 
 // Get saved vouchers from localStorage
 const getSavedVouchers = () => {
@@ -63,6 +64,8 @@ export default function Checkout() {
   const [loadingVouchers, setLoadingVouchers] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double submission
   const isRedirectingToPayment = useRef(false); // Track if redirecting to payment gateway
+  const [walletBalance, setWalletBalance] = useState(null);
+  const [loadingWallet, setLoadingWallet] = useState(false);
 
   useEffect(() => {
     const savedCart = localStorage.getItem('checkoutCart');
@@ -122,6 +125,9 @@ export default function Checkout() {
     // Load vouchers from database
     loadVouchersFromDatabase();
 
+    // Load wallet balance
+    loadWalletBalance();
+
     // Redirect back if no cart and no booking
     if (!savedCart && !savedBooking) {
       navigate('/food-drinks');
@@ -174,6 +180,19 @@ export default function Checkout() {
     }
   };
 
+  const loadWalletBalance = async () => {
+    setLoadingWallet(true);
+    try {
+      const wallet = await walletService.getWallet();
+      setWalletBalance(wallet.balance);
+    } catch (error) {
+      console.error('Error loading wallet balance:', error);
+      setWalletBalance(null);
+    } finally {
+      setLoadingWallet(false);
+    }
+  };
+
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -196,6 +215,18 @@ export default function Checkout() {
     if (totalAmount <= 0) {
       alert('Số tiền thanh toán không hợp lệ.');
       return;
+    }
+
+    // Kiểm tra số dư ví nếu thanh toán bằng ví Cinesmart
+    if (paymentMethod === 'WALLET') {
+      if (walletBalance === null) {
+        alert('Không thể tải số dư ví. Vui lòng thử lại.');
+        return;
+      }
+      if (walletBalance < totalAmount) {
+        alert(`Số dư ví Cinesmart không đủ. Số dư hiện tại: ${formatPrice(walletBalance)}. Vui lòng nạp thêm ${formatPrice(totalAmount - walletBalance)}.`);
+        return;
+      }
     }
 
     // Set submitting state NGAY LẬP TỨC để lock button
@@ -375,8 +406,73 @@ export default function Checkout() {
       return;
     }
 
+    // Thanh toán bằng ví Cinesmart
+    if (paymentMethod === 'WALLET') {
+      try {
+        const hasValidBooking = bookingData &&
+          bookingData.showtimeId &&
+          bookingData.seats &&
+          Array.isArray(bookingData.seats) &&
+          bookingData.seats.length > 0;
+
+        const payload = {
+          amount: totalAmount,
+          voucherId: selectedVoucher?.voucherId || null,
+          voucherCode: selectedVoucher?.code || null,
+          orderDescription: 'Thanh toán đơn hàng tại Cinesmart',
+          showtimeId: hasValidBooking ? bookingData.showtimeId : null,
+          seatIds: hasValidBooking ? bookingData.seats : [],
+          cinemaComplexId: !hasValidBooking && cartData?.cinema?.complexId ? cartData.cinema.complexId : null,
+          foodCombos: cartData?.items?.map(item => ({
+            foodComboId: item.id?.replace('fc_', '') || item.foodComboId,
+            quantity: item.quantity || 1
+          })) || []
+        };
+
+        console.log('Creating wallet payment with payload:', payload);
+        const response = await paymentService.createWalletPayment(payload);
+        console.log('Wallet payment response:', response);
+        
+        if (response.success && response.data) {
+          // Set flag to prevent seat release
+          isRedirectingToPayment.current = true;
+          // Xóa dữ liệu checkout
+          localStorage.removeItem('checkoutCart');
+          localStorage.removeItem('pendingBooking');
+          // Redirect đến trang thành công
+          navigate(`/payment/success?orderId=${response.data.orderId}&status=PAID&paymentMethod=WALLET`);
+          return;
+        } else {
+          const errorMessage = response.message || 'Không thể thanh toán bằng ví Cinesmart. Vui lòng thử lại.';
+          console.error('Wallet payment failed:', errorMessage, response);
+          alert(errorMessage);
+          // Re-enable button
+          const submitButton = document.querySelector('button[type="submit"]');
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.style.opacity = '1';
+            submitButton.style.cursor = 'pointer';
+          }
+          setIsSubmitting(false);
+        }
+      } catch (error) {
+        console.error('Error creating wallet payment:', error);
+        const errorMessage = error.message || error.response?.data?.message || 'Có lỗi xảy ra khi thanh toán bằng ví Cinesmart. Vui lòng thử lại.';
+        alert(errorMessage);
+        // Re-enable button
+        const submitButton = document.querySelector('button[type="submit"]');
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.style.opacity = '1';
+          submitButton.style.cursor = 'pointer';
+        }
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     // Các phương thức thanh toán khác (chưa tích hợp)
-    alert('Chức năng thanh toán cho phương thức này chưa được hỗ trợ. Vui lòng chọn MoMo hoặc ZaloPay.');
+    alert('Chức năng thanh toán cho phương thức này chưa được hỗ trợ. Vui lòng chọn MoMo, ZaloPay hoặc Ví Cinesmart.');
   };
 
   const getSubtotal = () => {
@@ -639,6 +735,39 @@ export default function Checkout() {
                       <div className="checkout-payment-method__content">
                         <img src="/zalopay.png" alt="ZaloPay" style={{ width: '32px', height: '32px', marginRight: '12px', flexShrink: 0, objectFit: 'contain' }} />
                         <span>ZaloPay</span>
+                      </div>
+                    </label>
+                    <label className="checkout-payment-method">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="WALLET"
+                        checked={paymentMethod === 'WALLET'}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        disabled={walletBalance !== null && walletBalance < getTotalAmount()}
+                      />
+                      <div className="checkout-payment-method__content">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '12px', flexShrink: 0, color: '#ffd159' }}>
+                          <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                          <line x1="1" y1="10" x2="23" y2="10" />
+                        </svg>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <span>Ví Cinesmart</span>
+                            {loadingWallet ? (
+                              <span className="text-xs text-[#c9c4c5]">Đang tải...</span>
+                            ) : walletBalance !== null ? (
+                              <span className="text-xs text-[#c9c4c5]">
+                                Số dư: {formatPrice(walletBalance)}
+                              </span>
+                            ) : null}
+                          </div>
+                          {walletBalance !== null && walletBalance < getTotalAmount() && (
+                            <div className="text-xs text-[#ff5258] mt-1">
+                              Số dư không đủ. Vui lòng nạp thêm {formatPrice(getTotalAmount() - walletBalance)}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </label>
                   </div>

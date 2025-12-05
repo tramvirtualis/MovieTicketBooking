@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
@@ -245,6 +245,7 @@ export default function Profile() {
     loadVouchers();
   }, []);
 
+
   // Load expense statistics when expenses tab is active
   useEffect(() => {
     const loadExpenseStatistics = async () => {
@@ -385,6 +386,15 @@ export default function Profile() {
     } catch (error) {
       setPasswordMessage({ type: 'error', text: error.message || 'Có lỗi xảy ra' });
     }
+  };
+
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+      maximumFractionDigits: 0,
+    }).format(Number(value || 0));
   };
   
   const [editData, setEditData] = useState({
@@ -720,6 +730,7 @@ export default function Profile() {
                       Chỉnh sửa thông tin
                     </button>
                   </div>
+                  
                 </div>
               )}
 

@@ -4,6 +4,9 @@ import { QRCodeSVG } from 'qrcode.react';
 const TicketModal = ({ order, isOpen, onClose }) => {
   if (!isOpen || !order) return null;
 
+  const displayOrderId = order.orderId || (order.rawOrderId ? `ORD-${order.rawOrderId}` : '');
+  const numericOrderId = order.rawOrderId || (displayOrderId ? displayOrderId.replace('ORD-', '') : '');
+
   // Xác định loại đơn hàng
   const hasTickets = order.items && order.items.length > 0;
   const hasCombos = order.foodItems && order.foodItems.length > 0;
@@ -137,7 +140,7 @@ const TicketModal = ({ order, isOpen, onClose }) => {
             color: '#333'
           }}>
             <div style={{ marginBottom: '8px' }}>
-              <strong>Mã đơn hàng:</strong> {order.orderId}
+              <strong>Mã đơn hàng:</strong> {displayOrderId}
             </div>
             <div style={{ marginBottom: '8px' }}>
               <strong>Ngày đặt:</strong> {formatDateTime(order.orderDate)}
@@ -149,7 +152,7 @@ const TicketModal = ({ order, isOpen, onClose }) => {
 
           {/* Tickets Section */}
           {hasTickets && order.items && order.items.map((item, index) => {
-            const orderIdNum = order.orderId.replace('ORD-', '');
+            const orderIdNum = numericOrderId;
             const showtimeId = item.showtime?.showtimeId;
             const showtimeStart = item.showtime?.startTime || item.showtime?.start;
             const bookingId = createBookingId(orderIdNum, showtimeId, showtimeStart);
@@ -407,7 +410,7 @@ const TicketModal = ({ order, isOpen, onClose }) => {
                   }}>
                     <QRCodeSVG
                       value={JSON.stringify({
-                        orderId: String(order.orderId || '').replace('ORD-', ''),
+                        orderId: String(order.rawOrderId || numericOrderId || '').replace('ORD-', ''),
                         type: 'FOOD_ORDER',
                         orderDate: formatDate(order.orderDate),
                         totalAmount: String(order.totalAmount || '0'),

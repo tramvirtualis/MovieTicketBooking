@@ -1,11 +1,13 @@
 package com.example.backend.repositories;
 
 import com.example.backend.entities.Order;
+import com.example.backend.entities.enums.OrderStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -80,4 +82,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "LEFT JOIN FETCH o.user u " +
            "WHERE o.orderId = :orderId")
     Optional<Order> findByIdWithDetails(@Param("orderId") Long orderId);
+
+    long countByUserUserIdAndStatusAndCancelledAtBetween(
+        Long userId,
+        OrderStatus status,
+        LocalDateTime start,
+        LocalDateTime end
+    );
 }

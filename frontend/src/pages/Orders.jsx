@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import TicketModal from '../components/TicketModal.jsx';
-import { getMyOrders } from '../services/customer';
+import CancelOrderModal from '../components/CancelOrderModal.jsx';
+import { getMyOrders, cancelOrder } from '../services/customer';
 import { useNavigate } from 'react-router-dom';
 import { cinemaComplexService } from '../services/cinemaComplexService';
 
@@ -15,6 +16,11 @@ export default function Orders() {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [cinemasList, setCinemasList] = useState([]);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
+  const [feedbackMessage, setFeedbackMessage] = useState({ type: '', text: '' });
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'PAID', 'CANCELLED'
   const ordersPerPage = 5;
 
   // Load cinemas list
@@ -32,123 +38,140 @@ export default function Orders() {
     loadCinemas();
   }, []);
 
-  // Load orders from API
-  useEffect(() => {
-    const loadOrders = async () => {
-      const token = localStorage.getItem('jwt');
-      if (!token) {
-        navigate('/login');
-        return;
-      }
+  const loadOrders = useCallback(async () => {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
 
-      setLoading(true);
-      setError(null);
-      try {
-        const ordersData = await getMyOrders();
-        
-        // Map backend data to frontend format
-        const mappedOrders = ordersData.map(order => {
-          // Group tickets by showtime (same movie, same showtime = same item)
-          const itemsByShowtime = {};
-          order.items.forEach(item => {
-            const key = `${item.movieId}-${item.showtimeStart}`;
-            if (!itemsByShowtime[key]) {
-              itemsByShowtime[key] = {
-                id: item.ticketId.toString(),
-                movie: {
-                  movieId: item.movieId,
-                  id: item.movieId,
-                  title: item.movieTitle,
-                  poster: item.moviePoster || 'https://via.placeholder.com/300x450?text=No+Poster'
-                },
-                cinema: item.cinemaComplexName + (item.cinemaAddress ? ` (${item.cinemaAddress})` : ''),
-                showtime: {
-                  showtimeId: item.showtimeId, // Lưu showtimeId để tạo booking ID
-                  date: new Date(item.showtimeStart).toLocaleDateString('vi-VN', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric'
-                  }),
-                  time: new Date(item.showtimeStart).toLocaleTimeString('vi-VN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false
-                  }),
-                  format: item.roomType || 'STANDARD',
-                  start: item.showtimeStart, // Lưu lại startTime để check weekend
-                  startTime: item.showtimeStart // Lưu lại startTime để tạo booking ID
-                },
-                seats: [],
-                price: 0,
-                basePrice: 0
-              };
-            }
-            itemsByShowtime[key].seats.push(item.seatId);
-            itemsByShowtime[key].price += Number(item.price);
-            itemsByShowtime[key].basePrice += Number(item.basePrice || item.price);
-          });
+    setLoading(true);
+    setError(null);
+    try {
+      const ordersData = await getMyOrders();
 
-          // Map combos to foodItems
-          // Lưu ý: combo.price từ backend đã là tổng tiền (price * quantity), không phải đơn giá
-          const foodItems = order.combos ? order.combos.map(combo => ({
-            id: `f${combo.comboId}`,
-            name: combo.comboName,
-            quantity: combo.quantity,
-            totalPrice: Number(combo.price), // Tổng tiền (đã nhân quantity ở backend)
-            unitPrice: Number(combo.price) / (combo.quantity || 1), // Đơn giá = tổng / số lượng
-            image: combo.comboImage || 'https://via.placeholder.com/300x300?text=Food'
-          })) : [];
-
-          // Tính tổng tiền gốc (trước khi áp voucher)
-          // foodItem.totalPrice đã là tổng tiền, không cần nhân quantity nữa
-          const originalTotal = Object.values(itemsByShowtime).reduce((sum, item) => sum + item.price, 0) +
-                                foodItems.reduce((sum, item) => sum + item.totalPrice, 0);
-
-          // Lấy cinemaComplexId từ order (cho đơn đồ ăn)
-          const cinemaComplexId = order.cinemaComplexId || null;
-          // Tìm tên cụm rạp từ danh sách
-          const cinema = cinemasList.find(c => c.complexId === cinemaComplexId);
-          const cinemaName = cinema ? cinema.name : null;
-
-          return {
-            orderId: `ORD-${order.orderId}`,
-            orderDate: order.orderDate,
-            totalAmount: Number(order.totalAmount),
-            originalTotal: originalTotal, // Tổng tiền gốc (trước voucher)
-            voucherCode: order.voucherCode || null, // Mã voucher nếu có
-            status: 'completed', // You can add status field to Order entity later
-            items: Object.values(itemsByShowtime),
-            foodItems: foodItems.length > 0 ? foodItems : undefined,
-            paymentMethod: order.paymentMethod || 'Chưa xác định',
-            cinemaComplexId: cinemaComplexId, // Lưu cinemaComplexId cho đơn đồ ăn
-            cinemaName: cinemaName, // Lưu tên cụm rạp cho đơn đồ ăn
-            bookingDate: new Date(order.orderDate).toLocaleString('vi-VN', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })
-          };
+      const mappedOrders = (ordersData || []).map(order => {
+        const itemsByShowtime = {};
+        (order.items || []).forEach(item => {
+          const key = `${item.movieId}-${item.showtimeStart}`;
+          if (!itemsByShowtime[key]) {
+            itemsByShowtime[key] = {
+              id: item.ticketId.toString(),
+              movie: {
+                movieId: item.movieId,
+                id: item.movieId,
+                title: item.movieTitle,
+                poster: item.moviePoster || 'https://via.placeholder.com/300x450?text=No+Poster'
+              },
+              cinema: item.cinemaComplexName + (item.cinemaAddress ? ` (${item.cinemaAddress})` : ''),
+              showtime: {
+                showtimeId: item.showtimeId,
+                date: new Date(item.showtimeStart).toLocaleDateString('vi-VN', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
+                }),
+                time: new Date(item.showtimeStart).toLocaleTimeString('vi-VN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false
+                }),
+                format: item.roomType || 'STANDARD',
+                start: item.showtimeStart,
+                startTime: item.showtimeStart
+              },
+              seats: [],
+              price: 0,
+              basePrice: 0
+            };
+          }
+          itemsByShowtime[key].seats.push(item.seatId);
+          itemsByShowtime[key].price += Number(item.price);
+          itemsByShowtime[key].basePrice += Number(item.basePrice || item.price);
         });
 
-        setOrders(mappedOrders);
-      } catch (err) {
-        console.error('Error loading orders:', err);
-        setError(err.message || 'Không thể tải danh sách đơn hàng');
-      } finally {
-        setLoading(false);
-      }
-    };
+        const foodItems = order.combos ? order.combos.map(combo => ({
+          id: `f${combo.comboId}`,
+          name: combo.comboName,
+          quantity: combo.quantity,
+          totalPrice: Number(combo.price),
+          unitPrice: Number(combo.price) / (combo.quantity || 1),
+          image: combo.comboImage || 'https://via.placeholder.com/300x300?text=Food'
+        })) : [];
 
-    loadOrders();
+        const originalTotal = Object.values(itemsByShowtime).reduce((sum, item) => sum + item.price, 0) +
+                              foodItems.reduce((sum, item) => sum + item.totalPrice, 0);
+
+        const cinemaComplexId = order.cinemaComplexId || null;
+        const cinema = cinemasList.find(c => c.complexId === cinemaComplexId);
+        const cinemaName = cinema ? cinema.name : null;
+
+        const displayId = `ORD-${order.orderId}`;
+        const monthlyLimit = order.monthlyCancellationLimit ?? 2;
+        const monthlyUsed = order.monthlyCancellationUsed ?? 0;
+        const monthlyRemaining = order.monthlyCancellationRemaining ?? Math.max(0, monthlyLimit - monthlyUsed);
+
+        return {
+          rawOrderId: order.orderId,
+          orderId: displayId,
+          orderDate: order.orderDate,
+          totalAmount: Number(order.totalAmount),
+          originalTotal,
+          voucherCode: order.voucherCode || null,
+          status: order.status || 'PAID',
+          cancellable: Boolean(order.cancellable),
+          cancelledAt: order.cancelledAt,
+          cancellationReason: order.cancellationReason,
+          refundAmount: order.refundAmount ? Number(order.refundAmount) : null,
+          refundedToWallet: order.refundedToWallet,
+          monthlyCancellationLimit: monthlyLimit,
+          monthlyCancellationUsed: monthlyUsed,
+          monthlyCancellationRemaining: monthlyRemaining,
+          items: Object.values(itemsByShowtime),
+          foodItems: foodItems.length > 0 ? foodItems : undefined,
+          paymentMethod: order.paymentMethod || 'Chưa xác định',
+          cinemaComplexId,
+          cinemaName,
+          bookingDate: new Date(order.orderDate).toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        };
+      });
+
+      setOrders(mappedOrders);
+    } catch (err) {
+      console.error('Error loading orders:', err);
+      setOrders([]);
+      setError(err.message || 'Không thể tải danh sách đơn hàng');
+    } finally {
+      setLoading(false);
+    }
   }, [navigate, cinemasList]);
 
+  // Load orders from API
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  // Filter orders by status
+  const filteredOrders = statusFilter === 'all' 
+    ? orders 
+    : orders.filter(order => order.status === statusFilter);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter]);
+
   // Calculate pagination
-  const totalPages = Math.ceil(orders.length / ordersPerPage);
+  const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
   const startIndex = (currentPage - 1) * ordersPerPage;
   const endIndex = startIndex + ordersPerPage;
-  const currentOrders = orders.slice(startIndex, endIndex);
+  const currentOrders = filteredOrders.slice(startIndex, endIndex);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -163,6 +186,44 @@ export default function Orders() {
       month: 'long',
       year: 'numeric'
     });
+  };
+
+  const getStatusMeta = (status) => {
+    switch (status) {
+      case 'CANCELLED':
+        return { label: 'Đã hủy', style: { backgroundColor: 'rgba(244,67,54,0.12)', color: '#f87171', borderColor: '#f87171' } };
+      case 'PENDING':
+        return { label: 'Chờ thanh toán', style: { backgroundColor: 'rgba(255,193,7,0.12)', color: '#ffc107', borderColor: '#ffc107' } };
+      default:
+        return { label: 'Đã thanh toán', style: { backgroundColor: 'rgba(76,175,80,0.12)', color: '#4caf50', borderColor: '#4caf50' } };
+    }
+  };
+
+  const handleCancelOrder = (order) => {
+    if (!order.cancellable || order.status === 'CANCELLED') {
+      return;
+    }
+    setOrderToCancel(order);
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancel = async (reason) => {
+    if (!orderToCancel) return;
+    
+    setCancellingOrderId(orderToCancel.rawOrderId);
+    setFeedbackMessage({ type: '', text: '' });
+    setShowCancelModal(false);
+    
+    try {
+      await cancelOrder(orderToCancel.rawOrderId, reason);
+      setFeedbackMessage({ type: 'success', text: 'Đơn hàng đã được hủy thành công và hoàn tiền vào Ví Cinesmart.' });
+      await loadOrders();
+    } catch (err) {
+      setFeedbackMessage({ type: 'error', text: err.message || 'Không thể hủy đơn hàng. Vui lòng thử lại.' });
+    } finally {
+      setCancellingOrderId(null);
+      setOrderToCancel(null);
+    }
   };
 
   return (
@@ -197,26 +258,118 @@ export default function Orders() {
               </div>
             )}
 
+            {feedbackMessage.text && (
+              <div
+                className="mb-6"
+                style={{
+                  backgroundColor: feedbackMessage.type === 'success' ? 'rgba(76,175,80,0.12)' : 'rgba(244,67,54,0.12)',
+                  border: feedbackMessage.type === 'success' ? '1px solid rgba(76,175,80,0.4)' : '1px solid rgba(244,67,54,0.4)',
+                  color: feedbackMessage.type === 'success' ? '#4caf50' : '#f44336',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  fontWeight: 600
+                }}
+              >
+                {feedbackMessage.text}
+              </div>
+            )}
+
+            {/* Status Filter Tabs */}
+            {!loading && !error && orders.length > 0 && (
+              <div style={{
+                display: 'flex',
+                gap: '12px',
+                marginBottom: '24px',
+                flexWrap: 'wrap'
+              }}>
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    border: '1px solid',
+                    borderColor: statusFilter === 'all' ? '#e83b41' : 'rgba(255,255,255,0.2)',
+                    background: statusFilter === 'all' 
+                      ? 'linear-gradient(135deg, #e83b41 0%, #a10f14 100%)' 
+                      : 'rgba(30, 24, 25, 0.7)',
+                    color: '#fff',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Tất cả ({orders.length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('PAID')}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    border: '1px solid',
+                    borderColor: statusFilter === 'PAID' ? '#4caf50' : 'rgba(255,255,255,0.2)',
+                    background: statusFilter === 'PAID' 
+                      ? 'rgba(76,175,80,0.2)' 
+                      : 'rgba(30, 24, 25, 0.7)',
+                    color: statusFilter === 'PAID' ? '#4caf50' : '#fff',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Đã thanh toán ({orders.filter(o => o.status === 'PAID').length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('CANCELLED')}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    border: '1px solid',
+                    borderColor: statusFilter === 'CANCELLED' ? '#f87171' : 'rgba(255,255,255,0.2)',
+                    background: statusFilter === 'CANCELLED' 
+                      ? 'rgba(244,67,54,0.2)' 
+                      : 'rgba(30, 24, 25, 0.7)',
+                    color: statusFilter === 'CANCELLED' ? '#f87171' : '#fff',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Đã hủy ({orders.filter(o => o.status === 'CANCELLED').length})
+                </button>
+              </div>
+            )}
+
             {/* Orders List */}
-            {!loading && !error && currentOrders.length === 0 && (
+            {!loading && !error && filteredOrders.length === 0 && (
               <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-5 opacity-50">
                   <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
                   <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
                 </svg>
-                <p className="text-base m-0">Chưa có đơn hàng nào trong mục này</p>
+                <p className="text-base m-0">
+                  {statusFilter === 'all' 
+                    ? 'Chưa có đơn hàng nào trong mục này'
+                    : statusFilter === 'PAID'
+                    ? 'Chưa có đơn hàng nào đã thanh toán'
+                    : 'Chưa có đơn hàng nào đã hủy'}
+                </p>
               </div>
             )}
 
             {!loading && !error && currentOrders.length > 0 && (
               <>
                 <div className="orders-list">
-                  {currentOrders.map((order) => (
+                  {currentOrders.map((order) => {
+                    const statusMeta = getStatusMeta(order.status);
+                    return (
                   <div key={order.orderId} className="order-card">
                     <div className="order-card__header">
                       <div className="order-card__header-left">
                         <div className="order-card__id">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
                             <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
                             <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
                           </svg>
@@ -227,12 +380,26 @@ export default function Orders() {
                         </div>
                       </div>
                       <div className="order-card__header-right">
-                        <div className="order-card__total" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                        <span
+                          style={{
+                            padding: '3px 10px',
+                            borderRadius: '999px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            marginBottom: '6px',
+                            border: statusMeta.style?.borderColor ? `1px solid ${statusMeta.style.borderColor}` : '1px solid transparent',
+                            backgroundColor: statusMeta.style?.backgroundColor,
+                            color: statusMeta.style?.color
+                          }}
+                        >
+                          {statusMeta.label}
+                        </span>
+                        <div className="order-card__total" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
                           {order.voucherCode && order.originalTotal && order.originalTotal > order.totalAmount ? (
                             <>
                               <span style={{ 
                                 textDecoration: 'line-through', 
-                                fontSize: '14px', 
+                                fontSize: '12px', 
                                 color: '#c9c4c5',
                                 fontWeight: 500
                               }}>
@@ -240,7 +407,7 @@ export default function Orders() {
                               </span>
                               <span style={{ 
                                 color: '#ffd159', 
-                                fontSize: '20px',
+                                fontSize: '18px',
                                 fontWeight: 700
                               }}>
                                 {formatPrice(order.totalAmount)}
@@ -249,7 +416,7 @@ export default function Orders() {
                           ) : (
                             <span style={{ 
                               color: '#ffd159', 
-                              fontSize: '20px',
+                              fontSize: '18px',
                               fontWeight: 700
                             }}>
                               {formatPrice(order.totalAmount)}
@@ -258,6 +425,36 @@ export default function Orders() {
                         </div>
                       </div>
                     </div>
+
+                    {order.status === 'CANCELLED' && (
+                      <div
+                        style={{
+                          backgroundColor: 'rgba(244,67,54,0.08)',
+                          border: '1px dashed rgba(244,67,54,0.4)',
+                          borderRadius: '8px',
+                          padding: '10px 12px',
+                          marginBottom: '12px',
+                          color: '#f87171',
+                          fontSize: '12px'
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                          Đã hủy lúc {order.cancelledAt ? new Date(order.cancelledAt).toLocaleString('vi-VN', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          }) : '--'}
+                        </div>
+                        {order.refundAmount && (
+                          <div>Hoàn về Ví Cinesmart: {formatPrice(order.refundAmount)}</div>
+                        )}
+                        {order.cancellationReason && (
+                          <div>Lý do: {order.cancellationReason}</div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="order-card__items">
                       {/* Movie Items */}
@@ -282,7 +479,7 @@ export default function Orders() {
                             <div className="order-item__details">
                               <div className="order-item__detail-row">
                                 <span className="order-item__detail-label">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
                                     <circle cx="12" cy="10" r="3"/>
                                   </svg>
@@ -292,7 +489,7 @@ export default function Orders() {
                               </div>
                               <div className="order-item__detail-row">
                                 <span className="order-item__detail-label">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                                     <line x1="16" y1="2" x2="16" y2="6"/>
                                     <line x1="8" y1="2" x2="8" y2="6"/>
@@ -306,7 +503,7 @@ export default function Orders() {
                               </div>
                               <div className="order-item__detail-row">
                                 <span className="order-item__detail-label">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                                     <line x1="16" y1="2" x2="16" y2="6"/>
                                     <line x1="8" y1="2" x2="8" y2="6"/>
@@ -318,7 +515,7 @@ export default function Orders() {
                               </div>
                               <div className="order-item__detail-row">
                                 <span className="order-item__detail-label">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <line x1="12" y1="1" x2="12" y2="23"/>
                                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                                   </svg>
@@ -333,13 +530,13 @@ export default function Orders() {
                                     return (
                                       <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', flexWrap: 'wrap' }}>
                                         {isWeekend && (
-                                          <span style={{ textDecoration: 'line-through', fontSize: '12px', color: '#c9c4c5' }}>
+                                          <span style={{ textDecoration: 'line-through', fontSize: '11px', color: '#c9c4c5' }}>
                                             {formatPrice(item.basePrice)}
                                           </span>
                                         )}
                                         <span>{formatPrice(item.price)}</span>
                                         {isWeekend && (
-                                          <span style={{ fontSize: '11px', color: '#4caf50', fontWeight: 600 }}>
+                                          <span style={{ fontSize: '10px', color: '#4caf50', fontWeight: 600 }}>
                                             +30%
                                           </span>
                                         )}
@@ -366,7 +563,7 @@ export default function Orders() {
                             <div className="order-item__details">
                               <div className="order-item__detail-row">
                                 <span className="order-item__detail-label">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
                                     <circle cx="12" cy="10" r="3"/>
                                   </svg>
@@ -376,7 +573,7 @@ export default function Orders() {
                               </div>
                               <div className="order-item__detail-row">
                                 <span className="order-item__detail-label">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <line x1="12" y1="1" x2="12" y2="23"/>
                                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                                   </svg>
@@ -399,10 +596,20 @@ export default function Orders() {
                           <span className="order-card__footer-value">{order.bookingDate}</span>
                         </div>
                       </div>
-                      <div className="order-card__footer-actions" style={{ marginTop: '12px' }}>
+                      <div className="order-card__footer-actions" style={{ marginTop: '8px' }}>
+                        {order.cancellable && order.status !== 'CANCELLED' && (
+                          <button
+                            className="btn btn--ghost"
+                            style={{ fontSize: '13px', padding: '8px 16px', marginRight: '10px' }}
+                            onClick={() => handleCancelOrder(order)}
+                            disabled={cancellingOrderId === order.rawOrderId}
+                          >
+                            {cancellingOrderId === order.rawOrderId ? 'Đang hủy...' : 'Hủy đơn'}
+                          </button>
+                        )}
                         <button
                           className="btn btn--primary"
-                          style={{ fontSize: '14px', padding: '10px 20px' }}
+                          style={{ fontSize: '13px', padding: '8px 16px' }}
                           onClick={() => {
                             setSelectedOrder(order);
                             setShowTicketModal(true);
@@ -413,7 +620,8 @@ export default function Orders() {
                       </div>
                     </div>
                   </div>
-                  ))}
+                  );
+                  })}
                 </div>
 
                 {/* Pagination */}
@@ -524,6 +732,18 @@ export default function Orders() {
           setShowTicketModal(false);
           setSelectedOrder(null);
         }}
+      />
+
+      {/* Cancel Order Modal */}
+      <CancelOrderModal
+        isOpen={showCancelModal}
+        onClose={() => {
+          setShowCancelModal(false);
+          setOrderToCancel(null);
+        }}
+        onConfirm={handleConfirmCancel}
+        orderId={orderToCancel?.orderId || ''}
+        isCancelling={cancellingOrderId === orderToCancel?.rawOrderId}
       />
 
       <Footer />

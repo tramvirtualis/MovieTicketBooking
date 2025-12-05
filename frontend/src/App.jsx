@@ -25,6 +25,8 @@ import Checkout from './pages/Checkout.jsx';
 import BookTicket from './pages/BookTicket.jsx';
 import PaymentSuccess from './pages/PaymentSuccess.jsx';
 import SearchResults from './pages/SearchResults.jsx';
+import Wallet from './pages/Wallet.jsx';
+import TransactionHistory from './pages/TransactionHistory.jsx';
 
 export default function App() {
   return (
@@ -102,13 +104,23 @@ export default function App() {
             <BookTicket />
           </ProtectedRoute>
         } />
-        
+        <Route path="/wallet" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <Wallet />
+          </ProtectedRoute>
+        } />
+        <Route path="/transaction-history" element={
+          <ProtectedRoute allowedRoles="CUSTOMER">
+            <TransactionHistory />
+          </ProtectedRoute>
+        } />
+
         {/* Payment success/return routes - dùng chung cho tất cả payment methods */}
         <Route path="/payment/success" element={<PaymentSuccess />} />
-        
+
         {/* Public routes - Events có thể xem nhưng một số chức năng cần đăng nhập */}
         <Route path="/events" element={<Events />} />
-        
+
         {/* Admin routes - chỉ ADMIN mới có thể truy cập */}
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles="ADMIN">
@@ -130,7 +142,7 @@ export default function App() {
             <AdminDashboard />
           </ProtectedRoute>
         } />
-        
+
         {/* Manager routes - chỉ MANAGER mới có thể truy cập */}
         <Route path="/manager" element={
           <ProtectedRoute allowedRoles="MANAGER">

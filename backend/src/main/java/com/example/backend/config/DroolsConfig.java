@@ -30,6 +30,7 @@ public class DroolsConfig {
         kieFileSystem.write(ResourceFactory.newClassPathResource(RULES_PATH + "voucher-validation.drl"));
         kieFileSystem.write(ResourceFactory.newClassPathResource(RULES_PATH + "price-calculation.drl"));
         kieFileSystem.write(ResourceFactory.newClassPathResource(RULES_PATH + "voucher-discount-calculation.drl"));
+        kieFileSystem.write(ResourceFactory.newClassPathResource(RULES_PATH + "cancellation-validation.drl"));
         
         KieBuilder kieBuilder = kieServices.newKieBuilder(kieFileSystem);
         kieBuilder.buildAll();

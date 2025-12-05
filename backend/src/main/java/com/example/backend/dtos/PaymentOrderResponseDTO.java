@@ -23,6 +23,7 @@ public class PaymentOrderResponseDTO {
     private String bankCode;
     private LocalDateTime orderDate;
     private LocalDateTime payDate;
+    private Boolean isTopUp;
 }
 
 

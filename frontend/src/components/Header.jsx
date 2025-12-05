@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import NotificationBell from './NotificationBell';
 import VoiceSearchBar from './VoiceSearchBar';
 import { cinemaComplexService } from '../services/cinemaComplexService';
+import { walletService } from '../services/walletService';
 
 export default function Header({ children }) {
   const navigate = useNavigate();
@@ -11,6 +12,8 @@ export default function Header({ children }) {
   const [user, setUser] = useState(null); // lưu thông tin user
   const [cinemas, setCinemas] = useState([]); // danh sách cụm rạp từ API
   const [loadingCinemas, setLoadingCinemas] = useState(true);
+  const [walletBalance, setWalletBalance] = useState(null); // số dư ví
+  const [loadingWallet, setLoadingWallet] = useState(false);
   const dropdownRef = useRef(null);
   const userDropdownRef = useRef(null);
 
@@ -47,31 +50,75 @@ export default function Header({ children }) {
   // Load user from localStorage
   useEffect(() => {
     const loadUser = () => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) setUser(JSON.parse(storedUser));
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) setUser(JSON.parse(storedUser));
     };
-    
+
     loadUser();
-    
+
     // Listen for storage changes to update avatar
     const handleStorageChange = () => {
       loadUser();
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('userUpdated', handleStorageChange);
-    
+
     // Poll for changes (in case same window updates localStorage)
     const interval = setInterval(() => {
       loadUser();
     }, 1000);
-    
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('userUpdated', handleStorageChange);
       clearInterval(interval);
     };
   }, []);
+
+  // Load wallet balance
+  useEffect(() => {
+    const loadWalletBalance = async () => {
+      if (!user) {
+        setWalletBalance(null);
+        return;
+      }
+
+      try {
+        setLoadingWallet(true);
+        const wallet = await walletService.getWallet();
+        setWalletBalance(wallet.balance || 0);
+      } catch (error) {
+        console.error('Error loading wallet balance:', error);
+        setWalletBalance(null);
+      } finally {
+        setLoadingWallet(false);
+      }
+    };
+
+    loadWalletBalance();
+
+    // Listen for wallet updates (payment success, top-up, etc.)
+    const handleWalletUpdate = () => {
+      loadWalletBalance();
+    };
+
+    window.addEventListener('paymentSuccess', handleWalletUpdate);
+    window.addEventListener('walletUpdated', handleWalletUpdate);
+
+    // Poll for wallet updates every 5 seconds
+    const interval = setInterval(() => {
+      if (user) {
+        loadWalletBalance();
+      }
+    }, 5000);
+
+    return () => {
+      window.removeEventListener('paymentSuccess', handleWalletUpdate);
+      window.removeEventListener('walletUpdated', handleWalletUpdate);
+      clearInterval(interval);
+    };
+  }, [user]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -111,22 +158,22 @@ export default function Header({ children }) {
                 <stop offset="100%" stopColor="#ff6b6b" stopOpacity="1" />
               </linearGradient>
               <filter id="logoGlow">
-                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                <feGaussianBlur stdDeviation="2" result="coloredBlur" />
                 <feMerge>
-                  <feMergeNode in="coloredBlur"/>
-                  <feMergeNode in="SourceGraphic"/>
+                  <feMergeNode in="coloredBlur" />
+                  <feMergeNode in="SourceGraphic" />
                 </feMerge>
               </filter>
             </defs>
-            <circle cx="18" cy="18" r="17" fill="url(#logoGradient)" filter="url(#logoGlow)" opacity="0.9"/>
-            <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5"/>
-            <circle cx="18" cy="18" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1"/>
-            <rect x="8" y="8" width="20" height="20" rx="2" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5"/>
-            <path d="M14 14L22 18L14 22V14Z" fill="rgba(255,255,255,0.95)"/>
-            <circle cx="10" cy="10" r="1.5" fill="rgba(255,255,255,0.6)"/>
-            <circle cx="26" cy="10" r="1.5" fill="rgba(255,255,255,0.6)"/>
-            <circle cx="10" cy="26" r="1.5" fill="rgba(255,255,255,0.6)"/>
-            <circle cx="26" cy="26" r="1.5" fill="rgba(255,255,255,0.6)"/>
+            <circle cx="18" cy="18" r="17" fill="url(#logoGradient)" filter="url(#logoGlow)" opacity="0.9" />
+            <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
+            <circle cx="18" cy="18" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+            <rect x="8" y="8" width="20" height="20" rx="2" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
+            <path d="M14 14L22 18L14 22V14Z" fill="rgba(255,255,255,0.95)" />
+            <circle cx="10" cy="10" r="1.5" fill="rgba(255,255,255,0.6)" />
+            <circle cx="26" cy="10" r="1.5" fill="rgba(255,255,255,0.6)" />
+            <circle cx="10" cy="26" r="1.5" fill="rgba(255,255,255,0.6)" />
+            <circle cx="26" cy="26" r="1.5" fill="rgba(255,255,255,0.6)" />
           </svg>
           <span className="logo__text">cinesmart</span>
         </Link>
@@ -150,8 +197,8 @@ export default function Header({ children }) {
             {showCinemaDropdown && (
               <div className="cinema-dropdown">
                 {loadingCinemas ? (
-                  <div className="cinema-dropdown__item" style={{ 
-                    textAlign: 'center', 
+                  <div className="cinema-dropdown__item" style={{
+                    textAlign: 'center',
                     padding: '12px',
                     color: '#c9c4c5',
                     cursor: 'default'
@@ -159,8 +206,8 @@ export default function Header({ children }) {
                     Đang tải...
                   </div>
                 ) : cinemas.length === 0 ? (
-                  <div className="cinema-dropdown__item" style={{ 
-                    textAlign: 'center', 
+                  <div className="cinema-dropdown__item" style={{
+                    textAlign: 'center',
                     padding: '12px',
                     color: '#c9c4c5',
                     cursor: 'default'
@@ -188,7 +235,7 @@ export default function Header({ children }) {
 
         {/* Search Bar */}
         <div className="header-search">
-          <VoiceSearchBar 
+          <VoiceSearchBar
             placeholder="Tìm phim..."
           />
         </div>
@@ -196,14 +243,25 @@ export default function Header({ children }) {
         <div className="actions">
           {/* render optional header children */}
           {children}
-          
+
           {/* Notification Bell - Always visible when user is logged in */}
           {user && <NotificationBell />}
-          
+
           {user ? (
             <div className="user-menu" ref={userDropdownRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
               {/* Hiển thị username */}
               <span style={{ color: '#fff', fontWeight: 600, fontSize: '14px' }}>{user.username}</span>
+
+              {/* Hiển thị số dư ví */}
+              {walletBalance !== null && (
+                <span style={{ 
+                  color: '#c9c4c5', 
+                  fontSize: '14px',
+                  fontWeight: 400
+                }}>
+                  {walletBalance.toLocaleString('vi-VN')}₫
+                </span>
+              )}
 
               {/* Avatar */}
               <button
@@ -232,9 +290,9 @@ export default function Header({ children }) {
                 }}
               >
                 {user.avatar ? (
-                  <img 
-                    src={user.avatar} 
-                    alt={user.username || 'Avatar'} 
+                  <img
+                    src={user.avatar}
+                    alt={user.username || 'Avatar'}
                     style={{
                       width: '100%',
                       height: '100%',
@@ -244,11 +302,11 @@ export default function Header({ children }) {
                     }}
                   />
                 ) : (
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="16" cy="16" r="16" fill="#4a3f41"/>
-                  <circle cx="16" cy="12" r="5" fill="#e6e1e2"/>
-                  <path d="M8 26c0-4.418 3.582-8 8-8s8 3.582 8 8" fill="#e6e1e2"/>
-                </svg>
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="16" cy="16" r="16" fill="#4a3f41" />
+                    <circle cx="16" cy="12" r="5" fill="#e6e1e2" />
+                    <path d="M8 26c0-4.418 3.582-8 8-8s8 3.582 8 8" fill="#e6e1e2" />
+                  </svg>
                 )}
               </button>
 
@@ -267,6 +325,12 @@ export default function Header({ children }) {
                   </Link>
                   <Link to="/booking-history" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
                     Vé của tôi
+                  </Link>
+                  <Link to="/wallet" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
+                    Ví Cinesmart
+                  </Link>
+                  <Link to="/transaction-history" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
+                    Lịch sử giao dịch
                   </Link>
                   <div className="user-dropdown__divider"></div>
                   <button

@@ -4,253 +4,670 @@ import scheduleService from '../services/scheduleService';
 import { movieService } from '../services/movieService';
 import { enumService } from '../services/enumService';
 import showtimeService from '../services/showtimeService';
-import ProgressiveImage from './ProgressiveImage.jsx';
+import AgeConfirmationModal from './AgeConfirmationModal.jsx';
 
-const QuickBooking = () => {
+const QuickBooking = ({ onFilterChange, horizontal = false, hideTitle = false, initialFilters = null }) => {
   const navigate = useNavigate();
   
-  // State cho các bước
-  const [step, setStep] = useState(1); // 1: Chọn ngày, 2: Chọn cụm rạp, 3: Chọn phim, 4: Kết quả
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [selectedCinemaId, setSelectedCinemaId] = useState(null);
-  const [selectedMovieId, setSelectedMovieId] = useState(null);
+  // Initialize from props if provided (from URL params)
+  const [selectedCinemaId, setSelectedCinemaId] = useState(() => {
+    return initialFilters?.cinemaId ? String(initialFilters.cinemaId) : '';
+  });
+  const [selectedMovieId, setSelectedMovieId] = useState(() => {
+    return initialFilters?.movieId ? String(initialFilters.movieId) : '';
+  });
+  const [selectedDate, setSelectedDate] = useState(() => {
+    return initialFilters?.date || '';
+  });
   
-  // State cho dữ liệu
-  const [availableDates, setAvailableDates] = useState([]);
-  const [availableCinemas, setAvailableCinemas] = useState([]);
-  const [availableMovies, setAvailableMovies] = useState([]);
-  const [showtimes, setShowtimes] = useState([]);
+  // Update when initialFilters change
+  useEffect(() => {
+    if (initialFilters) {
+      if (initialFilters.cinemaId !== undefined) {
+        setSelectedCinemaId(initialFilters.cinemaId ? String(initialFilters.cinemaId) : '');
+      }
+      if (initialFilters.movieId !== undefined) {
+        setSelectedMovieId(initialFilters.movieId ? String(initialFilters.movieId) : '');
+      }
+      if (initialFilters.date !== undefined) {
+        setSelectedDate(initialFilters.date || '');
+      }
+    }
+  }, [initialFilters]);
+  
+  // State cho options
+  const [cinemas, setCinemas] = useState([]);
+  const [movies, setMovies] = useState([]);
+  const [dateTimeOptions, setDateTimeOptions] = useState([]);
   
   // State cho loading và error
   const [loading, setLoading] = useState(false);
-  const [loadingDates, setLoadingDates] = useState(true);
+  const [loadingOptions, setLoadingOptions] = useState(true);
   const [error, setError] = useState(null);
   
   // State cho age confirmation modal
   const [showAgeConfirmModal, setShowAgeConfirmModal] = useState(false);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [pendingShowtime, setPendingShowtime] = useState(null);
   const [movieData, setMovieData] = useState(null);
   const [loadingMovie, setLoadingMovie] = useState(false);
   
-  // Load danh sách các ngày có showtime khi component mount
+  // Load tất cả options khi component mount
   useEffect(() => {
-    const loadAvailableDates = async () => {
+    const loadAllOptions = async () => {
+      setLoadingOptions(true);
       try {
-        setLoadingDates(true);
-        // Lấy tất cả showtimes (không filter date, movie, cinema)
-        const listings = await scheduleService.getListings({});
+        // Load cinemas và movies từ scheduleService
+        const options = await scheduleService.getOptions({});
         
-        // Extract các ngày duy nhất từ showtimes
-        const uniqueDates = new Set();
-        if (Array.isArray(listings) && listings.length > 0) {
-          listings.forEach(listing => {
-            if (listing && listing.startTime) {
-              // startTime có thể là string hoặc object, xử lý cả 2 trường hợp
-              let dateStr;
-              if (typeof listing.startTime === 'string') {
-                dateStr = listing.startTime.split('T')[0]; // Extract YYYY-MM-DD từ ISO string
-              } else if (listing.startTime && typeof listing.startTime === 'object' && listing.startTime.year) {
-                // Nếu là object với các field year, month, day
-                const month = listing.startTime.monthValue || listing.startTime.month;
-                const day = listing.startTime.dayOfMonth || listing.startTime.day;
-                dateStr = `${listing.startTime.year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              }
-              
-              if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                uniqueDates.add(dateStr);
-              }
-            }
-          });
+        if (options) {
+          setCinemas(options.cinemas || []);
+          setMovies(options.movies || []);
         }
         
-        // Convert sang Date objects và sort
-        const datesArray = Array.from(uniqueDates)
-          .map(dateStr => {
-            const date = new Date(dateStr + 'T00:00:00');
-            date.setHours(0, 0, 0, 0);
-            return date;
-          })
-          .filter(date => {
-            // Chỉ lấy các ngày từ hôm nay trở đi
+        // Load available dates (today + next 6 days)
             const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            return date >= today;
-          })
-          .sort((a, b) => a - b) // Sort tăng dần
-          .slice(0, 14); // Giới hạn tối đa 14 ngày
-        
-        setAvailableDates(datesArray);
-      } catch (err) {
-        console.error('Error loading available dates:', err);
-        // Fallback: nếu có lỗi, vẫn hiển thị 8 ngày tiếp theo
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const fallbackDates = [];
-        for (let i = 0; i < 8; i++) {
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
           const date = new Date(today);
           date.setDate(today.getDate() + i);
-          fallbackDates.push(date);
+          dates.push({
+            value: date.toISOString().split('T')[0],
+            label: formatDateLabel(date, i)
+          });
         }
-        setAvailableDates(fallbackDates);
+        setDateTimeOptions(dates);
+      } catch (err) {
+        console.error('Error loading options:', err);
+        setError('Không thể tải dữ liệu. Vui lòng thử lại.');
       } finally {
-        setLoadingDates(false);
+        setLoadingOptions(false);
       }
     };
     
-    loadAvailableDates();
+    loadAllOptions();
   }, []);
   
-  // Format ngày hiển thị
-  const formatDateDisplay = (date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const targetDate = new Date(date);
-    targetDate.setHours(0, 0, 0, 0);
+  // Format date label
+  const formatDateLabel = (date, index) => {
+    const dayNames = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+    const day = date.getDate();
+    const month = date.getMonth() + 1;
     
-    const diffTime = targetDate - today;
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-    
-    const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
-    const dayName = dayNames[targetDate.getDay()];
-    const day = targetDate.getDate();
-    const month = targetDate.getMonth() + 1;
-    
-    if (diffDays === 0) {
+    if (index === 0) {
       return `Hôm nay - ${day}/${month}`;
-    } else if (diffDays === 1) {
+    } else if (index === 1) {
       return `Ngày mai - ${day}/${month}`;
     } else {
-      return `${dayName} ${day}/${month}`;
+      return `${dayNames[date.getDay()]} ${day}/${month}`;
     }
   };
   
-  // Format ngày cho API (YYYY-MM-DD)
-  const formatDateForAPI = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  
-  // Bước 1: Chọn ngày
-  const handleDateSelect = async (date) => {
-    setSelectedDate(date);
-    setLoading(true);
-    setError(null);
-    setSelectedCinemaId(null);
-    setSelectedMovieId(null);
-    setAvailableCinemas([]);
-    setAvailableMovies([]);
-    setShowtimes([]);
-    
-    try {
-      const dateStr = formatDateForAPI(date);
-      // Lấy các cụm rạp có showtime vào ngày này
-      const options = await scheduleService.getOptions({ date: dateStr });
-      
-      if (options && options.cinemas && options.cinemas.length > 0) {
-        setAvailableCinemas(options.cinemas);
-        setStep(2);
-      } else {
-        setError('Không có cụm rạp nào có lịch chiếu vào ngày này');
-      }
-    } catch (err) {
-      console.error('Error fetching cinemas:', err);
-      setError('Không thể tải danh sách cụm rạp. Vui lòng thử lại.');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Bước 2: Chọn cụm rạp
-  const handleCinemaSelect = async (cinemaId) => {
+  // Handle cinema change - update movies and date/time options
+  const handleCinemaChange = async (cinemaId) => {
     setSelectedCinemaId(cinemaId);
-    setLoading(true);
     setError(null);
-    setSelectedMovieId(null);
-    setAvailableMovies([]);
-    setShowtimes([]);
+    
+    // Clear date if cinema changes (unless movie is also selected, then we'll filter dates)
+    if (!selectedMovieId) {
+      setSelectedDate('');
+    }
+    
+    if (!cinemaId) {
+      // Reset to all movies and dates if no cinema selected
+      const options = await scheduleService.getOptions({});
+      setMovies(options?.movies || []);
+      // Reset to all dates
+      const today = new Date();
+      const dates = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + i);
+        dates.push({
+          value: date.toISOString().split('T')[0],
+          label: formatDateLabel(date, i)
+        });
+      }
+      setDateTimeOptions(dates);
+      return;
+    }
     
     try {
-      const dateStr = formatDateForAPI(selectedDate);
-      // Lấy các phim có showtime tại cụm rạp này vào ngày đã chọn
-      const options = await scheduleService.getOptions({ 
-        date: dateStr,
-        cinemaId: cinemaId
-      });
+    setLoading(true);
+      const cinemaIdNum = Number(cinemaId);
       
-      if (options && options.movies && options.movies.length > 0) {
-        setAvailableMovies(options.movies);
-        setStep(3);
+      // If a movie is already selected, filter by both cinema and movie
+      if (selectedMovieId) {
+        const movieIdNum = Number(selectedMovieId);
+        
+        // Get available dates for this cinema + movie combination
+        const availableDates = new Set();
+            const today = new Date();
+        
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          try {
+            const listings = await scheduleService.getListings({
+              cinemaId: cinemaIdNum,
+              movieId: movieIdNum,
+              date: dateStr
+            });
+            
+            if (listings && listings.length > 0) {
+              availableDates.add(dateStr);
+            }
+      } catch (err) {
+            // Skip if error
+          }
+        }
+        
+        // Update dates
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          if (availableDates.has(dateStr)) {
+            dates.push({
+              value: dateStr,
+              label: formatDateLabel(date, i)
+            });
+          }
+        }
+        setDateTimeOptions(dates);
+        
+        // If date is already selected, verify it's still valid
+        if (selectedDate && !availableDates.has(selectedDate)) {
+          setSelectedDate('');
+        }
+      }
+      // If a date is already selected, filter movies for this cinema + date
+      else if (selectedDate) {
+        const availableMovies = new Set();
+        
+        try {
+          const listings = await scheduleService.getListings({
+            cinemaId: cinemaIdNum,
+            date: selectedDate
+          });
+          
+          if (listings && listings.length > 0) {
+            listings.forEach(listing => {
+              if (listing.movieId) {
+                availableMovies.add(listing.movieId);
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Error loading movies for cinema + date:', err);
+        }
+        
+        // Filter movies list
+        const allMovies = movies.length > 0 ? movies : (await scheduleService.getOptions({ cinemaId: cinemaIdNum }))?.movies || [];
+        const filteredMovies = allMovies.filter(m => availableMovies.has(m.movieId));
+        setMovies(filteredMovies);
+        
+        // Clear selected movie if it's not in filtered list
+        if (selectedMovieId && !filteredMovies.find(m => m.movieId === Number(selectedMovieId))) {
+          setSelectedMovieId('');
+        }
+        
+        // Get available dates for this cinema
+        const availableDates = new Set();
+        const today = new Date();
+        
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          try {
+            const listings = await scheduleService.getListings({
+              cinemaId: cinemaIdNum,
+              date: dateStr
+            });
+            
+            if (listings && listings.length > 0) {
+              availableDates.add(dateStr);
+            }
+          } catch (err) {
+            // Skip if error
+          }
+        }
+        
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          if (availableDates.has(dateStr)) {
+            dates.push({
+              value: dateStr,
+              label: formatDateLabel(date, i)
+            });
+          }
+        }
+        setDateTimeOptions(dates);
       } else {
-        setError('Không có phim nào chiếu tại cụm rạp này vào ngày đã chọn');
+        // No movie and no date selected, just get dates for this cinema
+        const availableDates = new Set();
+        const today = new Date();
+        
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          try {
+            const listings = await scheduleService.getListings({
+              cinemaId: cinemaIdNum,
+              date: dateStr
+            });
+            
+            if (listings && listings.length > 0) {
+              availableDates.add(dateStr);
       }
     } catch (err) {
-      console.error('Error fetching movies:', err);
-      setError('Không thể tải danh sách phim. Vui lòng thử lại.');
+            // Skip if error
+          }
+        }
+        
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          if (availableDates.has(dateStr)) {
+            dates.push({
+              value: dateStr,
+              label: formatDateLabel(date, i)
+            });
+          }
+        }
+        setDateTimeOptions(dates);
+        
+        // Get movies for this cinema
+        const options = await scheduleService.getOptions({ cinemaId: cinemaIdNum });
+        const cinemaMovies = options?.movies || [];
+        
+        // If selected movie is still in the list, keep it; otherwise clear it
+        if (selectedMovieId && !cinemaMovies.find(m => m.movieId === Number(selectedMovieId))) {
+          setSelectedMovieId('');
+        }
+        
+        setMovies(cinemaMovies);
+      }
+    } catch (err) {
+      console.error('Error loading data for cinema:', err);
+      setError('Không thể tải dữ liệu cho rạp này.');
     } finally {
       setLoading(false);
     }
   };
   
-  // Bước 3: Chọn phim
-  const handleMovieSelect = async (movieId) => {
+  // Handle movie change - update cinemas and date/time options
+  const handleMovieChange = async (movieId) => {
     setSelectedMovieId(movieId);
-    setLoading(true);
     setError(null);
-    setShowtimes([]);
+    
+    // Clear date if movie changes (unless cinema is also selected, then we'll filter dates)
+    if (!selectedCinemaId) {
+      setSelectedDate('');
+    }
+    
+    if (!movieId) {
+      // Reset to all cinemas and dates if no movie selected
+      const options = await scheduleService.getOptions({});
+      setCinemas(options?.cinemas || []);
+      // Reset to all dates
+      const today = new Date();
+      const dates = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + i);
+        dates.push({
+          value: date.toISOString().split('T')[0],
+          label: formatDateLabel(date, i)
+        });
+      }
+      setDateTimeOptions(dates);
+      return;
+    }
     
     try {
-      const dateStr = formatDateForAPI(selectedDate);
-      // Lấy các showtime cụ thể
+      setLoading(true);
+      const movieIdNum = Number(movieId);
+      
+      // If a cinema is already selected, filter by both cinema and movie
+      if (selectedCinemaId) {
+        const cinemaIdNum = Number(selectedCinemaId);
+        
+        // Get available dates for this cinema + movie combination
+        const availableDates = new Set();
+        const today = new Date();
+        
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          try {
+            const listings = await scheduleService.getListings({
+              cinemaId: cinemaIdNum,
+              movieId: movieIdNum,
+              date: dateStr
+            });
+            
+            if (listings && listings.length > 0) {
+              availableDates.add(dateStr);
+            }
+          } catch (err) {
+            // Skip if error
+          }
+        }
+        
+        // Update dates
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          if (availableDates.has(dateStr)) {
+            dates.push({
+              value: dateStr,
+              label: formatDateLabel(date, i)
+            });
+          }
+        }
+        setDateTimeOptions(dates);
+        
+        // If date is already selected, verify it's still valid
+        if (selectedDate && !availableDates.has(selectedDate)) {
+          setSelectedDate('');
+        }
+      }
+      // If a date is already selected, filter cinemas for this movie + date
+      else if (selectedDate) {
+        const availableCinemas = new Set();
+        
+        try {
+          const listings = await scheduleService.getListings({
+            movieId: movieIdNum,
+            date: selectedDate
+          });
+          
+          if (listings && listings.length > 0) {
+            listings.forEach(listing => {
+              if (listing.cinemaId) {
+                availableCinemas.add(listing.cinemaId);
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Error loading cinemas for movie + date:', err);
+        }
+        
+        // Filter cinemas list
+        const allCinemas = cinemas.length > 0 ? cinemas : (await scheduleService.getOptions({ movieId: movieIdNum }))?.cinemas || [];
+        const filteredCinemas = allCinemas.filter(c => availableCinemas.has(c.cinemaId));
+        setCinemas(filteredCinemas);
+        
+        // Clear selected cinema if it's not in filtered list
+        if (selectedCinemaId && !filteredCinemas.find(c => c.cinemaId === Number(selectedCinemaId))) {
+          setSelectedCinemaId('');
+        }
+        
+        // Get available dates for this movie
+        const availableDates = new Set();
+        const today = new Date();
+        
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          try {
+            const listings = await scheduleService.getListings({
+              movieId: movieIdNum,
+              date: dateStr
+            });
+            
+            if (listings && listings.length > 0) {
+              availableDates.add(dateStr);
+            }
+          } catch (err) {
+            // Skip if error
+          }
+        }
+        
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          if (availableDates.has(dateStr)) {
+            dates.push({
+              value: dateStr,
+              label: formatDateLabel(date, i)
+            });
+          }
+        }
+        setDateTimeOptions(dates);
+      } else {
+        // No cinema and no date selected, get cinemas and dates for this movie
+        const availableDates = new Set();
+        const today = new Date();
+        
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          try {
+            const listings = await scheduleService.getListings({
+              movieId: movieIdNum,
+              date: dateStr
+            });
+            
+            if (listings && listings.length > 0) {
+              availableDates.add(dateStr);
+      }
+    } catch (err) {
+            // Skip if error
+          }
+        }
+        
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          if (availableDates.has(dateStr)) {
+            dates.push({
+              value: dateStr,
+              label: formatDateLabel(date, i)
+            });
+          }
+        }
+        setDateTimeOptions(dates);
+        
+        // Get cinemas for this movie
+        const options = await scheduleService.getOptions({ movieId: movieIdNum });
+        const movieCinemas = options?.cinemas || [];
+        
+        // If selected cinema is still in the list, keep it; otherwise clear it
+        if (selectedCinemaId && !movieCinemas.find(c => c.cinemaId === Number(selectedCinemaId))) {
+          setSelectedCinemaId('');
+        }
+        
+        setCinemas(movieCinemas);
+      }
+    } catch (err) {
+      console.error('Error loading data for movie:', err);
+      setError('Không thể tải dữ liệu cho phim này.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Handle date change - update cinemas and movies if other filters are selected
+  const handleDateChange = async (date) => {
+    setSelectedDate(date);
+    setError(null);
+    
+    if (!date) {
+      return;
+    }
+    
+    // If both cinema and movie are selected, no need to update
+    if (selectedCinemaId && selectedMovieId) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const dateStr = date;
+      
+      // If cinema is selected but not movie, filter movies for this cinema + date
+      if (selectedCinemaId && !selectedMovieId) {
+        const cinemaIdNum = Number(selectedCinemaId);
+        const availableMovies = new Set();
+        
+        try {
       const listings = await scheduleService.getListings({
-        date: dateStr,
-        cinemaId: selectedCinemaId,
-        movieId: movieId
+            cinemaId: cinemaIdNum,
+            date: dateStr
       });
       
       if (listings && listings.length > 0) {
-        setShowtimes(listings);
-        setStep(4);
-      } else {
-        setError('Không có suất chiếu nào phù hợp');
+            listings.forEach(listing => {
+              if (listing.movieId) {
+                availableMovies.add(listing.movieId);
+              }
+            });
       }
     } catch (err) {
-      console.error('Error fetching showtimes:', err);
-      setError('Không thể tải danh sách suất chiếu. Vui lòng thử lại.');
+          console.error('Error loading movies for cinema + date:', err);
+        }
+        
+        // Filter movies list to only show available movies
+        const filteredMovies = movies.filter(m => availableMovies.has(m.movieId));
+        setMovies(filteredMovies);
+        
+        // Clear selected movie if it's not in filtered list
+        if (selectedMovieId && !filteredMovies.find(m => m.movieId === Number(selectedMovieId))) {
+          setSelectedMovieId('');
+        }
+      }
+      // If movie is selected but not cinema, filter cinemas for this movie + date
+      else if (selectedMovieId && !selectedCinemaId) {
+        const movieIdNum = Number(selectedMovieId);
+        const availableCinemas = new Set();
+        
+        try {
+          const listings = await scheduleService.getListings({
+            movieId: movieIdNum,
+            date: dateStr
+          });
+          
+          if (listings && listings.length > 0) {
+            listings.forEach(listing => {
+              if (listing.cinemaId) {
+                availableCinemas.add(listing.cinemaId);
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Error loading cinemas for movie + date:', err);
+        }
+        
+        // Filter cinemas list to only show available cinemas
+        const filteredCinemas = cinemas.filter(c => availableCinemas.has(c.cinemaId));
+        setCinemas(filteredCinemas);
+        
+        // Clear selected cinema if it's not in filtered list
+        if (selectedCinemaId && !filteredCinemas.find(c => c.cinemaId === Number(selectedCinemaId))) {
+          setSelectedCinemaId('');
+        }
+      }
+      // If neither is selected, load options for this date
+      else {
+        const options = await scheduleService.getOptions({ date: dateStr });
+        if (options) {
+          if (!selectedCinemaId) {
+            setCinemas(options.cinemas || []);
+          }
+          if (!selectedMovieId) {
+            setMovies(options.movies || []);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error loading data for date:', err);
     } finally {
       setLoading(false);
     }
   };
   
-  // Xử lý chọn showtime để đặt vé - hiển thị modal xác nhận độ tuổi trước (trừ khi là phim P)
+  // Handle Go button - filter schedule
+  const handleGo = () => {
+    // Check if at least one filter is selected
+    if (!selectedCinemaId && !selectedMovieId && !selectedDate) {
+      setError('Vui lòng chọn ít nhất một tiêu chí: Rạp, Phim hoặc Ngày & Giờ');
+      return;
+    }
+    
+    setError(null);
+    
+    // Notify parent component (Schedule page) to filter
+    if (onFilterChange) {
+      onFilterChange({
+        cinemaId: selectedCinemaId ? Number(selectedCinemaId) : undefined,
+        movieId: selectedMovieId ? Number(selectedMovieId) : undefined,
+        date: selectedDate || undefined
+      });
+    }
+    
+    // Scroll to schedule section
+    setTimeout(() => {
+      const scheduleSection = document.getElementById('schedule-section');
+      if (scheduleSection) {
+        scheduleSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+  
+  // Handle showtime selection - check age rating and navigate
   const handleShowtimeSelect = async (showtime) => {
     setPendingShowtime(showtime);
-    setAgeConfirmed(false);
     setLoadingMovie(true);
     setError(null);
     
     try {
-      // Lấy thông tin phim từ movieId trong showtime
+      // Get movie info for age rating check
       if (showtime.movieId) {
         const movieResult = await movieService.getPublicMovieById(showtime.movieId);
         if (movieResult.success && movieResult.data) {
           const movie = movieResult.data;
           setMovieData(movie);
           
-          // Kiểm tra age rating - nếu là "P" (phim dành cho mọi lứa tuổi) thì không cần xác nhận
+          // Check age rating - if "P", navigate directly
           const ageRating = movie.ageRating;
           const ratingDisplay = enumService.mapAgeRatingToDisplay(ageRating);
           
           if (ratingDisplay === 'P') {
-            // Phim P - điều hướng trực tiếp, không cần xác nhận
             setLoadingMovie(false);
             navigate(`/book-ticket?showtimeId=${showtime.showtimeId}`);
             return;
           }
-        } else {
-          console.error('Failed to load movie data:', movieResult.error);
         }
       }
     } catch (err) {
@@ -259,244 +676,132 @@ const QuickBooking = () => {
       setLoadingMovie(false);
     }
     
-    // Nếu không phải phim P, hiển thị modal xác nhận
+    // Show age confirmation modal if not P
     setShowAgeConfirmModal(true);
   };
   
-  // Xử lý sau khi xác nhận độ tuổi - điều hướng đến trang đặt vé
+  // Handle age confirmation
   const handleConfirmAgeAndContinue = () => {
-    if (!ageConfirmed || !pendingShowtime) {
-      alert('Vui lòng xác nhận độ tuổi để tiếp tục');
+    if (!pendingShowtime) {
       return;
     }
     
-    // Điều hướng đến trang đặt vé với showtimeId
     navigate(`/book-ticket?showtimeId=${pendingShowtime.showtimeId}`);
+    setShowAgeConfirmModal(false);
+    setPendingShowtime(null);
+    setMovieData(null);
   };
   
-  // Reset về bước đầu
+  // Handle Reset button
   const handleReset = () => {
-    setStep(1);
-    setSelectedDate(null);
-    setSelectedCinemaId(null);
-    setSelectedMovieId(null);
-    setAvailableCinemas([]);
-    setAvailableMovies([]);
-    setShowtimes([]);
+    setSelectedCinemaId('');
+    setSelectedMovieId('');
+    setSelectedDate('');
     setError(null);
+    
+    // Reload all options
+    const loadAllOptions = async () => {
+      try {
+        const options = await scheduleService.getOptions({});
+        setCinemas(options?.cinemas || []);
+        setMovies(options?.movies || []);
+      } catch (err) {
+        console.error('Error reloading options:', err);
+      }
+    };
+    
+    loadAllOptions();
   };
-  
-  // Format thời gian hiển thị
-  const formatTime = (dateTimeStr) => {
-    const date = new Date(dateTimeStr);
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
-  };
-  
-  // Format formatLabel thành dạng thân thiện (ví dụ: "2D Lồng tiếng")
-  const formatShowtimeLabel = (formatLabel) => {
-    if (!formatLabel) return '';
-    
-    // formatLabel có thể là "TYPE_2D • VIETDUB" hoặc chỉ "TYPE_2D"
-    const parts = formatLabel.split(' • ');
-    let roomTypePart = parts[0] || '';
-    let languagePart = parts[1] || '';
-    
-    // Map roomType: TYPE_2D -> 2D, TYPE_3D -> 3D, DELUXE -> DELUXE
-    const roomType = showtimeService.mapRoomTypeFromBackend(roomTypePart);
-    
-    // Map language: VIETDUB -> Lồng tiếng, VIETSUB -> Phụ đề, etc.
-    const language = languagePart ? showtimeService.mapLanguageFromBackend(languagePart) : '';
-    
-    // Kết hợp thành "2D Lồng tiếng" hoặc chỉ "2D" nếu không có language
-    if (language) {
-      return `${roomType} ${language}`;
-    }
-    return roomType;
-  };
-  
-  const selectedCinema = availableCinemas.find(c => c.cinemaId === selectedCinemaId);
-  const selectedMovie = availableMovies.find(m => m.movieId === selectedMovieId);
   
   return (
-    <section className="section" id="quick-booking" style={{ marginBottom: '60px' }}>
+    <section className="section" id="quick-booking" style={{ marginBottom: horizontal ? '20px' : '60px' }}>
       <div className="container">
+        {!hideTitle && (
         <div className="section__head">
           <h2 className="section__title">Đặt Vé Nhanh</h2>
         </div>
+        )}
         
-        <div className="quick-booking-wrapper">
-          {/* Progress indicator */}
-          <div className="quick-booking-progress">
-            <div className={`progress-step ${step >= 1 ? 'active' : ''} ${step > 1 ? 'completed' : ''}`}>
-              <div className="progress-step-number">1</div>
-              <div className="progress-step-label">Chọn ngày</div>
-            </div>
-            <div className="progress-line"></div>
-            <div className={`progress-step ${step >= 2 ? 'active' : ''} ${step > 2 ? 'completed' : ''}`}>
-              <div className="progress-step-number">2</div>
-              <div className="progress-step-label">Chọn cụm rạp</div>
-            </div>
-            <div className="progress-line"></div>
-            <div className={`progress-step ${step >= 3 ? 'active' : ''} ${step > 3 ? 'completed' : ''}`}>
-              <div className="progress-step-number">3</div>
-              <div className="progress-step-label">Chọn phim</div>
-            </div>
-            <div className="progress-line"></div>
-            <div className={`progress-step ${step >= 4 ? 'active' : ''}`}>
-              <div className="progress-step-number">4</div>
-              <div className="progress-step-label">Chọn suất chiếu</div>
-            </div>
-          </div>
-          
-          {/* Error message */}
+        <div className={`quick-booking-wrapper ${horizontal ? 'quick-booking-horizontal' : ''}`}>
           {error && (
             <div className="quick-booking-error">
               <p>{error}</p>
-              <button onClick={handleReset} className="btn-reset">Thử lại</button>
             </div>
           )}
           
-          {/* Loading indicator */}
-          {loading && (
+          {loadingOptions ? (
             <div className="quick-booking-loading">
               <div className="loading-spinner"></div>
               <p>Đang tải...</p>
             </div>
-          )}
-          
-          {/* Step 1: Chọn ngày */}
-          {step === 1 && !loading && (
-            <div className="quick-booking-step">
-              <h3 className="step-title">Chọn ngày xem phim</h3>
-              {loadingDates ? (
-                <div className="quick-booking-loading">
-                  <div className="loading-spinner"></div>
-                  <p>Đang tải danh sách ngày...</p>
-                </div>
-              ) : availableDates.length > 0 ? (
-                <div className="date-grid">
-                  {availableDates.map((date, idx) => (
-                    <button
-                      key={idx}
-                      className={`date-card ${selectedDate && selectedDate.getTime() === date.getTime() ? 'selected' : ''}`}
-                      onClick={() => handleDateSelect(date)}
-                    >
-                      <div className="date-card-content">
-                        <div className="date-day">{formatDateDisplay(date).split(' - ')[0]}</div>
-                        <div className="date-number">{date.getDate()}/{date.getMonth() + 1}</div>
-                      </div>
-                    </button>
+          ) : (
+            <div className="quick-booking-form">
+              <div className="form-group">
+                <label className="form-label">Chọn Rạp</label>
+                <select
+                  className="form-select"
+                  value={selectedCinemaId}
+                  onChange={(e) => handleCinemaChange(e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="">-- Chọn Rạp --</option>
+                  {cinemas.map((cinema) => (
+                    <option key={cinema.cinemaId} value={cinema.cinemaId}>
+                      {cinema.name}
+                    </option>
                   ))}
+                </select>
                 </div>
-              ) : (
-                <div className="no-dates-available">
-                  <p>Hiện tại không có suất chiếu nào. Vui lòng quay lại sau.</p>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {/* Step 2: Chọn cụm rạp */}
-          {step === 2 && !loading && (
-            <div className="quick-booking-step">
-              <div className="step-header">
-                <button onClick={handleReset} className="btn-back">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M19 12H5M12 19l-7-7 7-7"/>
-                  </svg>
-                  Quay lại
+              
+              <div className="form-group">
+                <label className="form-label">Chọn Phim</label>
+                <select
+                  className="form-select"
+                  value={selectedMovieId}
+                  onChange={(e) => handleMovieChange(e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="">-- Chọn Phim --</option>
+                  {movies.map((movie) => (
+                    <option key={movie.movieId} value={movie.movieId}>
+                      {movie.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label className="form-label">Chọn Ngày</label>
+                <select
+                  className="form-select"
+                  value={selectedDate}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="">-- Chọn Ngày --</option>
+                  {dateTimeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="form-actions">
+                <button
+                  className="btn-reset"
+                  onClick={handleReset}
+                  disabled={loading}
+                >
+                  Reset
                 </button>
-                <h3 className="step-title">Chọn cụm rạp - {formatDateDisplay(selectedDate)}</h3>
-              </div>
-              <div className="cinema-grid">
-                {availableCinemas.map((cinema) => (
-                  <button
-                    key={cinema.cinemaId}
-                    className={`cinema-card ${selectedCinemaId === cinema.cinemaId ? 'selected' : ''}`}
-                    onClick={() => handleCinemaSelect(cinema.cinemaId)}
-                  >
-                    <div className="cinema-card-content">
-                      <h4 className="cinema-name">{cinema.name}</h4>
-                      {cinema.address && (
-                        <p className="cinema-address">{cinema.address}</p>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* Step 3: Chọn phim */}
-          {step === 3 && !loading && (
-            <div className="quick-booking-step">
-              <div className="step-header">
-                <button onClick={() => setStep(2)} className="btn-back">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M19 12H5M12 19l-7-7 7-7"/>
-                  </svg>
-                  Quay lại
-                </button>
-                <h3 className="step-title">Chọn phim - {selectedCinema?.name}</h3>
-              </div>
-              <div className="movie-grid">
-                {availableMovies.map((movie) => (
-                  <button
-                    key={movie.movieId}
-                    className={`movie-card ${selectedMovieId === movie.movieId ? 'selected' : ''}`}
-                    onClick={() => handleMovieSelect(movie.movieId)}
-                  >
-                    <div className="movie-card-poster">
-                      <ProgressiveImage
-                        src={movie.poster}
-                        alt={movie.title}
-                        className="movie-poster-img"
-                      />
-                    </div>
-                    <div className="movie-card-body">
-                      <h4 className="movie-title">{movie.title}</h4>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* Step 4: Chọn suất chiếu */}
-          {step === 4 && !loading && (
-            <div className="quick-booking-step">
-              <div className="step-header">
-                <button onClick={() => setStep(3)} className="btn-back">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M19 12H5M12 19l-7-7 7-7"/>
-                  </svg>
-                  Quay lại
-                </button>
-                <h3 className="step-title">
-                  {selectedMovie?.title} - {selectedCinema?.name}
-                </h3>
-                <p className="step-subtitle">{formatDateDisplay(selectedDate)}</p>
-              </div>
-              <div className="showtimes-container">
-                {showtimes.length > 0 ? (
-                  <div className="showtimes-grid">
-                    {showtimes.map((showtime) => (
                       <button
-                        key={showtime.showtimeId}
-                        className="showtime-card"
-                        onClick={() => handleShowtimeSelect(showtime)}
-                      >
-                        <div className="showtime-time">{formatTime(showtime.startTime)}</div>
-                        <div className="showtime-format">{formatShowtimeLabel(showtime.formatLabel)}</div>
-                        <div className="showtime-room">{showtime.cinemaRoomName}</div>
+                  className="btn-go"
+                  onClick={handleGo}
+                  disabled={loading || (!selectedCinemaId && !selectedMovieId && !selectedDate)}
+                >
+                  Go
                       </button>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="no-showtimes">Không có suất chiếu nào</p>
-                )}
               </div>
             </div>
           )}
@@ -504,184 +809,18 @@ const QuickBooking = () => {
       </div>
       
       {/* Age Confirmation Modal */}
-      {showAgeConfirmModal && (
-        <div
-          className="modal-overlay"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
+      <AgeConfirmationModal
+        isOpen={showAgeConfirmModal}
+        onClose={() => {
               setShowAgeConfirmModal(false);
               setPendingShowtime(null);
-              setAgeConfirmed(false);
               setMovieData(null);
-            }
-          }}
-        >
-          <div
-            className="modal-content"
-            style={{
-              backgroundColor: '#2d2627',
-              borderRadius: '12px',
-              padding: '32px',
-              maxWidth: '500px',
-              width: '90%',
-              border: '1px solid #4a3f41'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{
-              margin: '0 0 24px',
-              fontSize: '24px',
-              fontWeight: 800,
-              color: '#fff',
-              textAlign: 'center'
-            }}>
-              Xác nhận độ tuổi
-            </h2>
-
-            {loadingMovie ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#c9c4c5' }}>
-                Đang tải thông tin phim...
-              </div>
-            ) : pendingShowtime && (() => {
-              // Map age rating từ backend
-              const ageRating = movieData?.ageRating;
-              const rating = ageRating ? enumService.mapAgeRatingToDisplay(ageRating) : 'P';
-              const ageNumber = rating.replace(/[^0-9]/g, '');
-              const isK = rating === 'K';
-              const isP = rating === 'P';
-
-              return (
-                <>
-                  <div style={{
-                    marginBottom: '24px',
-                    padding: '20px',
-                    backgroundColor: '#1a1415',
-                    borderRadius: '8px',
-                    border: '1px solid #4a3f41'
-                  }}>
-                    <div style={{
-                      fontSize: '16px',
-                      color: '#fff',
-                      marginBottom: '12px',
-                      fontWeight: 600
-                    }}>
-                      Phim: {movieData?.title || pendingShowtime.movieTitle || 'N/A'}
-                    </div>
-                    <div style={{
-                      fontSize: '14px',
-                      color: '#c9c4c5',
-                      lineHeight: '1.6'
-                    }}>
-                      <strong style={{ color: '#ffd159' }}>{rating}:</strong> {
-                        isP 
-                          ? 'Phim dành cho mọi lứa tuổi'
-                          : isK
-                          ? 'Phim dành cho khán giả dưới 13 tuổi, cần có ba mẹ đi cùng'
-                          : `Phim dành cho khán giả từ đủ ${ageNumber} tuổi trở lên (${ageNumber}+)`
-                      }
-                    </div>
-                  </div>
-
-                  <div style={{
-                    marginBottom: '24px',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '12px'
-                  }}>
-                    <input
-                      type="checkbox"
-                      id="age-confirm-checkbox"
-                      checked={ageConfirmed}
-                      onChange={(e) => setAgeConfirmed(e.target.checked)}
-                      style={{
-                        width: '20px',
-                        height: '20px',
-                        marginTop: '2px',
-                        cursor: 'pointer',
-                        accentColor: '#e83b41'
-                      }}
-                    />
-                    <label
-                      htmlFor="age-confirm-checkbox"
-                      style={{
-                        fontSize: '14px',
-                        color: '#c9c4c5',
-                        lineHeight: '1.6',
-                        cursor: 'pointer',
-                        flex: 1
-                      }}
-                    >
-                      {isP 
-                        ? 'Tôi xác nhận rằng tôi đủ điều kiện để xem phim này.'
-                        : isK
-                        ? 'Tôi đã hiểu và đồng ý.'
-                        : `Tôi xác nhận rằng tôi đã đủ ${ageNumber} tuổi trở lên và đủ điều kiện để xem phim này.`
-                      }
-                    </label>
-                  </div>
-
-                  <div style={{
-                    display: 'flex',
-                    gap: '12px',
-                    justifyContent: 'flex-end'
-                  }}>
-                    <button
-                      className="btn btn--ghost"
-                      onClick={() => {
-                        setShowAgeConfirmModal(false);
-                        setPendingShowtime(null);
-                        setAgeConfirmed(false);
-                        setMovieData(null);
-                      }}
-                      style={{
-                        padding: '12px 24px',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        background: 'transparent',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        color: '#c9c4c5',
-                        borderRadius: '8px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Hủy
-                    </button>
-                    <button
-                      className="btn btn--primary"
-                      onClick={handleConfirmAgeAndContinue}
-                      style={{
-                        padding: '12px 24px',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        background: ageConfirmed ? '#e83b41' : 'rgba(232, 59, 65, 0.5)',
-                        border: 'none',
-                        color: '#fff',
-                        borderRadius: '8px',
-                        cursor: ageConfirmed ? 'pointer' : 'not-allowed',
-                        opacity: ageConfirmed ? 1 : 0.5
-                      }}
-                    >
-                      Tiếp tục
-                    </button>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-      )}
+        }}
+        onConfirm={handleConfirmAgeAndContinue}
+        movieTitle={movieData?.title || pendingShowtime?.movieTitle}
+        ageRating={movieData?.ageRating}
+        loading={loadingMovie}
+      />
       
       <style>{`
         .quick-booking-wrapper {
@@ -691,94 +830,18 @@ const QuickBooking = () => {
           border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
-        .quick-booking-progress {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 40px;
-          gap: 16px;
-        }
-        
-        .progress-step {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 8px;
-          opacity: 0.4;
-          transition: opacity 0.3s ease;
-        }
-        
-        .progress-step.active {
-          opacity: 1;
-        }
-        
-        .progress-step.completed .progress-step-number {
-          background: #4caf50;
-          color: white;
-        }
-        
-        .progress-step-number {
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          font-size: 16px;
-          transition: all 0.3s ease;
-        }
-        
-        .progress-step.active .progress-step-number {
-          background: #e83b41;
-          color: white;
-        }
-        
-        .progress-step-label {
-          font-size: 12px;
-          color: rgba(255, 255, 255, 0.7);
-          text-align: center;
-          white-space: nowrap;
-        }
-        
-        .progress-line {
-          width: 60px;
-          height: 2px;
-          background: rgba(255, 255, 255, 0.1);
-          margin: 0 8px;
-        }
-        
         .quick-booking-error {
           background: rgba(244, 67, 54, 0.1);
           border: 1px solid rgba(244, 67, 54, 0.3);
           border-radius: 8px;
           padding: 16px;
           margin-bottom: 24px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
         }
         
         .quick-booking-error p {
           color: #ff5252;
           margin: 0;
-        }
-        
-        .btn-reset {
-          background: #e83b41;
-          color: white;
-          border: none;
-          padding: 8px 16px;
-          border-radius: 6px;
-          cursor: pointer;
           font-size: 14px;
-          transition: background 0.3s ease;
-        }
-        
-        .btn-reset:hover {
-          background: #ff5258;
         }
         
         .quick-booking-loading {
@@ -791,7 +854,7 @@ const QuickBooking = () => {
           width: 40px;
           height: 40px;
           border: 4px solid rgba(255, 255, 255, 0.1);
-          border-top-color: #e83b41;
+          border-top-color: #9C27B0;
           border-radius: 50%;
           animation: spin 1s linear infinite;
           margin: 0 auto 16px;
@@ -801,246 +864,117 @@ const QuickBooking = () => {
           to { transform: rotate(360deg); }
         }
         
-        .quick-booking-step {
-          min-height: 400px;
+        .quick-booking-form {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
         }
         
-        .step-header {
-          display: flex;
-          align-items: center;
+        .quick-booking-horizontal .quick-booking-form {
+          flex-direction: row;
+          align-items: flex-end;
           gap: 16px;
-          margin-bottom: 24px;
         }
         
-        .btn-back {
-          background: transparent;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          color: rgba(255, 255, 255, 0.8);
-          padding: 8px 16px;
-          border-radius: 8px;
-          cursor: pointer;
+        .quick-booking-horizontal .form-group {
+          flex: 1;
+        }
+        
+        .quick-booking-horizontal .form-actions {
+          margin-top: 0;
+          flex-shrink: 0;
+        }
+        
+        .quick-booking-horizontal .quick-booking-wrapper {
+          padding: 24px;
+        }
+        
+        .form-group {
           display: flex;
-          align-items: center;
+          flex-direction: column;
           gap: 8px;
+        }
+        
+        .form-label {
+          font-weight: 700;
           font-size: 14px;
-          transition: all 0.3s ease;
-        }
-        
-        .btn-back:hover {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.3);
-        }
-        
-        .step-title {
-          color: white;
-          font-size: 24px;
-          font-weight: bold;
+          color: #fff;
           margin: 0;
         }
         
-        .step-subtitle {
-          color: rgba(255, 255, 255, 0.6);
-          font-size: 16px;
-          margin: 8px 0 0 0;
-        }
-        
-        .date-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-          gap: 16px;
-        }
-        
-        .date-card {
-          background: rgba(255, 255, 255, 0.05);
-          border: 2px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          padding: 20px;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          text-align: center;
-        }
-        
-        .date-card:hover {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.3);
-          transform: translateY(-2px);
-        }
-        
-        .date-card.selected {
-          background: rgba(232, 59, 65, 0.2);
-          border-color: #e83b41;
-        }
-        
-        .date-card-content {
-          color: white;
-        }
-        
-        .date-day {
-          font-size: 14px;
-          color: rgba(255, 255, 255, 0.7);
-          margin-bottom: 8px;
-        }
-        
-        .date-number {
-          font-size: 20px;
-          font-weight: bold;
-        }
-        
-        .cinema-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-          gap: 16px;
-        }
-        
-        .cinema-card {
-          background: rgba(255, 255, 255, 0.05);
-          border: 2px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          padding: 20px;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          text-align: left;
-        }
-        
-        .cinema-card:hover {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.3);
-          transform: translateY(-2px);
-        }
-        
-        .cinema-card.selected {
-          background: rgba(232, 59, 65, 0.2);
-          border-color: #e83b41;
-        }
-        
-        .cinema-name {
-          color: white;
-          font-size: 18px;
-          font-weight: bold;
-          margin: 0 0 8px 0;
-        }
-        
-        .cinema-address {
-          color: rgba(255, 255, 255, 0.6);
-          font-size: 14px;
-          margin: 0;
-        }
-        
-        .movie-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-          gap: 20px;
-        }
-        
-        .movie-card {
-          background: rgba(255, 255, 255, 0.05);
-          border: 2px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          overflow: hidden;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          text-align: left;
-        }
-        
-        .movie-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 8px 24px rgba(232, 59, 65, 0.3);
-        }
-        
-        .movie-card.selected {
-          border-color: #e83b41;
-          box-shadow: 0 0 0 3px rgba(232, 59, 65, 0.3);
-        }
-        
-        .movie-card-poster {
+        .form-select {
           width: 100%;
-          aspect-ratio: 2/3;
-          overflow: hidden;
-          background: rgba(255, 255, 255, 0.05);
-        }
-        
-        .movie-poster-img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        
-        .movie-card-body {
-          padding: 12px;
-        }
-        
-        .movie-title {
-          color: white;
-          font-size: 14px;
-          font-weight: bold;
-          margin: 0;
-          line-height: 1.4;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-        
-        .showtimes-container {
-          margin-top: 24px;
-        }
-        
-        .showtimes-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-          gap: 12px;
-        }
-        
-        .showtime-card {
-          background: rgba(255, 255, 255, 0.05);
-          border: 2px solid rgba(255, 255, 255, 0.1);
+          padding: 12px 16px;
+          background: #fff;
+          border: 1px solid rgba(255, 255, 255, 0.2);
           border-radius: 8px;
-          padding: 16px;
+          font-size: 14px;
+          color: #000;
           cursor: pointer;
           transition: all 0.3s ease;
-          text-align: center;
         }
         
-        .showtime-card:hover {
-          background: rgba(232, 59, 65, 0.2);
-          border-color: #e83b41;
-          transform: translateY(-2px);
+        .form-select:focus {
+          outline: none;
+          border-color: #9C27B0;
+          box-shadow: 0 0 0 3px rgba(156, 39, 176, 0.1);
         }
         
-        .showtime-time {
-          color: white;
-          font-size: 18px;
-          font-weight: bold;
-          margin-bottom: 4px;
+        .form-select:hover:not(:disabled) {
+          border-color: rgba(156, 39, 176, 0.3);
         }
         
-        .showtime-format {
-          color: rgba(255, 255, 255, 0.7);
-          font-size: 12px;
-          margin-bottom: 4px;
+        .form-select:disabled {
+          background: #e0e0e0;
+          cursor: not-allowed;
+          opacity: 0.6;
         }
         
-        .showtime-room {
-          color: rgba(255, 255, 255, 0.5);
-          font-size: 11px;
+        .form-select option {
+          color: #000;
+          background: #fff;
         }
         
-        .no-showtimes {
-          color: rgba(255, 255, 255, 0.6);
-          text-align: center;
-          padding: 40px;
-          font-size: 16px;
+        .form-actions {
+          display: flex;
+          gap: 12px;
+          margin-top: 8px;
         }
         
-        .no-dates-available {
-          text-align: center;
-          padding: 60px 20px;
-          color: rgba(255, 255, 255, 0.7);
-          font-size: 16px;
+        .btn-reset,
+        .btn-go {
+          flex: 1;
+          padding: 12px 24px;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
         }
         
-        .no-dates-available p {
-          margin: 0;
+        .btn-reset {
+          background: #757575;
+          color: #fff;
+        }
+        
+        .btn-reset:hover:not(:disabled) {
+          background: #616161;
+        }
+        
+        .btn-go {
+          background: #9C27B0;
+          color: #fff;
+        }
+        
+        .btn-go:hover:not(:disabled) {
+          background: #7B1FA2;
+        }
+        
+        .btn-reset:disabled,
+        .btn-go:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
         
         @media (max-width: 768px) {
@@ -1048,34 +982,8 @@ const QuickBooking = () => {
             padding: 24px;
           }
           
-          .quick-booking-progress {
-            gap: 8px;
-          }
-          
-          .progress-step-number {
-            width: 32px;
-            height: 32px;
-            font-size: 14px;
-          }
-          
-          .progress-step-label {
-            font-size: 10px;
-          }
-          
-          .progress-line {
-            width: 30px;
-          }
-          
-          .date-grid {
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-          }
-          
-          .cinema-grid {
-            grid-template-columns: 1fr;
-          }
-          
-          .movie-grid {
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+          .form-actions {
+            flex-direction: column;
           }
         }
       `}</style>
@@ -1084,4 +992,3 @@ const QuickBooking = () => {
 };
 
 export default QuickBooking;
-

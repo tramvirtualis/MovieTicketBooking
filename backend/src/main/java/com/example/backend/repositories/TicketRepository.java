@@ -21,7 +21,8 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
      */
     @Query("SELECT COUNT(t) > 0 FROM Ticket t " +
            "WHERE t.showtime.cinemaRoom.cinemaComplex.complexId = :complexId " +
-           "AND t.order.vnpPayDate IS NOT NULL")
+           "AND t.order.vnpPayDate IS NOT NULL " +
+           "AND (t.order.status IS NULL OR t.order.status <> com.example.backend.entities.enums.OrderStatus.CANCELLED)")
     boolean existsPaidTicketsByComplexId(@Param("complexId") Long complexId);
     
     /**
@@ -29,7 +30,8 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
      */
     @Query("SELECT COUNT(t) > 0 FROM Ticket t " +
            "WHERE t.showtime.cinemaRoom.roomId = :roomId " +
-           "AND t.order.vnpPayDate IS NOT NULL")
+           "AND t.order.vnpPayDate IS NOT NULL " +
+           "AND (t.order.status IS NULL OR t.order.status <> com.example.backend.entities.enums.OrderStatus.CANCELLED)")
     boolean existsPaidTicketsByRoomId(@Param("roomId") Long roomId);
     
     /**
@@ -37,7 +39,8 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
      */
     @Query("SELECT COUNT(t) > 0 FROM Ticket t " +
            "WHERE t.showtime.showtimeId = :showtimeId " +
-           "AND t.order.vnpPayDate IS NOT NULL")
+           "AND t.order.vnpPayDate IS NOT NULL " +
+           "AND (t.order.status IS NULL OR t.order.status <> com.example.backend.entities.enums.OrderStatus.CANCELLED)")
     boolean existsPaidTicketsByShowtimeId(@Param("showtimeId") Long showtimeId);
     
     /**
@@ -45,7 +48,8 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
      */
     @Query("SELECT COUNT(t) > 0 FROM Ticket t " +
            "WHERE t.seat.seatId = :seatId " +
-           "AND t.order.vnpPayDate IS NOT NULL")
+           "AND t.order.vnpPayDate IS NOT NULL " +
+           "AND (t.order.status IS NULL OR t.order.status <> com.example.backend.entities.enums.OrderStatus.CANCELLED)")
     boolean existsPaidTicketsBySeatId(@Param("seatId") Long seatId);
     
     /**
@@ -56,7 +60,8 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
            "JOIN s.movieVersion mv " +
            "JOIN mv.movie m " +
            "WHERE m.movieId = :movieId " +
-           "AND t.order.vnpPayDate IS NOT NULL")
+           "AND t.order.vnpPayDate IS NOT NULL " +
+           "AND (t.order.status IS NULL OR t.order.status <> com.example.backend.entities.enums.OrderStatus.CANCELLED)")
     boolean existsPaidTicketsByMovieId(@Param("movieId") Long movieId);
 }
 

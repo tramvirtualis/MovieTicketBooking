@@ -5,13 +5,15 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 @Component
 public class JwtUtils {
 
-    // Tạo key bí mật đủ 512-bit cho HS512
-    private final SecretKey jwtSecret = Keys.secretKeyFor(SignatureAlgorithm.HS512);
+    // Fixed secret key - phải đủ 64 bytes (512 bits) cho HS512
+    private static final String SECRET_KEY_STRING = "CinesmartMovieTicketBookingSecretKey2024VeryLongAndSecureKeyForHS512Algorithm!@#$%";
+    private final SecretKey jwtSecret = Keys.hmacShaKeyFor(SECRET_KEY_STRING.getBytes(StandardCharsets.UTF_8));
     private final long jwtExpirationMs = 86400000; // 1 ngày
 
     public String generateJwtToken(String username, String role) {

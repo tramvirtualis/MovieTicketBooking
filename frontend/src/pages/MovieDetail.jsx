@@ -3,6 +3,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import BookingModal from '../components/BookingModal.jsx';
+import AgeConfirmationModal from '../components/AgeConfirmationModal.jsx';
 import { Toast } from '../components/AdminDashboard/NotificationSystem.jsx';
 import { movieService } from '../services/movieService';
 import { reviewService } from '../services/reviewService';
@@ -40,7 +41,6 @@ export default function MovieDetail() {
   const [currentPage, setCurrentPage] = useState(1);
   const reviewsPerPage = 4;
   const [showAgeConfirmModal, setShowAgeConfirmModal] = useState(false);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [pendingBookingUrl, setPendingBookingUrl] = useState(null);
   const [bookingOptions, setBookingOptions] = useState({
     movieId: null,
@@ -1203,7 +1203,6 @@ export default function MovieDetail() {
           } else {
             // Phim có độ tuổi giới hạn, cần xác nhận
             setPendingBookingUrl(bookingUrl);
-            setAgeConfirmed(false);
             setShowAgeConfirmModal(true);
             setShowBooking(false); // Đóng modal chọn suất
           }
@@ -1216,179 +1215,29 @@ export default function MovieDetail() {
       />
 
       {/* Age Confirmation Modal */}
-      {showAgeConfirmModal && (
-        <div 
-          className="modal-overlay" 
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowAgeConfirmModal(false);
-              setPendingBookingUrl(null);
-              setAgeConfirmed(false);
-            }
-          }}
-        >
-          <div 
-            className="modal-content"
-            style={{
-              backgroundColor: '#2d2627',
-              borderRadius: '12px',
-              padding: '32px',
-              maxWidth: '500px',
-              width: '90%',
-              border: '1px solid #4a3f41'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ 
-              margin: '0 0 24px', 
-              fontSize: '24px', 
-              fontWeight: 800, 
-              color: '#fff',
-              textAlign: 'center'
-            }}>
-              Xác nhận độ tuổi
-            </h2>
-            
-            <div style={{ 
-              marginBottom: '24px',
-              padding: '20px',
-              backgroundColor: '#1a1415',
-              borderRadius: '8px',
-              border: '1px solid #4a3f41'
-            }}>
-              <div style={{ 
-                fontSize: '16px', 
-                color: '#fff', 
-                marginBottom: '12px',
-                fontWeight: 600
-              }}>
-                Phim: {movie?.originalTitle || movie?.title?.replace(/\s*\(T\d+\)\s*/g, '') || 'N/A'}
-              </div>
-              <div style={{ 
-                fontSize: '14px', 
-                color: '#c9c4c5',
-                lineHeight: '1.6'
-              }}>
-                <strong style={{ color: '#ffd159' }}>{movie?.rating || 'N/A'}:</strong> {
-                  movie?.rating === 'P' 
-                    ? 'Phim dành cho mọi lứa tuổi'
-                    : movie?.rating === 'K'
-                    ? 'Phim dành cho khán giả dưới 13 tuổi, cần có ba mẹ đi cùng'
-                    : movie?.rating && /^\d+/.test(movie.rating)
-                    ? `Phim dành cho khán giả từ đủ ${movie.rating.replace(/[^0-9]/g, '')} tuổi trở lên (${movie.rating})`
-                    : 'N/A'
-                }
-              </div>
-            </div>
-
-            <div style={{ 
-              marginBottom: '24px',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '12px'
-            }}>
-              <input
-                type="checkbox"
-                id="age-confirm-checkbox"
-                checked={ageConfirmed}
-                onChange={(e) => setAgeConfirmed(e.target.checked)}
-                style={{
-                  width: '20px',
-                  height: '20px',
-                  marginTop: '2px',
-                  cursor: 'pointer',
-                  accentColor: '#e83b41'
-                }}
-              />
-              <label 
-                htmlFor="age-confirm-checkbox"
-                style={{
-                  fontSize: '14px',
-                  color: '#c9c4c5',
-                  lineHeight: '1.6',
-                  cursor: 'pointer',
-                  flex: 1
-                }}
-              >
-                {movie?.rating === 'P'
-                  ? 'Tôi xác nhận rằng tôi đủ điều kiện để xem phim này.'
-                  : movie?.rating === 'K'
-                  ? 'Tôi đã hiểu và đồng ý.'
-                  : movie?.rating && /^\d+/.test(movie.rating)
-                  ? `Tôi xác nhận rằng tôi đã đủ ${movie.rating.replace(/[^0-9]/g, '')} tuổi trở lên và đủ điều kiện để xem phim này.`
-                  : 'Tôi xác nhận rằng tôi đủ điều kiện để xem phim này.'
-                }
-              </label>
-            </div>
-
-            <div style={{ 
-              display: 'flex',
-              gap: '12px',
-              justifyContent: 'flex-end'
-            }}>
-              <button
-                className="btn btn--ghost"
-                onClick={() => {
-                  setShowAgeConfirmModal(false);
-                  setPendingBookingUrl(null);
-                  setAgeConfirmed(false);
-                }}
-                style={{
-                  padding: '12px 24px',
-                  fontSize: '14px',
-                  fontWeight: 600
-                }}
-              >
-                Hủy
-              </button>
-              <button
-                className="btn btn--primary"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (!ageConfirmed || !pendingBookingUrl) {
-                    return;
-                  }
-                  // Convert hash URL (#booking?params) to path URL (/booking?params)
-                  let bookingPath = pendingBookingUrl;
-                  if (bookingPath.startsWith('#')) {
-                    bookingPath = bookingPath.replace('#', '');
-                  }
-                  if (bookingPath.startsWith('booking')) {
-                    bookingPath = '/' + bookingPath;
-                  }
-                  navigate(bookingPath);
-                  setShowAgeConfirmModal(false);
-                  setPendingBookingUrl(null);
-                  setAgeConfirmed(false);
-                }}
-                style={{
-                  padding: '12px 24px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  opacity: ageConfirmed ? 1 : 0.5,
-                  cursor: ageConfirmed ? 'pointer' : 'not-allowed',
-                  border: 'none'
-                }}
-              >
-                Tiếp tục
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AgeConfirmationModal
+        isOpen={showAgeConfirmModal}
+        onClose={() => {
+          setShowAgeConfirmModal(false);
+          setPendingBookingUrl(null);
+        }}
+        onConfirm={() => {
+          if (!pendingBookingUrl) return;
+          // Convert hash URL (#booking?params) to path URL (/booking?params)
+          let bookingPath = pendingBookingUrl;
+          if (bookingPath.startsWith('#')) {
+            bookingPath = bookingPath.replace('#', '');
+          }
+          if (bookingPath.startsWith('booking')) {
+            bookingPath = '/' + bookingPath;
+          }
+          navigate(bookingPath);
+          setShowAgeConfirmModal(false);
+          setPendingBookingUrl(null);
+        }}
+        movieTitle={movie?.originalTitle || movie?.title?.replace(/\s*\(T\d+\)\s*/g, '')}
+        ageRating={movie?.ageRating}
+      />
 
       {/* Trailer Overlay */}
       {showTrailer && (

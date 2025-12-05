@@ -4,8 +4,8 @@ import axios from 'axios';
 import Header from '../components/Header.jsx';
 import HeroCarousel from '../components/HeroCarousel.jsx';
 import Footer from '../components/Footer.jsx';
+import FloatingQuickBooking from '../components/FloatingQuickBooking.jsx';
 import { Section, CardsGrid, PromosGrid } from '../components/SectionGrid.jsx';
-import QuickBooking from '../components/QuickBooking.jsx';
 import { enumService } from '../services/enumService';
 import { bannerService } from '../services/bannerService';
 import { voucherService } from '../services/voucherService';
@@ -215,10 +215,10 @@ export default function Home() {
   return (
     <div className="min-h-screen cinema-mood">
       <Header />
+      <FloatingQuickBooking />
       <HeroCarousel posters={banners.length > 0 ? banners : [interstellar, inception, darkKnightRises, driveMyCar]} />
       
       <main className="main">
-        <QuickBooking />
         <Section id="now-showing" title="Phim Đang Chiếu">
           {loading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>

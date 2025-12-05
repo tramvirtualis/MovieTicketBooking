@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import AgeConfirmationModal from '../components/AgeConfirmationModal.jsx';
 import { cinemaComplexService } from '../services/cinemaComplexService';
 import scheduleService from '../services/scheduleService';
 import { movieService } from '../services/movieService';
@@ -19,11 +20,16 @@ export default function CinemaDetail() {
   const province = decodeURIComponent(query.province || '');
   
   const [cinema, setCinema] = useState(null);
-  const [nowShowingMovies, setNowShowingMovies] = useState([]);
-  const [comingSoonMovies, setComingSoonMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('now-showing');
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [showtimes, setShowtimes] = useState([]);
+  const [loadingShowtimes, setLoadingShowtimes] = useState(false);
+  const [dateTabs, setDateTabs] = useState([]);
+  const [availableDates, setAvailableDates] = useState(new Set());
+  const [showAgeConfirmModal, setShowAgeConfirmModal] = useState(false);
+  const [pendingShowtime, setPendingShowtime] = useState(null);
+  const [pendingMovie, setPendingMovie] = useState(null);
 
   const openGoogleMap = (address) => {
     if (!address) return;
@@ -31,9 +37,9 @@ export default function CinemaDetail() {
     window.open(url, '_blank');
   };
   
-  // Load cinema info and movies
+  // Load cinema info
   useEffect(() => {
-    const loadData = async () => {
+    const loadCinema = async () => {
       if (!cinemaName) {
         setError('Không tìm thấy tên rạp');
         setLoading(false);
@@ -44,199 +50,27 @@ export default function CinemaDetail() {
       setError(null);
 
       try {
-        // 1. Load all cinemas to find the one matching name and province
         const cinemasResult = await cinemaComplexService.getAllCinemaComplexes();
         if (!cinemasResult.success || !cinemasResult.data) {
           throw new Error('Không thể tải danh sách rạp');
         }
-
-        console.log('All cinemas:', cinemasResult.data);
-        console.log('Looking for cinema:', cinemaName, 'in province:', province);
 
         const foundCinema = cinemasResult.data.find(
           c => c.name === cinemaName && 
           (province ? c.addressProvince === province : true)
         );
 
-        console.log('Found cinema:', foundCinema);
-
         if (!foundCinema) {
-          // Try to find by name only if province doesn't match
           const foundByName = cinemasResult.data.find(c => c.name === cinemaName);
           if (foundByName) {
-            console.log('Found cinema by name only:', foundByName);
             setCinema(foundByName);
           } else {
             throw new Error(`Không tìm thấy rạp "${cinemaName}"`);
           }
         } else {
           setCinema(foundCinema);
-        }
-
-        // 2. Load all showtimes for this cinema complex
-        const now = new Date();
-        const nowShowingMovieIds = new Set(); // Phim có showtime đã bắt đầu hoặc đang diễn ra
-        const comingSoonMovieIds = new Set(); // Phim có showtime sắp tới (chưa bắt đầu) ở rạp này
-        const allMovieIds = new Set();
-
-        const currentCinema = foundCinema || cinemasResult.data.find(c => c.name === cinemaName);
-        
-        // Get list of movies for this cinema complex (for filtering coming soon movies)
-        const cinemaComplexMovieIds = new Set();
-        if (currentCinema && currentCinema.complexId) {
-          try {
-            // Get movies for this cinema complex using public API
-            const complexMoviesResult = await cinemaComplexService.getComplexMoviesPublic(currentCinema.complexId);
-            if (complexMoviesResult.success && complexMoviesResult.data) {
-              complexMoviesResult.data.forEach(movie => {
-                if (movie && movie.movieId) {
-                  cinemaComplexMovieIds.add(Number(movie.movieId));
-                }
-              });
-              console.log('Cinema complex movie IDs:', Array.from(cinemaComplexMovieIds));
             }
           } catch (err) {
-            console.log('Could not load cinema complex movies:', err.message);
-            // Continue without filtering - this is expected for public pages
-          }
-        }
-        
-        if (currentCinema && currentCinema.complexId) {
-          try {
-            // Get all showtimes for this cinema (using complexId as cinemaId)
-            console.log('Fetching showtimes for cinemaId:', currentCinema.complexId);
-            const showtimesResult = await scheduleService.getListings({
-              cinemaId: currentCinema.complexId,
-              date: undefined // Get all showtimes
-            });
-
-            console.log('Showtimes result type:', typeof showtimesResult);
-            console.log('Showtimes result raw:', showtimesResult);
-
-            // scheduleService.getListings returns data directly as array OR in a wrapper
-            let listings = [];
-            if (Array.isArray(showtimesResult)) {
-              listings = showtimesResult;
-            } else if (showtimesResult && showtimesResult.data && Array.isArray(showtimesResult.data)) {
-              listings = showtimesResult.data;
-            } else if (showtimesResult && typeof showtimesResult === 'object') {
-              // Sometimes it might return an object with keys as movie IDs or dates
-              listings = Object.values(showtimesResult).flat();
-            }
-
-            console.log('Processed listings count:', listings.length);
-            if (listings.length > 0) {
-                console.log('Sample listing:', listings[0]);
-            }
-            console.log('Found cinema complexId:', currentCinema.complexId);
-
-            // Extract unique movie IDs from showtimes
-            listings.forEach(listing => {
-              // Check if this listing belongs to our cinema
-              // Handle different data structures from backend
-              const listingCinemaId = listing.cinemaId || listing.cinemaComplexId;
-              const listingMovieId = listing.movieId || listing.movie?.movieId;
-              
-              if (listingCinemaId && Number(listingCinemaId) === Number(currentCinema.complexId) && listingMovieId) {
-                allMovieIds.add(Number(listingMovieId));
-                
-                // Check if this showtime is in the future
-                const startTime = listing.startTime || listing.startDateTime;
-                if (startTime) {
-                  const showtimeDate = new Date(startTime);
-                  if (showtimeDate >= now) {
-                    nowShowingMovieIds.add(Number(listingMovieId));
-                  }
-                }
-              }
-            });
-
-            console.log('All movie IDs from showtimes:', Array.from(allMovieIds));
-            console.log('Now showing movie IDs:', Array.from(nowShowingMovieIds));
-          } catch (err) {
-            console.error('Error loading showtimes:', err);
-            console.error('Error details:', err.message, err.stack);
-            // Continue even if showtimes fail to load
-          }
-        } else {
-          console.warn('No cinema found or no complexId');
-        }
-
-        // 3. Load all public movies
-        const moviesResult = await movieService.getPublicMovies();
-        console.log('Movies result:', moviesResult);
-        
-        if (!moviesResult.success) {
-          console.error('Failed to load movies:', moviesResult.error);
-          throw new Error(moviesResult.error || 'Không thể tải danh sách phim');
-        }
-
-        const allMovies = moviesResult.data || [];
-        console.log('All movies loaded:', allMovies.length);
-        console.log('Sample movie:', allMovies[0]);
-
-        // 4. Filter movies based on showtimes
-        // Now showing: movies with future showtimes at this cinema
-        const nowShowing = allMovies.filter(m => {
-          if (!m || !m.movieId) return false;
-          // Compare as numbers to be safe
-          const hasFutureShowtime = nowShowingMovieIds.has(Number(m.movieId));
-          return hasFutureShowtime;
-        });
-
-        console.log('Now showing movies count:', nowShowing.length);
-        console.log('Now showing movies:', nowShowing.map(m => ({ id: m.movieId, title: m.title })));
-
-        // Coming soon: movies that have NOT been shown at this cinema yet (no past showtimes)
-        // Only show movies that have never had a showtime at this cinema
-        const comingSoon = allMovies.filter(m => {
-          if (!m || !m.movieId) return false;
-          const movieIdNum = Number(m.movieId);
-          
-          // Skip movies that are already in now showing
-          if (nowShowingMovieIds.has(movieIdNum)) {
-            return false;
-          }
-          
-          // Exclude movies that have ended
-          // Check status
-          if (m.status === 'ENDED' || m.status === 'Ended') {
-            return false;
-          }
-          
-          // Check endDate if available
-          if (m.endDate) {
-            const endDate = new Date(m.endDate);
-            if (endDate < now) {
-              // Movie has ended
-              return false;
-            }
-          }
-          
-          // Only show as "coming soon" if the movie has NEVER been shown at this cinema
-          // If movie has any showtime history at this cinema (even if all are in the past), don't show as coming soon
-          if (allMovieIds.has(movieIdNum)) {
-            // Movie has been shown at this cinema before, so it's not "coming soon"
-            return false;
-          }
-          
-          // Only show movies that belong to this cinema complex
-          // If we couldn't load the cinema's movie list (no auth), don't show any coming soon movies
-          if (cinemaComplexMovieIds.size > 0) {
-            // We have the cinema's movie list, so only show movies in that list
-            return cinemaComplexMovieIds.has(movieIdNum);
-          } else {
-            // Couldn't load cinema's movie list, so don't show any coming soon movies
-            // (to avoid showing all movies)
-            return false;
-          }
-        });
-
-        console.log('Coming soon movies count:', comingSoon.length);
-
-        setNowShowingMovies(nowShowing);
-        setComingSoonMovies(comingSoon);
-      } catch (err) {
         console.error('Error loading cinema data:', err);
         setError(err.message || 'Có lỗi xảy ra khi tải dữ liệu');
       } finally {
@@ -244,20 +78,203 @@ export default function CinemaDetail() {
       }
     };
 
-    loadData();
+    loadCinema();
   }, [cinemaName, province]);
+
+  // Load available dates and showtimes
+  useEffect(() => {
+    const loadAvailableDates = async () => {
+      if (!cinema) return;
+
+      try {
+        // Get all showtimes (no date filter) to find available dates
+        const allListings = await scheduleService.getListings({
+          cinemaId: cinema.complexId,
+          date: undefined
+        });
+
+        const listingsArray = Array.isArray(allListings) 
+          ? allListings 
+          : (allListings?.data || Object.values(allListings || {}).flat());
+
+        const datesSet = new Set();
+        const now = new Date();
+        
+        listingsArray.forEach(listing => {
+                const startTime = listing.startTime || listing.startDateTime;
+                if (startTime) {
+                  const showtimeDate = new Date(startTime);
+                  if (showtimeDate >= now) {
+              const dateStr = showtimeDate.toISOString().split('T')[0];
+              datesSet.add(dateStr);
+                }
+              }
+            });
+
+        setAvailableDates(datesSet);
+
+        // Generate date tabs only for available dates
+        const today = new Date();
+        const dayNames = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+        const tabs = [];
+        
+        for (let i = 0; i < 14; i++) { // Check up to 14 days ahead
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          if (datesSet.has(dateStr)) {
+            const dayName = i === 0 ? 'Hôm nay' : dayNames[date.getDay()];
+            tabs.push({
+              date: dateStr,
+              label: i === 0 ? 'Hôm nay' : dayName,
+              dayNumber: date.getDate(),
+              month: date.getMonth() + 1,
+              fullDate: date
+            });
+          }
+        }
+        
+        setDateTabs(tabs);
+        if (tabs.length > 0) {
+          // Set selectedDate if not set or if current selectedDate is not available
+          setSelectedDate(prev => {
+            if (!prev || !datesSet.has(prev)) {
+              return tabs[0].date;
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.error('Error loading available dates:', err);
+        setAvailableDates(new Set());
+        setDateTabs([]);
+      }
+    };
+
+    loadAvailableDates();
+  }, [cinema]);
+
+  // Load showtimes for selected date
+  useEffect(() => {
+    const loadShowtimes = async () => {
+      if (!cinema || !selectedDate) return;
+
+      setLoadingShowtimes(true);
+      try {
+        const listings = await scheduleService.getListings({
+          cinemaId: cinema.complexId,
+          date: selectedDate
+        });
+
+        // Process listings - group by movie
+        const movieMap = new Map();
+        const movieIds = new Set();
+        
+        const listingsArray = Array.isArray(listings) 
+          ? listings 
+          : (listings?.data || Object.values(listings || {}).flat());
+
+        listingsArray.forEach(listing => {
+          const movieId = listing.movieId || listing.movie?.movieId;
+          if (!movieId) return;
+
+          movieIds.add(Number(movieId));
+          const movie = listing.movie || {};
+          
+          if (!movieMap.has(movieId)) {
+            movieMap.set(movieId, {
+              movieId: Number(movieId),
+              showtimes: []
+            });
+          }
+
+          const startTime = listing.startTime || listing.startDateTime;
+          if (startTime) {
+            const showtimeDate = new Date(startTime);
+            const now = new Date();
+            
+            // Only show future showtimes
+            if (showtimeDate >= now) {
+              const timeStr = showtimeDate.toLocaleTimeString('vi-VN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+              });
+              
+              movieMap.get(movieId).showtimes.push({
+                showtimeId: listing.showtimeId,
+                time: timeStr,
+                format: listing.format || listing.roomType || '2D',
+                language: listing.language || movie.languages?.[0] || 'Phụ đề',
+                startTime: startTime
+              });
+            }
+          }
+        });
+
+        // Load full movie details
+        if (movieIds.size > 0) {
+          try {
+            const moviesResult = await movieService.getPublicMovies();
+            if (moviesResult.success && moviesResult.data) {
+              const moviesData = moviesResult.data.filter(m => movieIds.has(Number(m.movieId)));
+              
+              moviesData.forEach(movieData => {
+                const movieId = Number(movieData.movieId);
+                if (movieMap.has(movieId)) {
+                  const movieInfo = movieMap.get(movieId);
+                  movieInfo.movieTitle = movieData.title || 'Unknown';
+                  movieInfo.moviePoster = movieData.poster || '';
+                  movieInfo.ageRating = movieData.ageRating;
+                  movieInfo.genre = movieData.genre;
+                  movieInfo.duration = movieData.duration;
+                  movieInfo.director = movieData.director;
+                  movieInfo.description = movieData.description;
+                  movieInfo.languages = movieData.languages;
+                }
+              });
+            }
+          } catch (err) {
+            console.error('Error loading movie details:', err);
+          }
+        }
+
+        // Convert to array and sort showtimes by time
+        const moviesWithShowtimes = Array.from(movieMap.values())
+          .filter(movie => movie.showtimes.length > 0)
+          .map(movie => ({
+            ...movie,
+            showtimes: movie.showtimes.sort((a, b) => a.time.localeCompare(b.time))
+          }));
+
+        setShowtimes(moviesWithShowtimes);
+      } catch (err) {
+        console.error('Error loading showtimes:', err);
+        setShowtimes([]);
+      } finally {
+        setLoadingShowtimes(false);
+      }
+    };
+
+    loadShowtimes();
+  }, [cinema, selectedDate]);
 
   const formatAgeRating = (ageRating) => {
     if (!ageRating) return 'P';
-    // Use enumService to map age rating to display format (13+, 16+, 18+, P, K)
     const ratingStr = typeof ageRating === 'string' ? ageRating : ageRating.toString();
     return enumService.mapAgeRatingToDisplay(ratingStr) || 'P';
+  };
+
+  const formatLanguage = (language) => {
+    if (!language) return 'Phụ đề';
+    const langStr = typeof language === 'string' ? language : language.toString();
+    return langStr.replace('LANGUAGE_', '').replace('Phụ đề', 'Phụ đề');
   };
 
   const formatGenres = (genres) => {
     if (!genres) return 'N/A';
     
-    // Handle different formats: array, string, or object
     let genreArray = [];
     if (Array.isArray(genres)) {
       genreArray = genres.map(g => {
@@ -265,28 +282,60 @@ export default function CinemaDetail() {
         return genreStr.toUpperCase();
       });
     } else if (typeof genres === 'string') {
-      // Handle comma-separated string or single value
       if (genres.includes(',')) {
         genreArray = genres.split(',').map(g => g.trim().toUpperCase());
       } else {
         genreArray = [genres.toUpperCase()];
       }
     } else {
-      // Handle object
       const genreValue = (genres.value || genres.name || genres).toString().toUpperCase();
       genreArray = [genreValue];
     }
     
-    // Map each genre to Vietnamese
     return genreArray.map(g => enumService.mapGenreToVietnamese(g)).join(', ');
   };
 
-  const formatLanguage = (languages) => {
-    if (!languages || !Array.isArray(languages) || languages.length === 0) return 'Phụ Đề';
-    // Take first language and format it
-    const lang = languages[0];
-    const langStr = typeof lang === 'string' ? lang : lang.toString();
-    return langStr.replace('LANGUAGE_', '');
+  const getRatingDescription = (ageRating) => {
+    const rating = formatAgeRating(ageRating);
+    if (rating === 'P') {
+      return 'P: Phim dành cho mọi lứa tuổi';
+    } else if (rating === 'K') {
+      return 'K: Phim dành cho khán giả dưới 13 tuổi, cần có ba mẹ đi cùng';
+    } else if (rating === '13+') {
+      return '13+: Phim dành cho khán giả từ đủ 13 tuổi trở lên';
+    } else if (rating === '16+') {
+      return '16+: Phim dành cho khán giả từ đủ 16 tuổi trở lên';
+    } else if (rating === '18+') {
+      return '18+: Phim dành cho khán giả từ đủ 18 tuổi trở lên';
+    } else {
+      return `${rating}: Phim dành cho khán giả từ đủ ${rating.replace(/[^0-9]/g, '')} tuổi trở lên`;
+    }
+  };
+
+  const handleShowtimeClick = (showtime, movie) => {
+    // Kiểm tra age rating - nếu là P thì không cần xác nhận
+    const rating = formatAgeRating(movie.ageRating);
+    
+    if (rating === 'P') {
+      // Phim P - điều hướng trực tiếp
+      navigate(`/book-ticket?showtimeId=${showtime.showtimeId}`);
+    } else {
+      // Phim có độ tuổi giới hạn - hiển thị modal xác nhận
+      setPendingShowtime(showtime);
+      setPendingMovie(movie);
+      setShowAgeConfirmModal(true);
+    }
+  };
+
+  const handleConfirmAgeAndContinue = () => {
+    if (!pendingShowtime) {
+      return;
+    }
+    
+    navigate(`/book-ticket?showtimeId=${pendingShowtime.showtimeId}`);
+    setShowAgeConfirmModal(false);
+    setPendingShowtime(null);
+    setPendingMovie(null);
   };
 
   if (loading) {
@@ -317,20 +366,18 @@ export default function CinemaDetail() {
     <div className="min-h-screen cinema-mood">
       <Header />
 
+      {/* Cinema Header */}
       <div className="cinema-header">
         <div className="container">
           <h1 className="cinema-header__title">
             CINESMART {cinema.name?.toUpperCase() || ''} ({cinema.addressProvince || ''})
           </h1>
-
           <p className="cinema-header__address">
             {cinema.fullAddress || 
             (cinema.addressDescription && cinema.addressProvince 
               ? `${cinema.addressDescription}, ${cinema.addressProvince}`
               : cinema.addressDescription || cinema.addressProvince || '')}
           </p>
-
-          {/* NÚT XEM ĐƯỜNG ĐI GOOGLE MAP */}
           <button
             onClick={() =>
               openGoogleMap(
@@ -357,161 +404,230 @@ export default function CinemaDetail() {
         </div>
       </div>
 
-
-      <div className="cinema-nav">
-        <div className="container">
-          <button
-            className={`cinema-nav__tab ${activeTab === 'now-showing' ? 'cinema-nav__tab--active' : ''}`}
-            onClick={() => setActiveTab('now-showing')}
-          >
-            PHIM ĐANG CHIẾU
-          </button>
-          <button
-            className={`cinema-nav__tab ${activeTab === 'coming-soon' ? 'cinema-nav__tab--active' : ''}`}
-            onClick={() => setActiveTab('coming-soon')}
-          >
-            PHIM SẮP CHIẾU
-          </button>
-        </div>
-      </div>
-
       <main className="main">
         <section className="section">
           <div className="container">
-            <h2 className="section__title" style={{ textAlign: 'center', marginBottom: '24px' }}>
-              {activeTab === 'now-showing' ? 'PHIM ĐANG CHIẾU' : 'PHIM SẮP CHIẾU'}
-            </h2>
+            {/* Date Tabs */}
+            <div style={{ 
+              display: 'flex', 
+              gap: '12px', 
+              marginBottom: '32px',
+              overflowX: 'auto',
+              paddingBottom: '8px',
+              scrollbarWidth: 'thin'
+            }}>
+              {dateTabs.map((tab) => (
+                <button
+                  key={tab.date}
+                  onClick={() => setSelectedDate(tab.date)}
+                  className={`schedule-date-btn ${selectedDate === tab.date ? 'schedule-date-btn--active' : ''}`}
+                  style={{ flexShrink: 0 }}
+                >
+                  <div className="schedule-date-btn__date">{tab.dayNumber}/{tab.month}</div>
+                  <div className="schedule-date-btn__day">{tab.label}</div>
+                </button>
+              ))}
+            </div>
 
-            {activeTab === 'now-showing' && (
-              <div className="cinema-movies">
-                {nowShowingMovies.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '40px', color: '#c9c4c5' }}>
-                    Không có phim nào đang chiếu
+            {/* Showtimes List */}
+            {loadingShowtimes ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#c9c4c5' }}>
+                Đang tải lịch chiếu...
+              </div>
+            ) : showtimes.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#c9c4c5' }}>
+                Không có suất chiếu nào cho ngày này
                   </div>
                 ) : (
-                  nowShowingMovies.map((movie) => (
-                    <div key={movie.movieId} className="cinema-movie-card">
-                      <div className="cinema-movie-card__poster">
-                        <img 
-                          src={movie.poster || 'https://via.placeholder.com/300x450?text=No+Poster'} 
-                          alt={movie.title}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {showtimes.map((movie) => (
+                  <div
+                    key={movie.movieId}
+                    style={{
+                      background: 'rgba(30, 24, 25, 0.7)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '16px',
+                      padding: '24px',
+                      display: 'flex',
+                      gap: '24px',
+                      transition: 'all 300ms ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(40, 32, 33, 0.85)';
+                      e.currentTarget.style.borderColor = 'rgba(232, 59, 65, 0.3)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(30, 24, 25, 0.7)';
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                    }}
+                  >
+                    {/* Movie Poster */}
+                    <div 
+                      style={{ flexShrink: 0, cursor: 'pointer' }}
+                      onClick={() => navigate(`/movie/${movie.movieId}`)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.02)';
+                        e.currentTarget.style.transition = 'transform 0.2s ease';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                      }}
+                    >
+                      <img
+                        src={movie.moviePoster || 'https://via.placeholder.com/200x300?text=No+Poster'}
+                        alt={movie.movieTitle}
+                        style={{
+                          width: '180px',
+                          height: '260px',
+                          objectFit: 'cover',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255,255,255,0.1)'
+                        }}
                           onError={(e) => {
-                            e.target.src = 'https://via.placeholder.com/300x450?text=No+Poster';
+                          e.target.src = 'https://via.placeholder.com/200x300?text=No+Poster';
                           }}
                         />
                       </div>
-                      <div className="cinema-movie-card__content">
-                        <div className="cinema-movie-card__header">
-                          <h3 className="cinema-movie-card__title">
-                            {movie.title} ({formatAgeRating(movie.ageRating)})
+
+                    {/* Movie Info and Showtimes */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                          <h3 
+                            onClick={() => navigate(`/movie/${movie.movieId}`)}
+                            style={{
+                              fontSize: '20px',
+                              fontWeight: 800,
+                              color: '#fff',
+                              margin: 0,
+                              letterSpacing: '0.02em',
+                              cursor: 'pointer',
+                              transition: 'color 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.color = '#ffd159';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.color = '#fff';
+                            }}
+                          >
+                            {movie.movieTitle} {movie.ageRating && `(${formatAgeRating(movie.ageRating)})`}
                           </h3>
                         </div>
-                        <div className="cinema-movie-card__meta">
-                          <span>{formatGenres(movie.genre)}</span>
-                          <span>{movie.duration} phút</span>
-                          <span>{movie.director || 'N/A'}</span>
-                          <span>{formatLanguage(movie.languages)}</span>
+                        <div style={{
+                          display: 'flex',
+                          gap: '16px',
+                          flexWrap: 'wrap',
+                          color: '#c9c4c5',
+                          fontSize: '13px',
+                          marginBottom: '12px'
+                        }}>
+                          {movie.genre && <span>{formatGenres(movie.genre)}</span>}
+                          {movie.duration && <span>{movie.duration} phút</span>}
+                          {movie.director && <span>{movie.director}</span>}
                         </div>
-                        <div className="cinema-movie-card__rating-desc">
-                          {(() => {
-                            const rating = formatAgeRating(movie.ageRating);
-                            const ageNumber = rating && /^\d+/.test(rating) ? rating.replace(/[^0-9]/g, '') : null;
-                            if (rating === 'P') {
-                              return 'P: Phim dành cho mọi lứa tuổi';
-                            } else if (rating === 'K') {
-                              return 'K: Phim dành cho khán giả dưới 13 tuổi, cần có ba mẹ đi cùng';
-                            } else if (ageNumber) {
-                              return `${rating}: Phim dành cho khán giả từ đủ ${ageNumber} tuổi trở lên (${rating})`;
-                            } else {
-                              return `${rating}: Phim dành cho khán giả từ đủ ${rating} tuổi trở lên`;
-                            }
-                          })()}
+                        {movie.ageRating && (
+                          <div style={{
+                            padding: '8px 12px',
+                            background: 'rgba(255, 209, 89, 0.15)',
+                            border: '1px solid rgba(255, 209, 89, 0.3)',
+                            borderRadius: '6px',
+                            color: '#ffd159',
+                            fontSize: '12px',
+                            marginBottom: '12px'
+                          }}>
+                            {getRatingDescription(movie.ageRating)}
                         </div>
+                        )}
                         {movie.description && (
-                          <div className="cinema-movie-card__description" style={{ marginTop: '12px', color: '#c9c4c5', fontSize: '14px', lineHeight: '1.6' }}>
+                          <div style={{
+                            marginTop: '12px',
+                            color: '#c9c4c5',
+                            fontSize: '14px',
+                            lineHeight: '1.6',
+                            marginBottom: '16px'
+                          }}>
                             {movie.description}
                           </div>
                         )}
-                        <div style={{ marginTop: '16px' }}>
+                      </div>
+
+                      {/* Showtimes */}
+                      <div>
+                        <div style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '10px',
+                          marginTop: '8px'
+                        }}>
+                          {movie.showtimes.map((showtime) => (
                           <button 
-                            onClick={() => navigate(`/movie/${movie.movieId}`)}
-                            className="cinema-movie-card__more-link"
+                              key={showtime.showtimeId}
+                              onClick={() => handleShowtimeClick(showtime, movie)}
+                              className="showtime-btn"
                             style={{ 
-                              display: 'inline-block',
-                              padding: '10px 20px',
-                              backgroundColor: '#e83b41',
+                                padding: '10px 18px',
+                                background: 'rgba(45, 38, 39, 0.8)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: '8px',
                               color: '#fff',
-                              textDecoration: 'none',
-                              border: 'none',
-                              borderRadius: '4px',
                               fontWeight: 600,
                               fontSize: '14px',
                               cursor: 'pointer',
-                              transition: 'background-color 0.3s'
-                            }}
-                            onMouseEnter={(e) => e.target.style.backgroundColor = '#c92e33'}
-                            onMouseLeave={(e) => e.target.style.backgroundColor = '#e83b41'}
-                          >
-                            Đặt vé
+                                transition: 'all 250ms ease',
+                                position: 'relative',
+                                overflow: 'hidden'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.target.style.background = 'linear-gradient(135deg, #e83b41 0%, #a10f14 100%)';
+                                e.target.style.borderColor = '#e83b41';
+                                e.target.style.transform = 'translateY(-2px)';
+                                e.target.style.boxShadow = '0 4px 12px rgba(232, 59, 65, 0.4)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.target.style.background = 'rgba(45, 38, 39, 0.8)';
+                                e.target.style.borderColor = 'rgba(255,255,255,0.15)';
+                                e.target.style.transform = 'translateY(0)';
+                                e.target.style.boxShadow = 'none';
+                              }}
+                            >
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ fontWeight: 700, fontSize: '15px' }}>{showtime.time}</span>
+                                <span style={{ fontSize: '11px', opacity: 0.9 }}>
+                                  {showtime.format || '2D'} • {formatLanguage(showtime.language)}
+                                </span>
+                              </div>
                           </button>
+                          ))}
                         </div>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {activeTab === 'coming-soon' && (
-              <div className="cinema-movies">
-                {comingSoonMovies.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '40px', color: '#c9c4c5' }}>
-                    Không có phim nào sắp chiếu
                   </div>
-                ) : (
-                  comingSoonMovies.map((movie) => (
-                    <div key={movie.movieId} className="cinema-movie-card">
-                      <div className="cinema-movie-card__poster">
-                        <img 
-                          src={movie.poster || 'https://via.placeholder.com/300x450?text=No+Poster'} 
-                          alt={movie.title}
-                          onError={(e) => {
-                            e.target.src = 'https://via.placeholder.com/300x450?text=No+Poster';
-                          }}
-                        />
-                      </div>
-                      <div className="cinema-movie-card__content">
-                        <div className="cinema-movie-card__header">
-                          <h3 className="cinema-movie-card__title">
-                            {movie.title} ({formatAgeRating(movie.ageRating)})
-                          </h3>
-                        </div>
-                        <div className="cinema-movie-card__meta">
-                          <span>{formatGenres(movie.genre)}</span>
-                          <span>{movie.duration} phút</span>
-                          <span>{movie.director || 'N/A'}</span>
-                          <span>{formatLanguage(movie.languages)}</span>
-                        </div>
-                        <div className="cinema-movie-card__rating-desc">
-                          {formatAgeRating(movie.ageRating)}: Phim dành cho khán giả từ đủ {formatAgeRating(movie.ageRating).replace('T', '')} tuổi trở lên ({formatAgeRating(movie.ageRating).replace('T', '')}+)
-                        </div>
-                        {movie.description && (
-                          <div className="cinema-movie-card__description" style={{ marginTop: '12px', color: '#c9c4c5', fontSize: '14px', lineHeight: '1.6' }}>
-                            {movie.description}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
+                ))}
               </div>
             )}
           </div>
         </section>
       </main>
 
+      {/* Age Confirmation Modal */}
+      <AgeConfirmationModal
+        isOpen={showAgeConfirmModal}
+        onClose={() => {
+          setShowAgeConfirmModal(false);
+          setPendingShowtime(null);
+          setPendingMovie(null);
+        }}
+        onConfirm={handleConfirmAgeAndContinue}
+        movieTitle={pendingMovie?.movieTitle}
+        ageRating={pendingMovie?.ageRating}
+      />
+
       <Footer />
     </div>
   );
 }
+
+
+
 

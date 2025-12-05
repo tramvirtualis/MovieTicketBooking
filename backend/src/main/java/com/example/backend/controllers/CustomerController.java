@@ -1,5 +1,7 @@
 package com.example.backend.controllers;
 
+import com.example.backend.dtos.CancelOrderRequestDTO;
+import com.example.backend.dtos.CancelOrderResponseDTO;
 import com.example.backend.dtos.MovieResponseDTO;
 import com.example.backend.dtos.OrderResponseDTO;
 import com.example.backend.dtos.UpdateCustomerProfileRequestDTO;
@@ -27,9 +29,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/customer")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000"},
-        allowedHeaders = "*",
-        allowCredentials = "true")
+@CrossOrigin(origins = { "http://localhost:5173",
+        "http://localhost:3000" }, allowedHeaders = "*", allowCredentials = "true")
 public class CustomerController {
 
     private final CustomerService customerService;
@@ -59,7 +60,7 @@ public class CustomerController {
             customerData.put("phone", updatedCustomer.getPhone());
             customerData.put("dob", updatedCustomer.getDob());
             customerData.put("avatar", updatedCustomer.getAvatar());
-            
+
             // Map address if exists
             if (updatedCustomer.getAddress() != null) {
                 Map<String, Object> addressData = new HashMap<>();
@@ -218,16 +219,17 @@ public class CustomerController {
     public ResponseEntity<?> getFavoriteMovies() {
         try {
             System.out.println("CustomerController: getFavoriteMovies called");
-            System.out.println("CustomerController: SecurityContext authentication: " + 
-                (SecurityContextHolder.getContext().getAuthentication() != null ? 
-                    SecurityContextHolder.getContext().getAuthentication().getName() : "null"));
-            
+            System.out.println("CustomerController: SecurityContext authentication: " +
+                    (SecurityContextHolder.getContext().getAuthentication() != null
+                            ? SecurityContextHolder.getContext().getAuthentication().getName()
+                            : "null"));
+
             Long userId = getCurrentCustomerId();
             System.out.println("CustomerController: Current customer ID: " + userId);
-            
+
             List<MovieResponseDTO> movies = customerService.getFavoriteMovies(userId);
             System.out.println("CustomerController: Found " + movies.size() + " favorite movies");
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Lấy danh sách phim yêu thích thành công");
@@ -309,7 +311,7 @@ public class CustomerController {
             Long userId = getCurrentCustomerId();
             Customer customer = customerRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
-            
+
             Map<String, Object> customerData = new HashMap<>();
             customerData.put("userId", customer.getUserId());
             customerData.put("username", customer.getUsername());
@@ -318,7 +320,7 @@ public class CustomerController {
             customerData.put("phone", customer.getPhone());
             customerData.put("dob", customer.getDob());
             customerData.put("avatar", customer.getAvatar());
-            
+
             // Map address if exists
             if (customer.getAddress() != null) {
                 Map<String, Object> addressData = new HashMap<>();
@@ -326,7 +328,7 @@ public class CustomerController {
                 addressData.put("province", customer.getAddress().getProvince());
                 customerData.put("address", addressData);
             }
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Lấy thông tin profile thành công");
@@ -350,6 +352,30 @@ public class CustomerController {
             response.put("success", true);
             response.put("message", "Lấy danh sách đơn hàng thành công");
             response.put("data", orders);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
+    @PostMapping("/orders/{orderId}/cancel")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<?> cancelOrder(
+            @PathVariable Long orderId,
+            @RequestBody(required = false) CancelOrderRequestDTO request) {
+        try {
+            Long userId = getCurrentCustomerId();
+            CancelOrderResponseDTO result = orderService.cancelOrder(
+                    userId,
+                    orderId,
+                    request != null ? request.getReason() : null);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Hủy đơn hàng thành công");
+            response.put("data", result);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
@@ -396,9 +422,9 @@ public class CustomerController {
                     .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
         }
     }
-    
+
     // ============ ADMIN ORDERS ENDPOINT ============
-    
+
     @GetMapping("/admin/orders")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getAllOrders() {
@@ -415,6 +441,28 @@ public class CustomerController {
         }
     }
 
+    @PostMapping("/admin/orders/{orderId}/cancel")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> cancelOrderAdmin(
+            @PathVariable Long orderId,
+            @RequestBody(required = false) CancelOrderRequestDTO request) {
+        try {
+            CancelOrderResponseDTO result = orderService.cancelOrderAdmin(
+                    orderId,
+                    request != null ? request.getReason() : null);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Hủy đơn hàng thành công");
+            response.put("data", result);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+
     // ============ AVATAR ENDPOINTS ============
 
     @PostMapping("/{id}/avatar")
@@ -425,19 +473,19 @@ public class CustomerController {
         try {
             if (file == null || file.isEmpty()) {
                 return ResponseEntity.badRequest()
-                    .body(createErrorResponse("File không được để trống"));
+                        .body(createErrorResponse("File không được để trống"));
             }
 
             // Validate file type
             String contentType = file.getContentType();
             if (contentType == null || !contentType.startsWith("image/")) {
                 return ResponseEntity.badRequest()
-                    .body(createErrorResponse("Chỉ chấp nhận file ảnh"));
+                        .body(createErrorResponse("Chỉ chấp nhận file ảnh"));
             }
 
             // Upload to Cloudinary
             String avatarUrl = cloudinaryService.uploadImage(file);
-            
+
             // Update user avatar
             Customer updatedCustomer = customerService.updateAvatar(id, avatarUrl);
 

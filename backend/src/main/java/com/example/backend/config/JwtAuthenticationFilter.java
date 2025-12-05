@@ -31,7 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String authHeader = request.getHeader("Authorization");
         String requestPath = request.getRequestURI();
         
-        // Skip JWT processing for public endpoints
+        // Skip JWT processing for public endpoints (but not wallet/create - we still need to set auth)
         if (requestPath.startsWith("/api/public/") || 
             requestPath.startsWith("/api/auth/") ||
             requestPath.startsWith("/api/enums/") ||
@@ -47,54 +47,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         
-        // Only process JWT for API endpoints that require authentication
-        if (requestPath.startsWith("/api/") && authHeader != null && authHeader.startsWith("Bearer ")) {
-            try {
-                String token = authHeader.substring(7);
-                
-                System.out.println("JwtAuthenticationFilter: Processing token for path: " + requestPath);
-                
-                if (jwtUtils.validateJwtToken(token)) {
-                    String username = jwtUtils.getUsernameFromJwtToken(token);
-                    String role = jwtUtils.getRoleFromJwtToken(token);
+        // Process JWT for all API endpoints that require authentication
+        if (requestPath.startsWith("/api/")) {
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                try {
+                    String token = authHeader.substring(7);
                     
-                    System.out.println("JwtAuthenticationFilter: Valid token - username: " + username + ", role: " + role);
-                    
-                    if (role != null && !role.isEmpty()) {
-                        // Chuyển đổi role thành uppercase để đảm bảo consistency
-                        String normalizedRole = role.toUpperCase();
+                    if (jwtUtils.validateJwtToken(token)) {
+                        String username = jwtUtils.getUsernameFromJwtToken(token);
+                        String role = jwtUtils.getRoleFromJwtToken(token);
                         
-                        UsernamePasswordAuthenticationToken authentication = 
-                            new UsernamePasswordAuthenticationToken(
-                                username,
-                                null,
-                                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + normalizedRole))
-                            );
-                        
-                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-                        
-                        System.out.println("JwtAuthenticationFilter: Authentication set successfully for role: ROLE_" + normalizedRole);
-                    } else {
-                        System.out.println("JwtAuthenticationFilter: Token is valid but has no role - cannot set authentication");
+                        if (role != null && !role.isEmpty()) {
+                            // Chuyển đổi role thành uppercase để đảm bảo consistency
+                            String normalizedRole = role.toUpperCase();
+                            String authority = "ROLE_" + normalizedRole;
+                            
+                            UsernamePasswordAuthenticationToken authentication = 
+                                new UsernamePasswordAuthenticationToken(
+                                    username,
+                                    null,
+                                    Collections.singletonList(new SimpleGrantedAuthority(authority))
+                                );
+                            
+                            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                            SecurityContextHolder.getContext().setAuthentication(authentication);
+                        }
                     }
-                } else {
-                    System.out.println("JwtAuthenticationFilter: Invalid token for path: " + requestPath);
+                } catch (Exception e) {
+                    // Token không hợp lệ, tiếp tục filter chain mà không set authentication
                 }
-            } catch (Exception e) {
-                System.out.println("JwtAuthenticationFilter: Error processing token for path: " + requestPath);
-                System.out.println("JwtAuthenticationFilter: Exception type: " + e.getClass().getName());
-                System.out.println("JwtAuthenticationFilter: Exception message: " + e.getMessage());
-                e.printStackTrace();
-                // Token không hợp lệ, tiếp tục filter chain mà không set authentication
-                // Spring Security sẽ xử lý việc từ chối request nếu cần authentication
-            }
-        } else if (requestPath.startsWith("/api/customer/") || requestPath.startsWith("/api/admin/")) {
-            System.out.println("JwtAuthenticationFilter: Protected path " + requestPath + " - Authorization header: " + (authHeader != null ? "present" : "missing"));
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                System.out.println("JwtAuthenticationFilter: No valid Authorization header found for path: " + requestPath);
-            } else {
-                System.out.println("JwtAuthenticationFilter: Authorization header found but path doesn't match processing condition");
             }
         }
         

@@ -5,6 +5,7 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import com.example.backend.entities.enums.OrderStatus;
 import com.example.backend.entities.enums.PaymentMethod;
 
 @Entity
@@ -31,6 +32,11 @@ public class Order {
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private PaymentMethod paymentMethod;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private OrderStatus status = OrderStatus.PENDING;
     
     @Column(length = 255)
     private String orderInfo;
@@ -47,11 +53,16 @@ public class Order {
     @Column(length = 5)
     private String vnpResponseCode;
     
-    @Column(length = 5)
+    @Column(length = 100)
     private String vnpTransactionStatus;
     
     private LocalDateTime vnpPayDate;
     private LocalDateTime paymentExpiredAt;
+    private LocalDateTime cancelledAt;
+    private String cancellationReason;
+    private BigDecimal refundAmount;
+    @Builder.Default
+    private Boolean refundedToWallet = Boolean.FALSE;
 
     @ManyToOne
     @JoinColumn(name = "voucher_id")
@@ -65,4 +76,8 @@ public class Order {
     // Nhưng với đơn hàng chỉ có đồ ăn, cần lưu trực tiếp
     @Column(name = "cinema_complex_id")
     private Long cinemaComplexId;
+    
+    // Đánh dấu đơn hàng là nạp tiền vào ví (không hiển thị trong danh sách orders)
+    @Builder.Default
+    private Boolean isTopUp = Boolean.FALSE;
 }

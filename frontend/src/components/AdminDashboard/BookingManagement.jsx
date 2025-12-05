@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { getAllOrdersAdmin } from '../../services/customer';
+import { getAllOrdersAdmin, cancelOrderAdmin } from '../../services/customer';
 import { QRCodeSVG } from 'qrcode.react';
 
 // Booking Management Component
@@ -18,6 +18,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
   const [sortDirection, setSortDirection] = useState('desc');
   const [orderTypeFilter, setOrderTypeFilter] = useState('ALL'); // ALL, TICKET, FOOD_ONLY
   const [currentPage, setCurrentPage] = useState(1);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const itemsPerPage = 10;
 
   // Load orders from backend
@@ -28,7 +29,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
       try {
         const ordersData = await getAllOrdersAdmin();
         console.log('Loaded orders from backend:', ordersData);
-        
+
         // Map backend format to frontend format
         // Backend returns OrderResponseDTO with items (tickets) array and combos (food) array
         // Frontend expects one booking per ticket group OR one booking for food-only orders
@@ -37,7 +38,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
           // Kiểm tra kỹ: items phải là array và có phần tử
           const hasTickets = Array.isArray(order.items) && order.items.length > 0;
           const hasCombos = Array.isArray(order.combos) && order.combos.length > 0;
-          
+
           // Đảm bảo: Nếu có tickets, luôn là TICKET, không bao giờ là FOOD_ONLY
           if (hasTickets) {
             // Group tickets by showtime to create booking records
@@ -49,17 +50,17 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
               }
               ticketsByShowtime[key].push(item);
             });
-            
+
             // Create a booking record for each showtime group
             Object.values(ticketsByShowtime).forEach(ticketGroup => {
               const firstTicket = ticketGroup[0];
               const seats = ticketGroup.map(t => t.seatId);
               const totalTicketPrice = ticketGroup.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
-              
+
               // Calculate total including combos
               const comboTotal = order.combos ? order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0) : 0;
               const totalAmount = totalTicketPrice + comboTotal;
-              
+
               mappedOrders.push({
                 bookingId: order.orderId,
                 orderType: 'TICKET', // TICKET or FOOD_ONLY
@@ -80,7 +81,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                 seats: seats,
                 pricePerSeat: ticketGroup.length > 0 ? parseFloat(ticketGroup[0].price) || 0 : 0,
                 totalAmount: parseFloat(order.totalAmount) || totalAmount,
-                status: 'PAID', // All orders in DB are successful (status removed)
+                status: order.status || 'PAID',
                 paymentMethod: order.paymentMethod || 'UNKNOWN',
                 combos: order.combos || [],
                 orderDate: order.orderDate // For food-only QR code
@@ -89,13 +90,13 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
           } else if (hasCombos) {
             // Food-only order (no tickets)
             const comboTotal = order.combos.reduce((sum, c) => sum + (parseFloat(c.price) * (c.quantity || 1) || 0), 0);
-            
+
             // Lấy cinemaComplexId từ order (backend đã map)
             const cinemaComplexId = order.cinemaComplexId || null;
             // Tìm tên cụm rạp từ danh sách
             const cinema = cinemasList.find(c => c.complexId === cinemaComplexId);
             const cinemaName = cinema ? cinema.name : null;
-            
+
             mappedOrders.push({
               bookingId: order.orderId,
               orderType: 'FOOD_ONLY',
@@ -114,28 +115,28 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
               seats: [],
               pricePerSeat: 0,
               totalAmount: parseFloat(order.totalAmount) || comboTotal,
-              status: 'PAID',
+              status: order.status || 'PAID',
               paymentMethod: order.paymentMethod || 'UNKNOWN',
               combos: order.combos || [],
               orderDate: order.orderDate // For food-only QR code
             });
           }
         });
-        
+
         // Validation: Đảm bảo không có đơn hàng FOOD_ONLY nhưng lại có thông tin vé
         // Nếu phát hiện, tự động sửa lại orderType thành TICKET
         // LƯU Ý: cinemaComplexId và cinemaName có thể có ở đơn đồ ăn (food-only orders), không phải là thông tin vé
         mappedOrders.forEach(order => {
           if (order.orderType === 'FOOD_ONLY') {
             // Kiểm tra xem có thông tin vé không (KHÔNG bao gồm cinemaComplexId/cinemaName vì đơn đồ ăn cũng có)
-            if (order.movieId || order.movieTitle || (order.seats && order.seats.length > 0) || 
-                order.showtimeId || order.roomId || order.roomName) {
+            if (order.movieId || order.movieTitle || (order.seats && order.seats.length > 0) ||
+              order.showtimeId || order.roomId || order.roomName) {
               console.warn('Found FOOD_ONLY order with ticket info, fixing orderType to TICKET:', order.bookingId);
               order.orderType = 'TICKET';
             }
           }
         });
-        
+
         console.log('Mapped orders:', mappedOrders);
         console.log('Total mapped orders:', mappedOrders.length);
         setOrders(mappedOrders);
@@ -148,9 +149,9 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
         setLoading(false);
       }
     };
-    
+
     loadOrders();
-  }, [onOrdersChange]);
+  }, [onOrdersChange, refreshTrigger]);
 
   const withinRange = (dt) => {
     if (!dt) return true; // Nếu không có date, không filter
@@ -177,6 +178,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
     return new Date(o.showtime).getTime() < Date.now();
   };
   const derivedStatus = (o) => {
+    if (o.status === 'CANCELLED') return 'CANCELLED';
     if (o.orderType === 'FOOD_ONLY') {
       return 'ACTIVE'; // Food orders are always active
     }
@@ -191,21 +193,21 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
       // Đơn đồ ăn: Phải là FOOD_ONLY và không có bất kỳ thông tin vé nào
       // LƯU Ý: cinemaComplexId và cinemaName có thể có ở đơn đồ ăn, không phải là thông tin vé
       if (o.orderType !== 'FOOD_ONLY') return false;
-      if (o.movieId || 
-          o.movieTitle || 
-          (o.seats && o.seats.length > 0) || 
-          o.showtimeId ||
-          o.roomId ||
-          o.roomName) {
+      if (o.movieId ||
+        o.movieTitle ||
+        (o.seats && o.seats.length > 0) ||
+        o.showtimeId ||
+        o.roomId ||
+        o.roomName) {
         return false;
       }
     }
     // Nếu orderTypeFilter === 'ALL', không filter theo orderType
-    
+
     // Text search - chỉ áp dụng nếu có searchTerm
     if (searchTerm && searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
-      const matches = 
+      const matches =
         o.user.name.toLowerCase().includes(term) ||
         o.user.phone.toLowerCase().includes(term) ||
         (o.movieTitle && o.movieTitle.toLowerCase().includes(term)) ||
@@ -213,7 +215,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
         (o.orderType === 'FOOD_ONLY' && 'đồ ăn'.includes(term));
       if (!matches) return false;
     }
-    
+
     // Cinema filter - áp dụng cho cả đơn vé (TICKET) và đơn đồ ăn (FOOD_ONLY) nếu có cinemaComplexId
     if (filterCinema && filterCinema !== '') {
       // Filter theo cụm rạp cho cả đơn vé và đơn đồ ăn
@@ -221,21 +223,21 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
         return false;
       }
     }
-    
+
     // Movie filter - chỉ áp dụng khi có filterMovie
     if (filterMovie && filterMovie !== '') {
       if (!o.movieId || String(o.movieId) !== String(filterMovie)) {
         return false;
       }
     }
-    
+
     // Status filter - chỉ áp dụng khi có filterStatus
     if (filterStatus && filterStatus !== '') {
       if (derivedStatus(o) !== filterStatus) {
         return false;
       }
     }
-    
+
     // Date range filter - chỉ áp dụng khi có dateFrom hoặc dateTo
     if (dateFrom || dateTo) {
       const dateToCheck = o.orderType === 'FOOD_ONLY' ? (o.orderDate || o.showtime) : o.showtime;
@@ -243,10 +245,10 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
         return false;
       }
     }
-    
+
     return true;
   });
-  
+
   // Debug: Log filtered results
   useEffect(() => {
     console.log('=== Filter Debug ===');
@@ -264,7 +266,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
     }
   }, [orders, filtered, orderTypeFilter, searchTerm, filterCinema, filterMovie, filterStatus, dateFrom, dateTo]);
 
-  const statusColor = (s) => ({ ACTIVE: '#4caf50', EXPIRED: '#9e9e9e' }[s] || '#9e9e9e');
+  const statusColor = (s) => ({ ACTIVE: '#4caf50', EXPIRED: '#9e9e9e', CANCELLED: '#e83b41' }[s] || '#9e9e9e');
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -306,9 +308,9 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
         aVal = new Date(a.showtime).getTime();
         bVal = new Date(b.showtime).getTime();
     }
-    
+
     if (typeof aVal === 'string') {
-      return sortDirection === 'asc' 
+      return sortDirection === 'asc'
         ? aVal.localeCompare(bVal)
         : bVal.localeCompare(aVal);
     } else {
@@ -331,17 +333,17 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
     if (sortField !== field) {
       return (
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.3, marginLeft: 4 }}>
-          <path d="M8 9l4-4 4 4M16 15l-4 4-4-4"/>
+          <path d="M8 9l4-4 4 4M16 15l-4 4-4-4" />
         </svg>
       );
     }
     return sortDirection === 'asc' ? (
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 4 }}>
-        <path d="M8 9l4-4 4 4"/>
+        <path d="M8 9l4-4 4 4" />
       </svg>
     ) : (
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 4 }}>
-        <path d="M16 15l-4 4-4-4"/>
+        <path d="M16 15l-4 4-4-4" />
       </svg>
     );
   };
@@ -352,7 +354,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
     // Text search - chỉ áp dụng khi có searchTerm
     if (searchTerm && searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
-      const matches = 
+      const matches =
         o.user.name.toLowerCase().includes(term) ||
         o.user.phone.toLowerCase().includes(term) ||
         (o.movieTitle && o.movieTitle.toLowerCase().includes(term)) ||
@@ -360,7 +362,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
         (o.orderType === 'FOOD_ONLY' && 'đồ ăn'.includes(term));
       if (!matches) return false;
     }
-    
+
     // Cinema filter - QUAN TRỌNG: áp dụng cho cả đơn vé (TICKET) và đơn đồ ăn (FOOD_ONLY) nếu có cinemaComplexId
     if (filterCinema && filterCinema !== '') {
       // Filter theo cụm rạp cho cả đơn vé và đơn đồ ăn
@@ -368,21 +370,21 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
         return false;
       }
     }
-    
+
     // Movie filter - chỉ áp dụng khi có filterMovie
     if (filterMovie && filterMovie !== '') {
       if (!o.movieId || String(o.movieId) !== String(filterMovie)) {
         return false;
       }
     }
-    
+
     // Status filter - chỉ áp dụng khi có filterStatus
     if (filterStatus && filterStatus !== '') {
       if (derivedStatus(o) !== filterStatus) {
         return false;
       }
     }
-    
+
     // Date range filter - chỉ áp dụng khi có dateFrom hoặc dateTo
     if (dateFrom || dateTo) {
       const dateToCheck = o.orderType === 'FOOD_ONLY' ? (o.orderDate || o.showtime) : o.showtime;
@@ -390,10 +392,10 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
         return false;
       }
     }
-    
+
     return true;
   };
-  
+
   // Đếm đơn vé: orderType === 'TICKET' HOẶC có thông tin vé (dù orderType là gì)
   // LƯU Ý: cinemaComplexId và cinemaName KHÔNG phải là thông tin vé (đơn đồ ăn cũng có)
   const ticketOrdersCount = orders.filter(o => {
@@ -405,7 +407,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
     }
     return false;
   }).length;
-  
+
   // Đếm đơn đồ ăn: orderType === 'FOOD_ONLY' VÀ không có thông tin vé
   // LƯU Ý: cinemaComplexId và cinemaName có thể có ở đơn đồ ăn, không phải là thông tin vé
   const foodOrdersCount = orders.filter(o => {
@@ -417,19 +419,47 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
     }
     return true;
   }).length;
-  
+
   // Đếm tất cả: tất cả orders pass các filter (trừ orderTypeFilter)
   const allOrdersCount = orders.filter(o => passesOtherFilters(o)).length;
+
+  const handleCancelOrder = async () => {
+    if (!selected) return;
+
+    // Check if already cancelled
+    if (selected.status === 'CANCELLED') {
+      alert('Đơn hàng này đã được hủy.');
+      return;
+    }
+
+    if (!window.confirm(`Bạn có chắc chắn muốn hủy đơn hàng #${selected.bookingId} không? Hành động này sẽ hoàn tiền vào ví người dùng.`)) {
+      return;
+    }
+
+    try {
+      const reason = window.prompt("Nhập lý do hủy đơn (tùy chọn):", "Admin hủy đơn hàng");
+      if (reason === null) return;
+
+      setLoading(true);
+      await cancelOrderAdmin(selected.bookingId, reason);
+      alert('Hủy đơn hàng thành công!');
+      setSelected(null);
+      setRefreshTrigger(prev => prev + 1);
+    } catch (err) {
+      alert(err.message || 'Hủy đơn hàng thất bại');
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="admin-card">
       <div className="admin-card__header">
         <h2 className="admin-card__title">Quản lý đặt vé & đồ ăn</h2>
-        
+
         {/* Order Type Tabs */}
-        <div style={{ 
-          display: 'flex', 
-          gap: '8px', 
+        <div style={{
+          display: 'flex',
+          gap: '8px',
           marginBottom: '16px',
           borderBottom: '2px solid #333',
           paddingBottom: '8px'
@@ -489,26 +519,26 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <div className="movie-search">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input className="movie-search__input" placeholder="Tìm tên KH, sđt, phim, rạp..." value={searchTerm} onChange={(e)=>setSearchTerm(e.target.value)} />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+            <input className="movie-search__input" placeholder="Tìm tên KH, sđt, phim, rạp..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
-          <select className="movie-filter" value={filterCinema} onChange={(e)=>setFilterCinema(e.target.value)}>
+          <select className="movie-filter" value={filterCinema} onChange={(e) => setFilterCinema(e.target.value)}>
             <option value="">Tất cả rạp</option>
             {cinemasList.map(c => <option key={c.complexId} value={c.complexId}>#{c.complexId} - {c.name}</option>)}
           </select>
           {orderTypeFilter !== 'FOOD_ONLY' && (
-            <select className="movie-filter" value={filterMovie} onChange={(e)=>setFilterMovie(e.target.value)}>
+            <select className="movie-filter" value={filterMovie} onChange={(e) => setFilterMovie(e.target.value)}>
               <option value="">Tất cả phim</option>
               {moviesList.map(m => <option key={m.movieId} value={m.movieId}>{m.title}</option>)}
             </select>
           )}
-          <select className="movie-filter" value={filterStatus} onChange={(e)=>setFilterStatus(e.target.value)}>
+          <select className="movie-filter" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">Tất cả trạng thái</option>
             <option value="ACTIVE">Còn hạn</option>
             <option value="EXPIRED">Hết hạn</option>
           </select>
-          <input type="date" className="movie-filter" value={dateFrom} onChange={(e)=>setDateFrom(e.target.value)} />
-          <input type="date" className="movie-filter" value={dateTo} onChange={(e)=>setDateTo(e.target.value)} />
+          <input type="date" className="movie-filter" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <input type="date" className="movie-filter" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </div>
       </div>
 
@@ -520,16 +550,16 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
           </div>
         ) : error ? (
           <div className="movie-empty">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
             <p>{error}</p>
           </div>
         ) : sorted.length === 0 ? (
           <div className="movie-empty">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
             <p>
-              {orderTypeFilter === 'TICKET' ? 'Không có đơn đặt vé' : 
-               orderTypeFilter === 'FOOD_ONLY' ? 'Không có đơn đồ ăn' : 
-               'Không có đơn hàng nào'}
+              {orderTypeFilter === 'TICKET' ? 'Không có đơn đặt vé' :
+                orderTypeFilter === 'FOOD_ONLY' ? 'Không có đơn đồ ăn' :
+                  'Không có đơn hàng nào'}
             </p>
           </div>
         ) : (
@@ -574,7 +604,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                     <td>
                       {o.orderType === 'FOOD_ONLY' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ 
+                          <span style={{
                             fontSize: '20px',
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -589,7 +619,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                             <div className="movie-table-title" style={{ color: '#fbbf24', fontWeight: 600 }}>Đơn hàng đồ ăn</div>
                             <div className="movie-table-rating">
                               {o.cinemaName ? `${o.cinemaName} • ` : ''}
-                              {o.combos && o.combos.length > 0 
+                              {o.combos && o.combos.length > 0
                                 ? `${o.combos.length} combo${o.combos.length > 1 ? 's' : ''} • ${o.combos.reduce((sum, c) => sum + (c.quantity || 0), 0)} sản phẩm`
                                 : 'Không có thông tin'}
                             </div>
@@ -634,13 +664,13 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                     </td>
                     <td>
                       <span className="movie-status-badge" style={{ backgroundColor: statusColor(derivedStatus(o)) }}>
-                        {derivedStatus(o) === 'ACTIVE' ? 'Còn hạn' : 'Hết hạn'}
+                        {derivedStatus(o) === 'ACTIVE' ? 'Còn hạn' : derivedStatus(o) === 'CANCELLED' ? 'Đã hủy' : 'Hết hạn'}
                       </span>
                     </td>
                     <td>
                       <div className="movie-table-actions">
-                        <button className="movie-action-btn" title="Chi tiết" onClick={()=>setSelected(o)}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
+                        <button className="movie-action-btn" title="Chi tiết" onClick={() => setSelected(o)}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="8" /></svg>
                         </button>
                       </div>
                     </td>
@@ -656,14 +686,14 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
           const getPageNumbers = () => {
             const pages = [];
             const maxVisible = 7;
-            
+
             if (totalPages <= maxVisible) {
               for (let i = 1; i <= totalPages; i++) {
                 pages.push(i);
               }
             } else {
               pages.push(1);
-              
+
               if (currentPage <= 4) {
                 for (let i = 2; i <= 5; i++) {
                   pages.push(i);
@@ -684,12 +714,12 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                 pages.push(totalPages);
               }
             }
-            
+
             return pages;
           };
-          
+
           const pageNumbers = getPageNumbers();
-          
+
           return (
             <div className="movie-reviews-pagination mt-8 justify-center" style={{ marginTop: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
               <button
@@ -742,12 +772,12 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
       </div>
 
       {selected && (
-        <div className="movie-modal-overlay" onClick={()=>setSelected(null)}>
-          <div className="movie-modal" onClick={(e)=>e.stopPropagation()}>
+        <div className="movie-modal-overlay" onClick={() => setSelected(null)}>
+          <div className="movie-modal" onClick={(e) => e.stopPropagation()}>
             <div className="movie-modal__header">
               <h2>Chi tiết đơn #{selected.bookingId}</h2>
-              <button className="movie-modal__close" onClick={()=>setSelected(null)}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <button className="movie-modal__close" onClick={() => setSelected(null)}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
             <div className="movie-modal__content">
@@ -900,7 +930,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                               const orderIdNum = String(selected.bookingId || '').replace('ORD-', '');
                               const showtimeId = selected.showtimeId || '';
                               const showtimeStart = selected.showtime;
-                              
+
                               let bookingId = '';
                               if (showtimeStart && showtimeId) {
                                 const date = new Date(showtimeStart);
@@ -915,7 +945,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                               } else {
                                 bookingId = `${orderIdNum}-${Date.now()}`;
                               }
-                              
+
                               // Format date: dd/MM/yyyy
                               const formatDateForQR = (dateString) => {
                                 if (!dateString) return '';
@@ -925,7 +955,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                                 const year = date.getFullYear();
                                 return `${day}/${month}/${year}`;
                               };
-                              
+
                               // Format time: HH:mm
                               const formatTimeForQR = (dateString) => {
                                 if (!dateString) return '';
@@ -934,16 +964,16 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                                 const minutes = String(date.getMinutes()).padStart(2, '0');
                                 return `${hours}:${minutes}`;
                               };
-                              
+
                               // Map room type (remove TYPE_ prefix if present)
                               const mapRoomType = (roomType) => {
                                 if (!roomType) return '2D';
                                 return String(roomType).replace('TYPE_', '');
                               };
-                              
+
                               // Sort seats
                               const sortedSeats = [...(selected.seats || [])].sort();
-                              
+
                               // Create QR data object with exact order
                               const qrData = {};
                               qrData.bookingId = String(bookingId || '');
@@ -954,7 +984,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                               qrData.time = formatTimeForQR(showtimeStart);
                               qrData.seats = sortedSeats;
                               qrData.format = mapRoomType(selected.roomType);
-                              
+
                               return qrData;
                             })())}
                             size={200}
@@ -967,7 +997,7 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
                             const orderIdNum = String(selected.bookingId || '').replace('ORD-', '');
                             const showtimeId = selected.showtimeId || '';
                             const showtimeStart = selected.showtime;
-                            
+
                             if (showtimeStart && showtimeId) {
                               const date = new Date(showtimeStart);
                               const year = date.getFullYear();
@@ -989,7 +1019,20 @@ function BookingManagement({ orders: initialOrders, cinemas: cinemasList, movies
               </div>
             </div>
             <div className="movie-modal__footer">
-              <button className="btn btn--ghost" onClick={()=>setSelected(null)}>Đóng</button>
+              {selected.status !== 'CANCELLED' && (
+                <button
+                  className="btn"
+                  style={{
+                    backgroundColor: '#e83b41',
+                    color: '#fff',
+                    marginRight: 'auto'
+                  }}
+                  onClick={handleCancelOrder}
+                >
+                  Hủy đơn hàng
+                </button>
+              )}
+              <button className="btn btn--ghost" onClick={() => setSelected(null)}>Đóng</button>
             </div>
           </div>
         </div>
