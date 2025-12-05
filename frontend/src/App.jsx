@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import ScrollToTop from './components/ScrollToTop.jsx';
 import NotificationProvider from './components/NotificationProvider.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
@@ -25,7 +25,6 @@ import Checkout from './pages/Checkout.jsx';
 import BookTicket from './pages/BookTicket.jsx';
 import PaymentSuccess from './pages/PaymentSuccess.jsx';
 import SearchResults from './pages/SearchResults.jsx';
-import Wallet from './pages/Wallet.jsx';
 import TransactionHistory from './pages/TransactionHistory.jsx';
 
 export default function App() {
@@ -106,7 +105,7 @@ export default function App() {
         } />
         <Route path="/wallet" element={
           <ProtectedRoute allowedRoles="CUSTOMER">
-            <Wallet />
+            <Navigate to="/profile?tab=wallet" replace />
           </ProtectedRoute>
         } />
         <Route path="/transaction-history" element={

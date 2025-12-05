@@ -74,6 +74,10 @@ export default function BookingHistory() {
         const now = new Date();
         
         ordersData.forEach(order => {
+          // Skip cancelled orders
+          if (order.status === 'CANCELLED' || order.status === 'Cancelled' || order.status === 'cancelled') {
+            return;
+          }
           // Group tickets by showtime
           const itemsByShowtime = {};
           order.items.forEach(item => {

@@ -23,6 +23,8 @@ import com.example.backend.services.ZaloPayService;
 import com.example.backend.services.NotificationService;
 import com.example.backend.services.EmailService;
 import com.example.backend.services.WalletService;
+import com.example.backend.services.WalletPinService;
+import com.example.backend.dtos.VerifyPinRequestDTO;
 import com.example.backend.utils.JwtUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -81,6 +83,7 @@ public class PaymentController {
     
     // Wallet dependencies
     private final WalletService walletService;
+    private final WalletPinService walletPinService;
     private final JwtUtils jwtUtils;
     private final WalletTransactionRepository walletTransactionRepository;
 
@@ -1372,9 +1375,14 @@ public class PaymentController {
         
         System.out.println("=== WALLET PAYMENT ENDPOINT CALLED ===");
         System.out.println("Auth header present: " + (authHeader != null));
+        System.out.println("PIN from request: " + (request.getPin() != null ? "PRESENT (length: " + request.getPin().length() + ")" : "NULL"));
         
         if (bindingResult.hasErrors()) {
             System.out.println("Validation errors: " + bindingResult.getAllErrors());
+            // Kiểm tra xem có lỗi validation liên quan đến PIN không
+            bindingResult.getAllErrors().forEach(error -> {
+                System.out.println("Validation error: " + error.getDefaultMessage() + " - Field: " + error.getObjectName());
+            });
             return ResponseEntity.badRequest().body(createErrorResponse("Dữ liệu không hợp lệ", bindingResult));
         }
 
@@ -1491,7 +1499,87 @@ public class PaymentController {
             order.setOrderInfo(buildOrderInfo(request));
             order = orderService.save(order);
 
-            // Trừ tiền từ ví Cinesmart
+            // Xác thực PIN trước khi trừ tiền từ ví Cinesmart
+            boolean hasPin = walletPinService.hasPin(finalUser.getUserId());
+            log.info("Wallet payment - User {} has PIN: {}", finalUser.getUserId(), hasPin);
+            log.info("Wallet payment - PIN from request: {}", request.getPin() != null ? "***" : "NULL");
+            
+            if (hasPin) {
+                // User có PIN, yêu cầu xác thực
+                String pinFromRequest = request.getPin();
+                log.info("Wallet payment - PIN received: {}", pinFromRequest != null ? "PRESENT (length: " + pinFromRequest.length() + ")" : "NULL");
+                
+                if (pinFromRequest == null || pinFromRequest.trim().isEmpty()) {
+                    log.warn("Wallet payment - PIN is null or empty for user {}", finalUser.getUserId());
+                    // Xóa order nếu chưa PAID
+                    if (order != null && order.getStatus() != OrderStatus.PAID) {
+                        try {
+                            orderService.delete(order);
+                        } catch (Exception deleteEx) {
+                            log.error("Failed to delete order after PIN validation error: {}", deleteEx.getMessage());
+                        }
+                    }
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(createErrorResponse("Vui lòng nhập mã PIN để xác thực thanh toán", null));
+                }
+                
+                // Validate PIN format (6 digits)
+                String trimmedPin = pinFromRequest.trim();
+                if (trimmedPin.length() != 6 || !trimmedPin.matches("^\\d{6}$")) {
+                    log.warn("Wallet payment - PIN format invalid for user {}: length={}, isDigits={}", 
+                        finalUser.getUserId(), trimmedPin.length(), trimmedPin.matches("^\\d+$"));
+                    // Xóa order nếu chưa PAID
+                    if (order != null && order.getStatus() != OrderStatus.PAID) {
+                        try {
+                            orderService.delete(order);
+                        } catch (Exception deleteEx) {
+                            log.error("Failed to delete order after PIN format validation error: {}", deleteEx.getMessage());
+                        }
+                    }
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(createErrorResponse("Mã PIN phải có đúng 6 chữ số", null));
+                }
+                
+                log.info("Wallet payment - Verifying PIN for user {}", finalUser.getUserId());
+                
+                // Xác thực PIN
+                try {
+                    VerifyPinRequestDTO verifyRequest = new VerifyPinRequestDTO();
+                    verifyRequest.setPin(trimmedPin); // Sử dụng PIN đã được trim và validate
+                    log.info("Wallet payment - Calling verifyPin for user {}", finalUser.getUserId());
+                    // verifyPin() sẽ throw exception nếu PIN sai, return true nếu đúng
+                    boolean isValid = walletPinService.verifyPin(finalUser.getUserId(), verifyRequest);
+                    // Nếu đến đây được, PIN đã đúng
+                    log.info("PIN verified successfully for user {} for order {}", finalUser.getUserId(), order.getOrderId());
+                } catch (IllegalArgumentException | IllegalStateException e) {
+                    // PIN sai hoặc bị lock
+                    log.warn("PIN verification failed for user {}: {}", finalUser.getUserId(), e.getMessage());
+                    // Xóa order nếu chưa PAID
+                    if (order != null && order.getStatus() != OrderStatus.PAID) {
+                        try {
+                            orderService.delete(order);
+                        } catch (Exception deleteEx) {
+                            log.error("Failed to delete order after PIN validation error: {}", deleteEx.getMessage());
+                        }
+                    }
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(createErrorResponse(e.getMessage(), null));
+                }
+            } else {
+                // User chưa có PIN, yêu cầu tạo PIN trước
+                // Xóa order nếu chưa PAID
+                if (order != null && order.getStatus() != OrderStatus.PAID) {
+                    try {
+                        orderService.delete(order);
+                    } catch (Exception deleteEx) {
+                        log.error("Failed to delete order after PIN check error: {}", deleteEx.getMessage());
+                    }
+                }
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(createErrorResponse("Bạn chưa có mã PIN. Vui lòng tạo mã PIN trước khi thanh toán bằng ví Cinesmart.", null));
+            }
+
+            // Trừ tiền từ ví Cinesmart (sau khi đã xác thực PIN thành công)
             try {
                 log.info("Debiting {} from wallet for user {} for order {}", request.getAmount(), finalUser.getUserId(), order.getOrderId());
                 walletService.debit(

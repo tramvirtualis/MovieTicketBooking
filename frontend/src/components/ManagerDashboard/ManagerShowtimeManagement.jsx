@@ -308,15 +308,11 @@ export default function ManagerShowtimeManagement({ complexId }) {
     }
   };
 
-  // Generate time slots (10:00 to 01:00 next day)
+  // Generate time slots (8:00 to 23:00)
   const timeSlots = useMemo(() => {
     const slots = [];
-    // 10:00 to 23:00
-    for (let hour = 10; hour <= 23; hour++) {
-      slots.push({ hour, minute: 0, label: `${String(hour).padStart(2, '0')}:00` });
-    }
-    // 00:00 to 01:00
-    for (let hour = 0; hour <= 1; hour++) {
+    // 8:00 to 23:00
+    for (let hour = 8; hour <= 23; hour++) {
       slots.push({ hour, minute: 0, label: `${String(hour).padStart(2, '0')}:00` });
     }
     return slots;
@@ -346,11 +342,11 @@ export default function ManagerShowtimeManagement({ complexId }) {
       }
     }
     
-    // Calculate relative to 10:00 (600 minutes)
-    const baseMinutes = 10 * 60; // 10:00 = 600 minutes
+    // Calculate relative to 8:00 (480 minutes)
+    const baseMinutes = 8 * 60; // 8:00 = 480 minutes
     let relativeStart = startMinutes - baseMinutes;
     
-    // Handle times before 10:00 (shouldn't happen but just in case)
+    // Handle times before 8:00 (shouldn't happen but just in case)
     if (relativeStart < 0) {
       relativeStart += 24 * 60;
     }

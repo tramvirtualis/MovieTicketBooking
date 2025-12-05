@@ -326,7 +326,7 @@ export default function Header({ children }) {
                   <Link to="/booking-history" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
                     Vé của tôi
                   </Link>
-                  <Link to="/wallet" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
+                  <Link to="/profile?tab=wallet" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>
                     Ví Cinesmart
                   </Link>
                   <Link to="/transaction-history" className="user-dropdown__item" onClick={() => setShowUserDropdown(false)}>

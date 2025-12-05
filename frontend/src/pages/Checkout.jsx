@@ -2,10 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import PinVerificationModal from '../components/PinVerificationModal.jsx';
+import PaymentMethodSelector from '../components/PaymentMethodSelector.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 import { customerVoucherService } from '../services/customerVoucherService.js';
 import { paymentService } from '../services/paymentService.js';
 import { websocketService } from '../services/websocketService';
-import { walletService } from '../services/walletService.js';
+import { walletService, walletPinService } from '../services/walletService.js';
 
 // Get saved vouchers from localStorage
 const getSavedVouchers = () => {
@@ -66,6 +69,33 @@ export default function Checkout() {
   const isRedirectingToPayment = useRef(false); // Track if redirecting to payment gateway
   const [walletBalance, setWalletBalance] = useState(null);
   const [loadingWallet, setLoadingWallet] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinError, setPinError] = useState('');
+  const [hasPin, setHasPin] = useState(null);
+  const [checkingPin, setCheckingPin] = useState(false);
+  const [verifiedPin, setVerifiedPin] = useState(null); // Lưu PIN đã xác thực để gửi lên server
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, type: 'confirm' });
+
+  // Helper function để hiển thị alert/confirm modal
+  const showAlert = (title, message) => {
+    setConfirmModal({
+      isOpen: true,
+      title: title || 'Thông báo',
+      message,
+      type: 'alert',
+      onConfirm: null
+    });
+  };
+
+  const showConfirm = (title, message, onConfirm) => {
+    setConfirmModal({
+      isOpen: true,
+      title: title || 'Xác nhận',
+      message,
+      type: 'confirm',
+      onConfirm: onConfirm || null
+    });
+  };
 
   useEffect(() => {
     const savedCart = localStorage.getItem('checkoutCart');
@@ -127,6 +157,9 @@ export default function Checkout() {
 
     // Load wallet balance
     loadWalletBalance();
+    
+    // Check PIN status
+    checkPinStatus();
 
     // Redirect back if no cart and no booking
     if (!savedCart && !savedBooking) {
@@ -193,6 +226,146 @@ export default function Checkout() {
     }
   };
 
+  const checkPinStatus = async () => {
+    setCheckingPin(true);
+    try {
+      const status = await walletPinService.getPinStatus();
+      setHasPin(status.hasPin);
+      if (status.locked) {
+        setPinError('Mã PIN của bạn đang bị khóa. Vui lòng thử lại sau.');
+      }
+    } catch (error) {
+      console.error('Error checking PIN status:', error);
+      setHasPin(false);
+    } finally {
+      setCheckingPin(false);
+    }
+  };
+
+  const handleVerifyPin = async (pin) => {
+    if (!pin || pin.length !== 6) {
+      setPinError('Mã PIN phải có đúng 6 chữ số');
+      return;
+    }
+
+    setPinError('');
+
+    // Lưu PIN vào biến local
+    const pinToSend = pin.trim();
+    console.log('PIN to send (from input):', pinToSend ? `Length: ${pinToSend.length}` : 'NULL');
+    
+    // Update state
+    setVerifiedPin(pinToSend);
+    setShowPinModal(false);
+    
+    // Tiếp tục xử lý thanh toán với PIN đã nhập (truyền trực tiếp để tránh vấn đề async state)
+    try {
+      console.log('Calling processWalletPayment with PIN:', pinToSend ? 'PRESENT' : 'NULL');
+      await processWalletPayment(pinToSend);
+    } catch (error) {
+      console.error('Error in processWalletPayment:', error);
+      // Nếu thanh toán thất bại do PIN sai, hiển thị lại modal
+      setVerifiedPin(null);
+      setShowPinModal(true);
+      setPinError(error.message || 'Mã PIN không đúng. Vui lòng thử lại.');
+    }
+  };
+
+  const processWalletPayment = async (pin = null) => {
+    // Sử dụng pin được truyền vào hoặc verifiedPin từ state
+    const pinToUse = pin || verifiedPin;
+    console.log('processWalletPayment - pin parameter:', pin ? 'PRESENT' : 'NULL');
+    console.log('processWalletPayment - verifiedPin state:', verifiedPin ? 'PRESENT' : 'NULL');
+    console.log('processWalletPayment - pinToUse:', pinToUse ? `PRESENT (length: ${pinToUse.length})` : 'NULL');
+    
+    if (!pinToUse || pinToUse.trim().length !== 6) {
+      console.error('PIN validation failed - pinToUse:', pinToUse);
+      throw new Error('Vui lòng nhập mã PIN (6 chữ số)');
+    }
+
+    try {
+      const hasValidBooking = bookingData &&
+        bookingData.showtimeId &&
+        bookingData.seats &&
+        Array.isArray(bookingData.seats) &&
+        bookingData.seats.length > 0;
+
+      const payload = {
+        amount: getTotalAmount(),
+        voucherId: selectedVoucher?.voucherId || null,
+        voucherCode: selectedVoucher?.code || null,
+        orderDescription: 'Thanh toán đơn hàng tại Cinesmart',
+        showtimeId: hasValidBooking ? bookingData.showtimeId : null,
+        seatIds: hasValidBooking ? bookingData.seats : [],
+        cinemaComplexId: !hasValidBooking && cartData?.cinema?.complexId ? cartData.cinema.complexId : null,
+        foodCombos: cartData?.items?.map(item => ({
+          foodComboId: item.id?.replace('fc_', '') || item.foodComboId,
+          quantity: item.quantity || 1
+        })) || [],
+        pin: pinToUse // Gửi PIN để backend xác thực
+      };
+
+      console.log('Creating wallet payment with payload:', { ...payload, pin: pinToUse ? '***' : null });
+      console.log('PIN to send (length):', pinToUse ? pinToUse.length : 0);
+      console.log('PIN value check:', pinToUse ? 'HAS_VALUE' : 'NULL');
+      const response = await paymentService.createWalletPayment(payload);
+      console.log('Wallet payment response:', response);
+      
+      if (response.success && response.data) {
+        // Set flag to prevent seat release
+        isRedirectingToPayment.current = true;
+        // Xóa dữ liệu checkout
+        localStorage.removeItem('checkoutCart');
+        localStorage.removeItem('pendingBooking');
+        // Clear verified PIN sau khi thanh toán thành công
+        setVerifiedPin(null);
+        // Redirect đến trang thành công
+        navigate(`/payment/success?orderId=${response.data.orderId}&status=PAID&paymentMethod=WALLET`);
+        return;
+        } else {
+          const errorMessage = response.message || 'Không thể thanh toán bằng ví Cinesmart. Vui lòng thử lại.';
+          console.error('Wallet payment failed:', errorMessage, response);
+          // Nếu lỗi liên quan đến PIN, hiển thị lại modal
+          if (errorMessage.includes('PIN') || errorMessage.includes('pin') || errorMessage.includes('mã PIN')) {
+            setVerifiedPin(null);
+            setShowPinModal(true);
+            setPinError(errorMessage);
+          } else {
+            showAlert('Lỗi', errorMessage);
+          }
+          // Re-enable button
+          const submitButton = document.querySelector('button[type="submit"]');
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.style.opacity = '1';
+            submitButton.style.cursor = 'pointer';
+          }
+          setIsSubmitting(false);
+          throw new Error(errorMessage);
+        }
+      } catch (error) {
+        console.error('Error creating wallet payment:', error);
+        const errorMessage = error.message || error.response?.data?.message || 'Có lỗi xảy ra khi thanh toán bằng ví Cinesmart. Vui lòng thử lại.';
+        // Nếu lỗi liên quan đến PIN, hiển thị lại modal
+        if (errorMessage.includes('PIN') || errorMessage.includes('pin') || errorMessage.includes('mã PIN')) {
+          setVerifiedPin(null);
+          setShowPinModal(true);
+          setPinError(errorMessage);
+        } else {
+            showAlert('Lỗi', errorMessage);
+        }
+        // Re-enable button
+        const submitButton = document.querySelector('button[type="submit"]');
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.style.opacity = '1';
+          submitButton.style.cursor = 'pointer';
+        }
+        setIsSubmitting(false);
+        throw error;
+      }
+  };
+
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -213,18 +386,36 @@ export default function Checkout() {
     const totalAmount = getTotalAmount();
 
     if (totalAmount <= 0) {
-      alert('Số tiền thanh toán không hợp lệ.');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Lỗi',
+        message: 'Số tiền thanh toán không hợp lệ.',
+        type: 'alert',
+        onConfirm: null
+      });
       return;
     }
 
     // Kiểm tra số dư ví nếu thanh toán bằng ví Cinesmart
     if (paymentMethod === 'WALLET') {
       if (walletBalance === null) {
-        alert('Không thể tải số dư ví. Vui lòng thử lại.');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Lỗi',
+          message: 'Không thể tải số dư ví. Vui lòng thử lại.',
+          type: 'alert',
+          onConfirm: null
+        });
         return;
       }
       if (walletBalance < totalAmount) {
-        alert(`Số dư ví Cinesmart không đủ. Số dư hiện tại: ${formatPrice(walletBalance)}. Vui lòng nạp thêm ${formatPrice(totalAmount - walletBalance)}.`);
+        setConfirmModal({
+          isOpen: true,
+          title: 'Số dư không đủ',
+          message: `Số dư ví Cinesmart không đủ. Số dư hiện tại: ${formatPrice(walletBalance)}. Vui lòng nạp thêm ${formatPrice(totalAmount - walletBalance)}.`,
+          type: 'alert',
+          onConfirm: null
+        });
         return;
       }
     }
@@ -323,13 +514,13 @@ export default function Checkout() {
           if (result.message && result.message.includes('đang được xử lý')) {
             alert('Đơn hàng đang được xử lý. Vui lòng đợi và không nhấn lại nút thanh toán.');
           } else {
-            alert('Lỗi thanh toán ZaloPay: ' + errorMsg);
+            showAlert('Lỗi thanh toán ZaloPay', errorMsg);
           }
           setIsSubmitting(false);
         }
       } catch (error) {
         console.error('Error creating ZaloPay order:', error);
-        alert('Có lỗi xảy ra khi tạo đơn hàng thanh toán');
+        showAlert('Lỗi', 'Có lỗi xảy ra khi tạo đơn hàng thanh toán');
         // Re-enable button
         const submitButton = document.querySelector('button[type="submit"]');
         if (submitButton) {
@@ -380,7 +571,7 @@ export default function Checkout() {
           if (response.message && response.message.includes('đang được xử lý')) {
             alert('Đơn hàng đang được xử lý. Vui lòng đợi và không nhấn lại nút thanh toán.');
           } else {
-            alert(response.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
+            showAlert('Lỗi', response.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
           }
           // Re-enable button
           const submitButton = document.querySelector('button[type="submit"]');
@@ -393,7 +584,7 @@ export default function Checkout() {
         }
       } catch (error) {
         console.error('Error creating MoMo payment:', error);
-        alert(error.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
+        showAlert('Lỗi', error.message || 'Không thể khởi tạo thanh toán MoMo. Vui lòng thử lại.');
         // Re-enable button
         const submitButton = document.querySelector('button[type="submit"]');
         if (submitButton) {
@@ -408,71 +599,51 @@ export default function Checkout() {
 
     // Thanh toán bằng ví Cinesmart
     if (paymentMethod === 'WALLET') {
-      try {
-        const hasValidBooking = bookingData &&
-          bookingData.showtimeId &&
-          bookingData.seats &&
-          Array.isArray(bookingData.seats) &&
-          bookingData.seats.length > 0;
-
-        const payload = {
-          amount: totalAmount,
-          voucherId: selectedVoucher?.voucherId || null,
-          voucherCode: selectedVoucher?.code || null,
-          orderDescription: 'Thanh toán đơn hàng tại Cinesmart',
-          showtimeId: hasValidBooking ? bookingData.showtimeId : null,
-          seatIds: hasValidBooking ? bookingData.seats : [],
-          cinemaComplexId: !hasValidBooking && cartData?.cinema?.complexId ? cartData.cinema.complexId : null,
-          foodCombos: cartData?.items?.map(item => ({
-            foodComboId: item.id?.replace('fc_', '') || item.foodComboId,
-            quantity: item.quantity || 1
-          })) || []
-        };
-
-        console.log('Creating wallet payment with payload:', payload);
-        const response = await paymentService.createWalletPayment(payload);
-        console.log('Wallet payment response:', response);
-        
-        if (response.success && response.data) {
-          // Set flag to prevent seat release
-          isRedirectingToPayment.current = true;
-          // Xóa dữ liệu checkout
-          localStorage.removeItem('checkoutCart');
-          localStorage.removeItem('pendingBooking');
-          // Redirect đến trang thành công
-          navigate(`/payment/success?orderId=${response.data.orderId}&status=PAID&paymentMethod=WALLET`);
-          return;
-        } else {
-          const errorMessage = response.message || 'Không thể thanh toán bằng ví Cinesmart. Vui lòng thử lại.';
-          console.error('Wallet payment failed:', errorMessage, response);
-          alert(errorMessage);
-          // Re-enable button
-          const submitButton = document.querySelector('button[type="submit"]');
-          if (submitButton) {
-            submitButton.disabled = false;
-            submitButton.style.opacity = '1';
-            submitButton.style.cursor = 'pointer';
-          }
-          setIsSubmitting(false);
-        }
-      } catch (error) {
-        console.error('Error creating wallet payment:', error);
-        const errorMessage = error.message || error.response?.data?.message || 'Có lỗi xảy ra khi thanh toán bằng ví Cinesmart. Vui lòng thử lại.';
-        alert(errorMessage);
-        // Re-enable button
-        const submitButton = document.querySelector('button[type="submit"]');
-        if (submitButton) {
-          submitButton.disabled = false;
-          submitButton.style.opacity = '1';
-          submitButton.style.cursor = 'pointer';
-        }
+      // Kiểm tra PIN status
+      if (checkingPin) {
+        setConfirmModal({
+          isOpen: true,
+          title: 'Đang xử lý',
+          message: 'Đang kiểm tra trạng thái PIN. Vui lòng đợi...',
+          type: 'alert',
+          onConfirm: null
+        });
         setIsSubmitting(false);
+        return;
       }
-      return;
+
+      // Nếu chưa có PIN, yêu cầu tạo PIN trước
+      if (hasPin === false) {
+        setConfirmModal({
+          isOpen: true,
+          title: 'Chưa có mã PIN',
+          message: 'Bạn chưa có mã PIN. Vui lòng tạo mã PIN trước khi thanh toán bằng ví Cinesmart.\n\nBạn có muốn chuyển đến trang cài đặt PIN không?',
+          type: 'confirm',
+          onConfirm: () => {
+            navigate('/profile?tab=pin');
+          }
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Nếu có PIN, hiển thị modal nhập PIN
+      if (hasPin === true) {
+        setShowPinModal(true);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Nếu chưa kiểm tra được PIN status, thử lại
+      if (hasPin === null) {
+        checkPinStatus();
+        setIsSubmitting(false);
+        return;
+      }
     }
 
     // Các phương thức thanh toán khác (chưa tích hợp)
-    alert('Chức năng thanh toán cho phương thức này chưa được hỗ trợ. Vui lòng chọn MoMo, ZaloPay hoặc Ví Cinesmart.');
+    showAlert('Thông báo', 'Chức năng thanh toán cho phương thức này chưa được hỗ trợ. Vui lòng chọn MoMo, ZaloPay hoặc Ví Cinesmart.');
   };
 
   const getSubtotal = () => {
@@ -702,76 +873,14 @@ export default function Checkout() {
                 </div>
 
                 {/* Payment Method Card */}
-                <div className="bg-gradient-to-br from-[#2d2627] to-[#1a1415] border border-[#4a3f41] rounded-xl p-6">
-                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#ffd159]">
-                      <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-                      <line x1="1" y1="10" x2="23" y2="10" />
-                    </svg>
-                    Phương thức thanh toán
-                  </h2>
-                  <div className="checkout-payment-methods">
-                    <label className="checkout-payment-method">
-                      <input
-                        type="radio"
-                        name="payment"
-                        value="MOMO"
-                        checked={paymentMethod === 'MOMO'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                      />
-                      <div className="checkout-payment-method__content">
-                        <img src="/momo.png" alt="MoMo" style={{ width: '32px', height: '32px', marginRight: '12px', flexShrink: 0, objectFit: 'contain' }} />
-                        <span>MoMo</span>
-                      </div>
-                    </label>
-                    <label className="checkout-payment-method">
-                      <input
-                        type="radio"
-                        name="payment"
-                        value="ZALOPAY"
-                        checked={paymentMethod === 'ZALOPAY'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                      />
-                      <div className="checkout-payment-method__content">
-                        <img src="/zalopay.png" alt="ZaloPay" style={{ width: '32px', height: '32px', marginRight: '12px', flexShrink: 0, objectFit: 'contain' }} />
-                        <span>ZaloPay</span>
-                      </div>
-                    </label>
-                    <label className="checkout-payment-method">
-                      <input
-                        type="radio"
-                        name="payment"
-                        value="WALLET"
-                        checked={paymentMethod === 'WALLET'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        disabled={walletBalance !== null && walletBalance < getTotalAmount()}
-                      />
-                      <div className="checkout-payment-method__content">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '12px', flexShrink: 0, color: '#ffd159' }}>
-                          <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-                          <line x1="1" y1="10" x2="23" y2="10" />
-                        </svg>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <span>Ví Cinesmart</span>
-                            {loadingWallet ? (
-                              <span className="text-xs text-[#c9c4c5]">Đang tải...</span>
-                            ) : walletBalance !== null ? (
-                              <span className="text-xs text-[#c9c4c5]">
-                                Số dư: {formatPrice(walletBalance)}
-                              </span>
-                            ) : null}
-                          </div>
-                          {walletBalance !== null && walletBalance < getTotalAmount() && (
-                            <div className="text-xs text-[#ff5258] mt-1">
-                              Số dư không đủ. Vui lòng nạp thêm {formatPrice(getTotalAmount() - walletBalance)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
+                <PaymentMethodSelector
+                  paymentMethod={paymentMethod}
+                  onPaymentMethodChange={setPaymentMethod}
+                  walletBalance={walletBalance}
+                  loadingWallet={loadingWallet}
+                  totalAmount={getTotalAmount()}
+                  formatPrice={formatPrice}
+                />
               </div>
 
               {/* Right Column - Order Summary */}
@@ -902,6 +1011,29 @@ export default function Checkout() {
           </div>
         </section>
       </main>
+
+      {/* PIN Verification Modal */}
+      <PinVerificationModal
+        isOpen={showPinModal}
+        onClose={() => {
+          setShowPinModal(false);
+          setPinError('');
+        }}
+        onVerify={handleVerifyPin}
+        error={pinError}
+        loading={false}
+      />
+
+      {/* Confirm/Alert Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+        confirmText={confirmModal.type === 'alert' ? 'Đã hiểu' : 'Xác nhận'}
+      />
 
       <Footer />
     </div>

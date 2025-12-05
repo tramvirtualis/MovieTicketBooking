@@ -29,6 +29,11 @@ public class CreatePaymentRequest {
     
     // CinemaComplexId cho đơn hàng chỉ có đồ ăn (food-only orders)
     private Long cinemaComplexId;
+    
+    // PIN để xác thực thanh toán bằng ví Cinesmart (required khi paymentMethod = WALLET)
+    // Không dùng @Size validation ở đây vì PIN chỉ required khi paymentMethod = WALLET
+    // Validation sẽ được kiểm tra trong controller
+    private String pin;
 }
 
 

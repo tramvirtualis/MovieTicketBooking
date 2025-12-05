@@ -61,3 +61,49 @@ export const walletService = {
   },
 };
 
+export const walletPinService = {
+  /**
+   * Lấy trạng thái PIN (có PIN hay chưa, có bị lock không)
+   */
+  getPinStatus: async () => {
+    const res = await axiosInstance.get('/wallet/pin/status');
+    if (res.data.success) {
+      return res.data.data;
+    }
+    throw new Error(res.data.message || 'Không thể tải trạng thái PIN');
+  },
+
+  /**
+   * Tạo mã PIN mới
+   */
+  createPin: async ({ pin, confirmPin }) => {
+    const res = await axiosInstance.post('/wallet/pin/create', { pin, confirmPin });
+    if (res.data.success) {
+      return res.data;
+    }
+    throw new Error(res.data.message || 'Tạo mã PIN thất bại');
+  },
+
+  /**
+   * Cập nhật mã PIN
+   */
+  updatePin: async ({ currentPin, newPin, confirmPin }) => {
+    const res = await axiosInstance.put('/wallet/pin/update', { currentPin, newPin, confirmPin });
+    if (res.data.success) {
+      return res.data;
+    }
+    throw new Error(res.data.message || 'Đổi mã PIN thất bại');
+  },
+
+  /**
+   * Xác thực mã PIN (dùng cho các giao dịch quan trọng)
+   */
+  verifyPin: async ({ pin }) => {
+    const res = await axiosInstance.post('/wallet/pin/verify', { pin });
+    if (res.data.success) {
+      return res.data.valid;
+    }
+    throw new Error(res.data.message || 'Xác thực mã PIN thất bại');
+  },
+};
+

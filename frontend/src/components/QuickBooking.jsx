@@ -699,12 +699,34 @@ const QuickBooking = ({ onFilterChange, horizontal = false, hideTitle = false, i
     setSelectedDate('');
     setError(null);
     
+    // Notify parent component to reset filters
+    if (onFilterChange) {
+      onFilterChange({
+        cinemaId: '',
+        movieId: '',
+        date: ''
+      });
+    }
+    
     // Reload all options
     const loadAllOptions = async () => {
       try {
         const options = await scheduleService.getOptions({});
         setCinemas(options?.cinemas || []);
         setMovies(options?.movies || []);
+        
+        // Reset to all dates
+        const today = new Date();
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          dates.push({
+            value: date.toISOString().split('T')[0],
+            label: formatDateLabel(date, i)
+          });
+        }
+        setDateTimeOptions(dates);
       } catch (err) {
         console.error('Error reloading options:', err);
       }

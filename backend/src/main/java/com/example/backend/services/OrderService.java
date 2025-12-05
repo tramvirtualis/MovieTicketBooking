@@ -532,9 +532,15 @@ public class OrderService {
 
         System.out.println("DEBUG: Total orders found for user " + userId + ": " + orders.size());
 
-        // Chỉ tính các orders đã thanh toán thành công (có vnpPayDate)
+        // Chỉ tính các orders đã thanh toán thành công (có vnpPayDate) và chưa bị hủy
         List<Order> paidOrders = orders.stream()
                 .filter(order -> {
+                    // Loại trừ các orders đã hủy
+                    if (order.getStatus() == OrderStatus.CANCELLED) {
+                        System.out.println("DEBUG: Order " + order.getOrderId() + " is cancelled, skipping");
+                        return false;
+                    }
+                    // Chỉ tính các orders đã thanh toán thành công (có vnpPayDate)
                     boolean isPaid = order.getVnpPayDate() != null;
                     if (!isPaid) {
                         System.out.println("DEBUG: Order " + order.getOrderId() + " not paid (vnpPayDate is null)");

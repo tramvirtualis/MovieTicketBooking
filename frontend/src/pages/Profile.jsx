@@ -8,6 +8,8 @@ import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
 import driveMyCar from '../assets/images/drive-my-car.jpg';
 import { updateCustomerProfile, uploadAvatar, getExpenseStatistics, getCurrentProfile, updateOldOrders, checkPassword, updatePassword, createPassword } from '../services/customer.js';
 import { customerVoucherService } from '../services/customerVoucherService';
+import { walletService, walletPinService } from '../services/walletService';
+import { paymentService } from '../services/paymentService';
 
 const PROVINCES = [
   'Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ', 'Hải Phòng', 'An Giang', 'Bà Rịa - Vũng Tàu',
@@ -77,6 +79,24 @@ export default function Profile() {
     confirmPassword: ''
   });
   const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
+  
+  // Wallet states
+  const [walletInfo, setWalletInfo] = useState(null);
+  const [loadingWallet, setLoadingWallet] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [topUpLoading, setTopUpLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('MOMO');
+  const [walletMessage, setWalletMessage] = useState({ type: '', text: '' });
+  
+  // PIN states
+  const [pinForm, setPinForm] = useState({
+    currentPin: '',
+    newPin: '',
+    confirmPin: ''
+  });
+  const [hasPin, setHasPin] = useState(null);
+  const [loadingPinCheck, setLoadingPinCheck] = useState(false);
+  const [pinMessage, setPinMessage] = useState({ type: '', text: '' });
 
   // Load user profile from API
   useEffect(() => {
@@ -172,7 +192,7 @@ export default function Profile() {
   // Read tab from URL query parameter on mount
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
-    if (tabFromUrl && ['overview', 'vouchers', 'expenses', 'password'].includes(tabFromUrl)) {
+    if (tabFromUrl && ['overview', 'vouchers', 'expenses', 'password', 'wallet', 'pin'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     } else {
       // If no tab in URL, default to overview (but don't add ?tab=overview to URL)
@@ -310,6 +330,63 @@ export default function Profile() {
     loadExpenseStatistics();
   }, [activeTab]);
 
+  // Load wallet data when wallet tab is active
+  useEffect(() => {
+    const loadWalletData = async () => {
+      if (activeTab === 'wallet') {
+        setLoadingWallet(true);
+        setWalletMessage({ type: '', text: '' });
+        try {
+          const wallet = await walletService.getWallet();
+          setWalletInfo(wallet);
+        } catch (err) {
+          console.error('Error loading wallet:', err);
+          setWalletMessage({ type: 'error', text: err.message || 'Không thể tải thông tin ví' });
+        } finally {
+          setLoadingWallet(false);
+        }
+      } else {
+        // Reset wallet data when switching tabs
+        setWalletInfo(null);
+      }
+    };
+    
+    if (activeTab === 'wallet') {
+      loadWalletData();
+    }
+  }, [activeTab]);
+
+  // Load PIN status when PIN tab is active
+  useEffect(() => {
+    const loadPinStatus = async () => {
+      if (activeTab === 'pin') {
+        setLoadingPinCheck(true);
+        setPinMessage({ type: '', text: '' });
+        try {
+          const status = await walletPinService.getPinStatus();
+          setHasPin(status.hasPin);
+          if (status.locked) {
+            setPinMessage({ 
+              type: 'error', 
+              text: `Mã PIN của bạn đang bị khóa do nhập sai quá nhiều lần. Vui lòng thử lại sau.` 
+            });
+          }
+        } catch (error) {
+          console.error('Error checking PIN status:', error);
+          setHasPin(false);
+        } finally {
+          setLoadingPinCheck(false);
+        }
+      } else {
+        setHasPin(null);
+      }
+    };
+    
+    if (activeTab === 'pin') {
+      loadPinStatus();
+    }
+  }, [activeTab]);
+
   // Handler to change tab and update URL
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -323,6 +400,134 @@ export default function Profile() {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('tab', tab);
       setSearchParams(newSearchParams, { replace: true });
+    }
+  };
+
+  // Handle wallet top-up
+  const handleTopUp = async (e) => {
+    e.preventDefault();
+    setWalletMessage({ type: '', text: '' });
+
+    const amount = Number(topUpAmount);
+    if (!amount || amount < 10000) {
+      setWalletMessage({ type: 'error', text: 'Số tiền nạp tối thiểu là 10.000đ' });
+      return;
+    }
+
+    try {
+      setTopUpLoading(true);
+
+      if (paymentMethod === 'MOMO') {
+        const response = await paymentService.createMomoPayment({
+          amount: amount,
+          orderDescription: `Nạp tiền vào ví Cinesmart - ${amount.toLocaleString('vi-VN')}đ`,
+          voucherId: null,
+          voucherCode: null,
+          showtimeId: null,
+          seatIds: [],
+          foodCombos: [],
+          cinemaComplexId: null
+        });
+
+        if (response.success && response.data?.paymentUrl) {
+          window.location.href = response.data.paymentUrl;
+        } else {
+          setWalletMessage({ type: 'error', text: response.message || 'Không thể tạo đơn thanh toán MoMo' });
+          setTopUpLoading(false);
+        }
+      } else if (paymentMethod === 'ZALOPAY') {
+        const orderId = `TOPUP-${Date.now()}`;
+        const description = `Nạp tiền vào ví Cinesmart - ${amount.toLocaleString('vi-VN')}đ`;
+
+        const response = await paymentService.createZaloPayOrder(
+          amount,
+          description,
+          orderId,
+          {
+            showtimeId: null,
+            seatIds: [],
+            foodCombos: [],
+            voucherCode: null,
+            cinemaComplexId: null
+          }
+        );
+
+        if (response.success && response.data?.payment_url) {
+          window.location.href = response.data.payment_url;
+        } else {
+          setWalletMessage({ type: 'error', text: response.error || response.message || 'Không thể tạo đơn thanh toán ZaloPay' });
+          setTopUpLoading(false);
+        }
+      }
+    } catch (err) {
+      console.error('Error creating top-up payment:', err);
+      setWalletMessage({ type: 'error', text: err.message || 'Nạp tiền thất bại' });
+      setTopUpLoading(false);
+    }
+  };
+
+  // Handle PIN submit
+  const handlePinSubmit = async (e) => {
+    e.preventDefault();
+    setPinMessage({ type: '', text: '' });
+
+    // Validate PIN format (6 digits)
+    const pinRegex = /^\d{6}$/;
+
+    try {
+      if (hasPin === true) {
+        // Update PIN
+        if (!pinForm.currentPin || !pinForm.newPin || !pinForm.confirmPin) {
+          setPinMessage({ type: 'error', text: 'Vui lòng điền đầy đủ thông tin' });
+          return;
+        }
+        if (!pinRegex.test(pinForm.currentPin) || !pinRegex.test(pinForm.newPin)) {
+          setPinMessage({ type: 'error', text: 'Mã PIN phải là 6 chữ số' });
+          return;
+        }
+        if (pinForm.newPin !== pinForm.confirmPin) {
+          setPinMessage({ type: 'error', text: 'Mã PIN mới và xác nhận không khớp' });
+          return;
+        }
+        if (pinForm.currentPin === pinForm.newPin) {
+          setPinMessage({ type: 'error', text: 'Mã PIN mới phải khác mã PIN cũ' });
+          return;
+        }
+        
+        await walletPinService.updatePin({
+          currentPin: pinForm.currentPin,
+          newPin: pinForm.newPin,
+          confirmPin: pinForm.confirmPin
+        });
+        
+        setPinMessage({ type: 'success', text: 'Đổi mã PIN thành công!' });
+        setPinForm({ currentPin: '', newPin: '', confirmPin: '' });
+      } else {
+        // Create PIN
+        if (!pinForm.newPin || !pinForm.confirmPin) {
+          setPinMessage({ type: 'error', text: 'Vui lòng điền đầy đủ thông tin' });
+          return;
+        }
+        if (!pinRegex.test(pinForm.newPin)) {
+          setPinMessage({ type: 'error', text: 'Mã PIN phải là 6 chữ số' });
+          return;
+        }
+        if (pinForm.newPin !== pinForm.confirmPin) {
+          setPinMessage({ type: 'error', text: 'Mã PIN và xác nhận không khớp' });
+          return;
+        }
+        
+        await walletPinService.createPin({
+          pin: pinForm.newPin,
+          confirmPin: pinForm.confirmPin
+        });
+        
+        setPinMessage({ type: 'success', text: 'Tạo mã PIN thành công!' });
+        setPinForm({ currentPin: '', newPin: '', confirmPin: '' });
+        setHasPin(true);
+      }
+    } catch (error) {
+      setPinMessage({ type: 'error', text: error.message || 'Có lỗi xảy ra' });
     }
   };
 
@@ -684,6 +889,18 @@ export default function Profile() {
                 Chi tiêu
               </button>
               <button
+                className={`profile-tab ${activeTab === 'wallet' ? 'profile-tab--active' : ''}`}
+                onClick={() => handleTabChange('wallet')}
+              >
+                Ví Cinesmart
+              </button>
+              <button
+                className={`profile-tab ${activeTab === 'pin' ? 'profile-tab--active' : ''}`}
+                onClick={() => handleTabChange('pin')}
+              >
+                Cài đặt PIN
+              </button>
+              <button
                 className={`profile-tab ${activeTab === 'password' ? 'profile-tab--active' : ''}`}
                 onClick={() => handleTabChange('password')}
               >
@@ -891,6 +1108,274 @@ export default function Profile() {
                       </div>
                     </>
                   )}
+                </div>
+              )}
+
+              {activeTab === 'wallet' && (
+                <div>
+                  <div className="profile-section">
+                    <h2 className="profile-section__title">Ví Cinesmart</h2>
+                    <p className="text-[#c9c4c5] mb-6">
+                      Quản lý số dư và thanh toán nhanh chóng, tiện lợi
+                    </p>
+
+                    {loadingWallet ? (
+                      <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
+                        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#ffd159] mb-5"></div>
+                        <p className="text-base m-0">Đang tải thông tin ví...</p>
+                      </div>
+                    ) : walletMessage.text && walletMessage.type === 'error' ? (
+                      <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-lg text-center">
+                        {walletMessage.text}
+                        <button
+                          onClick={() => {
+                            setActiveTab('wallet');
+                            const event = new Event('tabchange');
+                            window.dispatchEvent(event);
+                          }}
+                          className="block mx-auto mt-2 text-sm underline hover:text-red-400"
+                        >
+                          Thử lại
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="max-w-2xl mx-auto space-y-6">
+                        {/* Balance Card */}
+                        <div className="bg-gradient-to-br from-[#2d2627] to-[#1f191a] p-6 rounded-2xl border border-[#4a3f41] shadow-xl">
+                          <p className="text-[#c9c4c5] text-sm font-medium uppercase tracking-wider mb-1">Số dư khả dụng</p>
+                          <h2 className="text-4xl font-bold text-[#ffd159]">
+                            {formatCurrency(walletInfo?.balance)}
+                          </h2>
+                        </div>
+
+                        {/* Top Up Form */}
+                        <div className="bg-[#2d2627] p-6 rounded-2xl border border-[#4a3f41]">
+                          <h3 className="text-xl font-bold mb-4">Nạp tiền</h3>
+
+                          {walletMessage.text && (
+                            <div className={`mb-4 p-3 rounded-lg text-sm font-medium ${walletMessage.type === 'success'
+                                    ? 'bg-green-500/20 text-green-500 border border-green-500/30'
+                                    : 'bg-red-500/20 text-red-500 border border-red-500/30'
+                                }`}>
+                              {walletMessage.text}
+                            </div>
+                          )}
+
+                          <form onSubmit={handleTopUp} className="space-y-4">
+                            <div>
+                              <label className="block text-sm text-[#c9c4c5] mb-1">Số tiền cần nạp</label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  min="10000"
+                                  step="10000"
+                                  value={topUpAmount}
+                                  onChange={(e) => setTopUpAmount(e.target.value)}
+                                  className="w-full bg-[#1f191a] border border-[#4a3f41] rounded-lg px-4 py-3 text-white focus:border-[#e83b41] focus:outline-none transition-colors pl-4 pr-12"
+                                  placeholder="Nhập số tiền..."
+                                  required
+                                />
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#c9c4c5]">đ</span>
+                              </div>
+                              <p className="text-xs text-[#6b6264] mt-1">Tối thiểu 10.000đ</p>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm text-[#c9c4c5] mb-2">Phương thức thanh toán</label>
+                              <div className="grid grid-cols-2 gap-3">
+                                <label className={`cursor-pointer p-2 rounded-lg border-2 transition-all flex items-center gap-2 ${
+                                  paymentMethod === 'MOMO' 
+                                    ? 'border-[#e83b41] bg-[#e83b41]/10' 
+                                    : 'border-[#4a3f41] bg-[#1f191a] hover:border-[#6b6264]'
+                                }`}>
+                                  <input
+                                    type="radio"
+                                    name="paymentMethod"
+                                    value="MOMO"
+                                    checked={paymentMethod === 'MOMO'}
+                                    onChange={(e) => setPaymentMethod(e.target.value)}
+                                    className="hidden"
+                                  />
+                                  <img 
+                                    src="/momo.png" 
+                                    alt="MoMo" 
+                                    className="h-6 w-auto object-contain"
+                                  />
+                                  <span className="text-sm font-semibold text-white">MoMo</span>
+                                </label>
+                                <label className={`cursor-pointer p-2 rounded-lg border-2 transition-all flex items-center gap-2 ${
+                                  paymentMethod === 'ZALOPAY' 
+                                    ? 'border-[#e83b41] bg-[#e83b41]/10' 
+                                    : 'border-[#4a3f41] bg-[#1f191a] hover:border-[#6b6264]'
+                                }`}>
+                                  <input
+                                    type="radio"
+                                    name="paymentMethod"
+                                    value="ZALOPAY"
+                                    checked={paymentMethod === 'ZALOPAY'}
+                                    onChange={(e) => setPaymentMethod(e.target.value)}
+                                    className="hidden"
+                                  />
+                                  <img 
+                                    src="/zalopay.png" 
+                                    alt="ZaloPay" 
+                                    className="h-6 w-auto object-contain"
+                                  />
+                                  <span className="text-sm font-semibold text-white">ZaloPay</span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <button
+                              type="submit"
+                              disabled={topUpLoading}
+                              className="w-full bg-gradient-to-r from-[#e83b41] to-[#ff5258] text-white font-bold py-3 rounded-lg hover:shadow-lg hover:shadow-[#e83b41]/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                            >
+                              {topUpLoading ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                  Đang xử lý...
+                                </>
+                              ) : (
+                                `Nạp tiền bằng ${paymentMethod === 'MOMO' ? 'MoMo' : 'ZaloPay'}`
+                              )}
+                            </button>
+                          </form>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'pin' && (
+                <div>
+                  <div className="profile-section">
+                    <h2 className="profile-section__title">Cài đặt mã PIN</h2>
+                    <p className="text-[#c9c4c5] mb-6">
+                      Mã PIN giúp bảo vệ ví Cinesmart của bạn. Sử dụng mã PIN 6 chữ số để xác thực các giao dịch quan trọng.
+                    </p>
+                    
+                    {loadingPinCheck ? (
+                      <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
+                        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#ffd159] mb-5"></div>
+                        <p className="text-base m-0">Đang kiểm tra trạng thái PIN...</p>
+                      </div>
+                    ) : hasPin === null ? (
+                      <div className="text-center py-[60px] px-5 text-[#c9c4c5]">
+                        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#ffd159] mb-5"></div>
+                        <p className="text-base m-0">Đang kiểm tra trạng thái PIN...</p>
+                      </div>
+                    ) : (
+                      <div className="max-w-md mx-auto">
+                        {hasPin === false && (
+                          <div className="mb-6 p-4 bg-gradient-to-r from-[#ffd159]/10 to-[#ffd159]/5 border border-[#ffd159]/30 rounded-lg">
+                            <div className="flex items-start gap-3">
+                              <svg className="w-6 h-6 text-[#ffd159] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <div>
+                                <p className="text-[#ffd159] font-semibold mb-1">Bạn chưa có mã PIN</p>
+                                <p className="text-[#c9c4c5] text-sm">
+                                  Tạo mã PIN để bảo vệ ví Cinesmart của bạn. Mã PIN gồm 6 chữ số.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <form onSubmit={handlePinSubmit} className="space-y-6">
+                          {pinMessage.text && (
+                            <div className={`p-4 rounded-lg font-semibold ${
+                              pinMessage.type === 'success' 
+                                ? 'bg-green-500/20 border border-green-500/50 text-green-400' 
+                                : 'bg-red-500/20 border border-red-500/50 text-red-400'
+                            }`}>
+                              {pinMessage.text}
+                            </div>
+                          )}
+
+                          {hasPin === true && (
+                            <div>
+                              <label className="block text-sm font-semibold text-[#c9c4c5] mb-2">
+                                Mã PIN hiện tại
+                              </label>
+                              <input
+                                type="password"
+                                inputMode="numeric"
+                                maxLength={6}
+                                value={pinForm.currentPin}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                  setPinForm({ ...pinForm, currentPin: value });
+                                }}
+                                className="w-full px-4 py-3 bg-[#2d2627] border border-[#4a3f41] rounded-lg text-white placeholder-[#6b6264] focus:outline-none focus:border-[#e83b41] transition-colors text-center text-2xl tracking-widest"
+                                placeholder="000000"
+                                required
+                              />
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-sm font-semibold text-[#c9c4c5] mb-2">
+                              {hasPin === true ? 'Mã PIN mới' : 'Mã PIN'} <span className="text-[#6b6264] text-xs">(6 chữ số)</span>
+                            </label>
+                            <input
+                              type="password"
+                              inputMode="numeric"
+                              maxLength={6}
+                              value={pinForm.newPin}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                setPinForm({ ...pinForm, newPin: value });
+                              }}
+                              className="w-full px-4 py-3 bg-[#2d2627] border border-[#4a3f41] rounded-lg text-white placeholder-[#6b6264] focus:outline-none focus:border-[#e83b41] transition-colors text-center text-2xl tracking-widest"
+                              placeholder="000000"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-semibold text-[#c9c4c5] mb-2">
+                              Xác nhận {hasPin === true ? 'mã PIN mới' : 'mã PIN'}
+                            </label>
+                            <input
+                              type="password"
+                              inputMode="numeric"
+                              maxLength={6}
+                              value={pinForm.confirmPin}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                setPinForm({ ...pinForm, confirmPin: value });
+                              }}
+                              className="w-full px-4 py-3 bg-[#2d2627] border border-[#4a3f41] rounded-lg text-white placeholder-[#6b6264] focus:outline-none focus:border-[#e83b41] transition-colors text-center text-2xl tracking-widest"
+                              placeholder="000000"
+                              required
+                            />
+                          </div>
+
+                          <div className="flex justify-center pt-4">
+                            <button
+                              type="submit"
+                              className="btn btn--primary"
+                              style={{ 
+                                minWidth: '220px',
+                                padding: '14px 32px',
+                                textAlign: 'center',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '14px',
+                                fontWeight: '600'
+                              }}
+                            >
+                              {hasPin === true ? 'Đổi mã PIN' : 'Tạo mã PIN'}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

@@ -415,7 +415,7 @@ const PaymentSuccess = () => {
           {isSuccess && paymentInfo.isTopUp && (
             <button
               className="payment-success__button payment-success__button--primary"
-              onClick={() => navigate('/wallet')}
+              onClick={() => navigate('/profile?tab=wallet')}
             >
               <svg
                 width="20"

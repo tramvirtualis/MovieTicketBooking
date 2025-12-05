@@ -202,13 +202,11 @@ export default function AdminShowtimeView() {
     return dates;
   }, [currentDate]);
 
-  // Generate time slots (10:00 to 01:00 next day)
+  // Generate time slots (8:00 to 23:00)
   const timeSlots = useMemo(() => {
     const slots = [];
-    for (let hour = 10; hour <= 23; hour++) {
-      slots.push({ hour, minute: 0, label: `${String(hour).padStart(2, '0')}:00` });
-    }
-    for (let hour = 0; hour <= 1; hour++) {
+    // 8:00 to 23:00
+    for (let hour = 8; hour <= 23; hour++) {
       slots.push({ hour, minute: 0, label: `${String(hour).padStart(2, '0')}:00` });
     }
     return slots;
