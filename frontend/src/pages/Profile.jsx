@@ -1563,8 +1563,10 @@ export default function Profile() {
                     <input
                       type="email"
                       value={editData.email}
-                      onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                      readOnly
+                      style={{ cursor: 'not-allowed', backgroundColor: '#1a1415', opacity: 0.7 }}
                       placeholder="Nhập email"
+                      title="Email không thể thay đổi"
                     />
                   </div>
                   <div className="movie-form__group">

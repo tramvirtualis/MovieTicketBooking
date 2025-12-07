@@ -65,9 +65,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     // Methods from origin/nhan (for MoMo payment)
     Optional<Order> findByVnpTxnRef(String vnpTxnRef);
     
-    // Check if voucher has been used by user in any order
-    @Query("SELECT COUNT(o) > 0 FROM Order o WHERE o.user.userId = :userId AND o.voucher.voucherId = :voucherId")
+    // Check if voucher has been used by user in any order (excluding cancelled orders - can restore if order cancelled)
+    @Query("SELECT COUNT(o) > 0 FROM Order o WHERE o.user.userId = :userId AND o.voucher.voucherId = :voucherId AND o.status != 'CANCELLED'")
     boolean existsByUserUserIdAndVoucherVoucherId(@Param("userId") Long userId, @Param("voucherId") Long voucherId);
+    
+    // Check if voucher has ever been used by user in any order (including cancelled orders)
+    @Query("SELECT COUNT(o) > 0 FROM Order o WHERE o.user.userId = :userId AND o.voucher.voucherId = :voucherId")
+    boolean hasEverUsedVoucher(@Param("userId") Long userId, @Param("voucherId") Long voucherId);
     
     // Load order with all relations for email sending
     @Query("SELECT DISTINCT o FROM Order o " +
@@ -80,6 +84,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "LEFT JOIN FETCH cr.cinemaComplex cc " +
            "LEFT JOIN FETCH cc.address a " +
            "LEFT JOIN FETCH o.user u " +
+           "LEFT JOIN FETCH o.voucher v " +
            "WHERE o.orderId = :orderId")
     Optional<Order> findByIdWithDetails(@Param("orderId") Long orderId);
 

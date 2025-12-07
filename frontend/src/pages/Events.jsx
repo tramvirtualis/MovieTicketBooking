@@ -87,79 +87,100 @@ const getDaysUntilStart = (voucher) => {
 
 export default function Events() {
   const [vouchers, setVouchers] = useState([]);
-  const [savedVouchers, setSavedVouchers] = useState(new Set()); // Set of voucher IDs that user has saved
-  const [usedVouchers, setUsedVouchers] = useState(new Set()); // Set of voucher IDs that user has used
+  const [voucherStatus, setVoucherStatus] = useState(new Map()); // Map<voucherId, {hasVoucher: boolean, isUsed: boolean}>
   const [loading, setLoading] = useState(true);
   const [savingVoucherId, setSavingVoucherId] = useState(null);
 
   // Load public vouchers and user's saved vouchers
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        console.log('Events: Loading public vouchers...');
-        // Load public vouchers
-        const publicVouchers = await getPublicVouchers();
-        console.log('Events: Public vouchers loaded:', publicVouchers);
-        
-        // Load user's saved vouchers and check used vouchers if logged in
-        const token = localStorage.getItem('jwt');
-        let savedSet = new Set();
-        let usedSet = new Set();
-        if (token) {
-          try {
-            const savedResult = await customerVoucherService.getUserVouchers();
-            if (savedResult.success && savedResult.data) {
-              savedSet = new Set(savedResult.data.map(v => v.voucherId));
-              console.log('Events: Saved vouchers loaded:', savedSet.size);
-            }
-            
-            // Check which vouchers have been used
-            for (const voucher of publicVouchers) {
-              try {
-                const checkResult = await customerVoucherService.checkVoucher(voucher.voucherId);
-                if (checkResult.success && checkResult.isUsed) {
-                  usedSet.add(voucher.voucherId);
-                }
-              } catch (error) {
-                console.error(`Error checking voucher ${voucher.voucherId}:`, error);
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      console.log('Events: Loading public vouchers...');
+      // Load public vouchers
+      const publicVouchers = await getPublicVouchers();
+      console.log('Events: Public vouchers loaded:', publicVouchers);
+      
+      // Load user's saved vouchers and check used vouchers if logged in
+      const token = localStorage.getItem('jwt');
+      const statusMap = new Map();
+      if (token) {
+        try {
+          // Check status for each voucher directly from API
+          for (const voucher of publicVouchers) {
+            try {
+              const checkResult = await customerVoucherService.checkVoucher(voucher.voucherId);
+              if (checkResult.success) {
+                const voucherId = Number(voucher.voucherId);
+                statusMap.set(voucherId, {
+                  hasVoucher: checkResult.hasVoucher || false,
+                  isUsed: checkResult.isUsed || false
+                });
               }
+            } catch (error) {
+              console.error(`Error checking voucher ${voucher.voucherId}:`, error);
+              // Set default values if check fails
+              const voucherId = Number(voucher.voucherId);
+              statusMap.set(voucherId, {
+                hasVoucher: false,
+                isUsed: false
+              });
             }
-            console.log('Events: Used vouchers loaded:', usedSet.size);
-          } catch (error) {
-            console.error('Error loading saved vouchers:', error);
           }
+          console.log('Events: Voucher status loaded:', statusMap.size);
+        } catch (error) {
+          console.error('Error loading voucher status:', error);
         }
-
-        setSavedVouchers(savedSet);
-        setUsedVouchers(usedSet);
-
-        // Map vouchers with status and filter out expired ones
-        const mappedVouchers = publicVouchers
-          .map((voucher) => {
-            const status = getVoucherStatus(voucher);
-            const active = status === 'active';
-            return {
-              ...voucher,
-              active,
-              status, // 'upcoming', 'active', 'expired'
-              daysLeft: getDaysLeft(voucher),
-              daysUntilStart: getDaysUntilStart(voucher)
-            };
-          })
-          .filter((voucher) => voucher.status !== 'expired'); // Ẩn các voucher đã hết hạn
-
-        console.log('Events: Mapped vouchers:', mappedVouchers.length);
-        setVouchers(mappedVouchers);
-      } catch (error) {
-        console.error('Error loading vouchers:', error);
-        setVouchers([]);
-      } finally {
-        setLoading(false);
       }
-    };
 
+      setVoucherStatus(statusMap);
+
+      // Map vouchers with status and filter out expired ones
+      const mappedVouchers = publicVouchers
+        .map((voucher) => {
+          const status = getVoucherStatus(voucher);
+          const active = status === 'active';
+          return {
+            ...voucher,
+            active,
+            status, // 'upcoming', 'active', 'expired'
+            daysLeft: getDaysLeft(voucher),
+            daysUntilStart: getDaysUntilStart(voucher)
+          };
+        })
+        .filter((voucher) => voucher.status !== 'expired'); // Ẩn các voucher đã hết hạn
+
+      console.log('Events: Mapped vouchers:', mappedVouchers.length);
+      setVouchers(mappedVouchers);
+    } catch (error) {
+      console.error('Error loading vouchers:', error);
+      setVouchers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadData();
+    
+    // Reload voucher status when window gains focus (e.g., after canceling order)
+    const handleFocus = () => {
+      console.log('Events: Window focused, reloading voucher status...');
+      loadData();
+    };
+    
+    // Listen for custom event when order is cancelled
+    const handleOrderCancelled = () => {
+      console.log('Events: Order cancelled, reloading voucher status...');
+      loadData();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('orderCancelled', handleOrderCancelled);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('orderCancelled', handleOrderCancelled);
+    };
   }, []);
 
   const handleSave = async (voucherId) => {
@@ -170,7 +191,9 @@ export default function Events() {
       return;
     }
 
-    if (savedVouchers.has(voucherId)) {
+    // Check current status
+    const currentStatus = voucherStatus.get(Number(voucherId));
+    if (currentStatus && currentStatus.hasVoucher) {
       return; // Already saved
     }
 
@@ -181,15 +204,21 @@ export default function Events() {
       console.log('Events: Save result:', result);
       
       if (result.success) {
-        setSavedVouchers(prev => new Set([...prev, voucherId]));
-        // Reload saved vouchers to ensure consistency
+        // Reload voucher status to ensure consistency
         try {
-          const savedResult = await customerVoucherService.getUserVouchers();
-          if (savedResult.success && savedResult.data) {
-            setSavedVouchers(new Set(savedResult.data.map(v => v.voucherId)));
+          const checkResult = await customerVoucherService.checkVoucher(voucherId);
+          if (checkResult.success) {
+            setVoucherStatus(prev => {
+              const newMap = new Map(prev);
+              newMap.set(Number(voucherId), {
+                hasVoucher: checkResult.hasVoucher || false,
+                isUsed: checkResult.isUsed || false
+              });
+              return newMap;
+            });
           }
         } catch (reloadError) {
-          console.error('Error reloading saved vouchers:', reloadError);
+          console.error('Error reloading voucher status:', reloadError);
         }
       } else {
         const errorMsg = result.error || 'Không thể lưu voucher';
@@ -234,8 +263,10 @@ export default function Events() {
             </div>
           ) : (
             vouchers.map((voucher) => {
-              const isSaved = savedVouchers.has(voucher.voucherId);
-              const isUsed = usedVouchers.has(voucher.voucherId);
+              const voucherId = Number(voucher.voucherId);
+              const status = voucherStatus.get(voucherId) || { hasVoucher: false, isUsed: false };
+              const isSaved = status.hasVoucher;
+              const isUsed = status.isUsed;
               const isSaving = savingVoucherId === voucher.voucherId;
               
               return (
@@ -286,10 +317,17 @@ export default function Events() {
                       </div>
                       <button
                         className={`btn ${isSaved || isUsed ? 'btn--ghost' : 'btn--primary'}`}
-                        disabled={!voucher.active || isSaved || isUsed || isSaving}
-                        onClick={() => handleSave(voucher.voucherId)}
+                        disabled={isSaved || isUsed || isSaving || !voucher.active}
+                        onClick={(e) => {
+                          if (isSaved || isUsed || !voucher.active) {
+                            e.preventDefault();
+                            return;
+                          }
+                          handleSave(voucher.voucherId);
+                        }}
+                        style={(isSaved || isUsed || !voucher.active) ? { cursor: 'not-allowed', opacity: 0.6 } : {}}
                       >
-                        {isSaving ? 'Đang lưu...' : isUsed ? 'Đã sử dụng' : isSaved ? 'Đã lưu voucher' : 'Lưu voucher'}
+                        {isSaving ? 'Đang lưu...' : isSaved ? 'Đã lưu voucher' : isUsed ? 'Đã sử dụng' : 'Lưu voucher'}
                       </button>
                     </footer>
                   </div>

@@ -169,6 +169,21 @@
 			<artifactId>javase</artifactId>
 			<version>3.5.2</version>
 		</dependency>
+	
+
+		<!-- Twilio for SMS OTP - using latest version compatible with Spring Boot 3 -->
+		<dependency>
+			<groupId>com.twilio.sdk</groupId>
+			<artifactId>twilio</artifactId>
+			<version>10.6.4</version>
+		</dependency>
+
+		<!-- Force compatible Apache HttpClient version for Twilio and Cloudinary -->
+		<dependency>
+			<groupId>org.apache.httpcomponents</groupId>
+			<artifactId>httpclient</artifactId>
+			<version>4.5.14</version>
+		</dependency>
 	</dependencies>
 
 	<build>

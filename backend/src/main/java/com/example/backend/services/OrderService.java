@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,7 @@ import com.example.backend.dtos.OrderResponseDTO;
 import com.example.backend.dtos.PriceDTO;
 import com.example.backend.entities.CinemaComplex;
 import com.example.backend.entities.CinemaRoom;
+import com.example.backend.entities.Customer;
 import com.example.backend.entities.FoodCombo;
 import com.example.backend.entities.Movie;
 import com.example.backend.entities.MovieVersion;
@@ -33,7 +35,9 @@ import com.example.backend.entities.WalletTransaction;
 import com.example.backend.entities.enums.OrderStatus;
 import com.example.backend.entities.enums.PaymentMethod;
 import com.example.backend.entities.enums.SeatType;
+import com.example.backend.repositories.CustomerRepository;
 import com.example.backend.repositories.OrderRepository;
+import com.example.backend.services.NotificationService;
 
 import org.kie.api.runtime.KieContainer;
 import org.kie.api.runtime.KieSession;
@@ -54,8 +58,9 @@ public class OrderService {
     private final MomoService momoService;
     private final WalletService walletService;
     private final KieContainer kieContainer;
-    // private final NotificationService notificationService; // Tránh circular dep
-    // nếu notificationService cần OrderService
+    private final com.example.backend.repositories.CustomerRepository customerRepository;
+    @Lazy
+    private final NotificationService notificationService; // Dùng @Lazy để tránh circular dependency
 
     // ==================== Methods from HEAD (for getting orders)
     // ====================
@@ -357,6 +362,63 @@ public class OrderService {
         order.setRefundedToWallet(Boolean.TRUE);
         orderRepository.save(order);
 
+        // Gửi thông báo hủy đơn thành công
+        try {
+            String refundAmountStr = refundAmount.setScale(0, java.math.RoundingMode.HALF_UP).toPlainString() + " VND";
+            notificationService.notifyOrderCancelled(userId, order.getOrderId(), refundAmountStr);
+        } catch (Exception e) {
+            // Log error but don't fail the cancellation
+            log.error("Error sending cancellation notification for order {}: {}", order.getOrderId(), e.getMessage());
+        }
+
+        // Restore voucher to customer's saved list if order had a voucher
+        if (order.getVoucher() != null && order.getUser() != null && order.getUser() instanceof Customer) {
+            try {
+                Customer customer = (Customer) order.getUser();
+                Long voucherId = order.getVoucher().getVoucherId();
+                
+                log.info("Attempting to restore voucher {} for customer {} after order {} cancellation", 
+                        voucherId, customer.getUserId(), order.getOrderId());
+                
+                // Load customer with vouchers
+                Optional<Customer> customerOpt = customerRepository.findByIdWithVouchers(customer.getUserId());
+                if (customerOpt.isPresent()) {
+                    Customer customerWithVouchers = customerOpt.get();
+                    if (customerWithVouchers.getVouchers() == null) {
+                        customerWithVouchers.setVouchers(new java.util.ArrayList<>());
+                    }
+                    
+                    // Check if voucher is already in the list
+                    boolean alreadyExists = customerWithVouchers.getVouchers().stream()
+                            .anyMatch(v -> v.getVoucherId().equals(voucherId));
+                    
+                    // Only restore if not already in list (was removed when payment succeeded)
+                    if (!alreadyExists) {
+                        customerWithVouchers.getVouchers().add(order.getVoucher());
+                        customerRepository.save(customerWithVouchers);
+                        log.info("Successfully restored voucher {} to customer {} after order {} cancellation", 
+                                voucherId, customer.getUserId(), order.getOrderId());
+                    } else {
+                        log.info("Voucher {} already exists in customer {} saved list, skipping restore", 
+                                voucherId, customer.getUserId());
+                    }
+                } else {
+                    log.warn("Customer {} not found when trying to restore voucher {}", customer.getUserId(), voucherId);
+                }
+            } catch (Exception e) {
+                // Log error but don't fail the cancellation
+                log.error("Error restoring voucher for cancelled order {}: {}", order.getOrderId(), e.getMessage(), e);
+            }
+        } else {
+            if (order.getVoucher() == null) {
+                log.debug("Order {} has no voucher, skipping restore", order.getOrderId());
+            } else if (order.getUser() == null) {
+                log.warn("Order {} has no user, cannot restore voucher", order.getOrderId());
+            } else if (!(order.getUser() instanceof Customer)) {
+                log.warn("Order {} user is not a Customer, cannot restore voucher", order.getOrderId());
+            }
+        }
+
         int used = (int) (cancellationsThisMonth + 1);
 
         return CancelOrderResponseDTO.builder()
@@ -532,15 +594,9 @@ public class OrderService {
 
         System.out.println("DEBUG: Total orders found for user " + userId + ": " + orders.size());
 
-        // Chỉ tính các orders đã thanh toán thành công (có vnpPayDate) và chưa bị hủy
+        // Chỉ tính các orders đã thanh toán thành công (có vnpPayDate)
         List<Order> paidOrders = orders.stream()
                 .filter(order -> {
-                    // Loại trừ các orders đã hủy
-                    if (order.getStatus() == OrderStatus.CANCELLED) {
-                        System.out.println("DEBUG: Order " + order.getOrderId() + " is cancelled, skipping");
-                        return false;
-                    }
-                    // Chỉ tính các orders đã thanh toán thành công (có vnpPayDate)
                     boolean isPaid = order.getVnpPayDate() != null;
                     if (!isPaid) {
                         System.out.println("DEBUG: Order " + order.getOrderId() + " not paid (vnpPayDate is null)");

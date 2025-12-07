@@ -189,10 +189,27 @@ const NotificationBell = () => {
         }, 5000);
       };
       
+      // Listen for order cancelled event to reload notifications
+      const handleOrderCancelled = () => {
+        console.log('Order cancelled event received, reloading notifications...');
+        
+        // Reload ngay lập tức (có thể notification đã được tạo qua WebSocket)
+        loadNotifications();
+        playNotificationSound();
+        
+        // Reload lại sau 1 giây để đảm bảo notification đã được tạo
+        setTimeout(() => {
+          console.log('Reloading notifications after order cancellation...');
+          loadNotifications();
+        }, 1000);
+      };
+      
       window.addEventListener('paymentSuccess', handlePaymentSuccess);
+      window.addEventListener('orderCancelled', handleOrderCancelled);
       
       return () => {
         window.removeEventListener('paymentSuccess', handlePaymentSuccess);
+        window.removeEventListener('orderCancelled', handleOrderCancelled);
         websocketService.disconnect();
         // Cleanup audio context
         if (audioContextRef.current) {

@@ -218,6 +218,9 @@ export default function Orders() {
       await cancelOrder(orderToCancel.rawOrderId, reason);
       setFeedbackMessage({ type: 'success', text: 'Đơn hàng đã được hủy thành công và hoàn tiền vào Ví Cinesmart.' });
       await loadOrders();
+      
+      // Dispatch custom event to notify other pages (e.g., Events page, NotificationBell) to reload
+      window.dispatchEvent(new CustomEvent('orderCancelled', { detail: { orderId: orderToCancel.rawOrderId } }));
     } catch (err) {
       setFeedbackMessage({ type: 'error', text: err.message || 'Không thể hủy đơn hàng. Vui lòng thử lại.' });
     } finally {

@@ -238,7 +238,7 @@ export default function Home() {
               Đang tải phim...
             </div>
           ) : comingSoon.length > 0 ? (
-            <CardsGrid items={comingSoon} isNowShowing={true} onPlayTrailer={handlePlayTrailer} />
+            <CardsGrid items={comingSoon} isNowShowing={false} onPlayTrailer={handlePlayTrailer} />
           ) : (
             <div style={{ padding: '40px', textAlign: 'center', color: '#e6e1e2' }}>
               Hiện chưa có phim sắp chiếu

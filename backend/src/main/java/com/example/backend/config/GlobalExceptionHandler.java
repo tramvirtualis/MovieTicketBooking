@@ -33,10 +33,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDeniedException(AccessDeniedException ex) {
+        System.out.println("GlobalExceptionHandler: AccessDeniedException - " + ex.getMessage());
+        ex.printStackTrace();
+        
         Map<String, Object> response = new HashMap<>();
         response.put("success", false);
-        response.put("message", "Bạn không có quyền truy cập tài nguyên này");
+        response.put("message", "Bạn không có quyền truy cập tài nguyên này. Vui lòng đăng nhập lại.");
         response.put("error", "Access denied");
+        response.put("details", ex.getMessage());
         
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }

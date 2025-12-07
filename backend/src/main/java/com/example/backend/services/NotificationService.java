@@ -316,6 +316,63 @@ public class NotificationService {
     }
     
     /**
+     * Gửi thông báo hủy đơn hàng thành công
+     */
+    @Transactional
+    public synchronized void notifyOrderCancelled(Long userId, Long orderId, String refundAmount) {
+        log.info("notifyOrderCancelled called for order {} and user {}", orderId, userId);
+        
+        // Kiểm tra xem đã có notification cho order cancellation này chưa (tránh duplicate)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+        
+        List<Notification> allNotifications = notificationRepository.findByUserOrderByTimestampDesc(user);
+        
+        boolean hasCancellationNotification = allNotifications.stream()
+            .filter(n -> n.getType().equals("ORDER_CANCELLED"))
+            .anyMatch(n -> {
+                if (n.getMessage() != null) {
+                    String message = n.getMessage();
+                    String orderIdStr = orderId.toString();
+                    if (message.contains("#" + orderId) || message.contains("#" + orderIdStr)) {
+                        log.info("Found existing cancellation notification for order {}", orderId);
+                        return true;
+                    }
+                }
+                if (n.getData() != null && !n.getData().isEmpty()) {
+                    String dataStr = n.getData();
+                    String orderIdStr = orderId.toString();
+                    if (dataStr.contains(orderIdStr)) {
+                        log.info("Found existing cancellation notification in data for order {}", orderId);
+                        return true;
+                    }
+                }
+                return false;
+            });
+        
+        if (hasCancellationNotification) {
+            log.info("Cancellation notification already exists for order {} and user {}. Skipping creation.", orderId, userId);
+            return;
+        }
+        
+        log.info("Creating NEW cancellation notification for order {} and user {}", orderId, userId);
+        
+        // Tạo notification mới
+        String title = "Hủy đơn hàng thành công";
+        String message = "Bạn đã hủy đơn hàng #" + orderId + " thành công. Số tiền " + refundAmount + " đã được hoàn vào Ví Cinesmart.";
+        
+        NotificationDTO notification = NotificationDTO.builder()
+                .type("ORDER_CANCELLED")
+                .title(title)
+                .message(message)
+                .timestamp(LocalDateTime.now().toString())
+                .data(java.util.Map.of("orderId", orderId, "refundAmount", refundAmount))
+                .build();
+        sendNotificationToUser(userId, notification);
+        log.info("Cancellation notification created and sent for order {} and user {}", orderId, userId);
+    }
+    
+    /**
      * Gửi thông báo nạp tiền vào ví thành công
      */
     @Transactional

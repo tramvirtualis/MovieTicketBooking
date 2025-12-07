@@ -173,18 +173,28 @@ public class CustomerService {
             throw new RuntimeException("Voucher này không phải voucher công khai");
         }
 
-        // Kiểm tra xem voucher đã được sử dụng trong Order chưa
-        boolean voucherUsed = orderRepository.existsByUserUserIdAndVoucherVoucherId(userId, voucherId);
-        if (voucherUsed) {
-            throw new RuntimeException("Voucher này đã được sử dụng và không thể lưu lại");
-        }
-        
         // Kiểm tra xem voucher đã được lưu chưa (kiểm tra bằng voucherId thay vì object)
         boolean alreadyExists = customer.getVouchers().stream()
                 .anyMatch(v -> v.getVoucherId().equals(voucherId));
         
         if (alreadyExists) {
             throw new RuntimeException("Voucher này đã được lưu");
+        }
+        
+        // Kiểm tra xem voucher đã từng được sử dụng chưa (kể cả CANCELLED)
+        // Nếu đã từng sử dụng, chỉ cho phép lưu lại nếu đã được lưu trước đó (đã được restore)
+        boolean hasEverUsed = orderRepository.hasEverUsedVoucher(userId, voucherId);
+        if (hasEverUsed) {
+            // Nếu đã từng sử dụng nhưng chưa được lưu, không cho lưu lại
+            // (Nếu đã được lưu trước đó, nó sẽ được restore khi hủy đơn, nên sẽ có trong list)
+            throw new RuntimeException("Voucher này đã được sử dụng và không thể lưu lại");
+        }
+        
+        // Kiểm tra xem voucher đã được sử dụng trong Order chưa (không tính CANCELLED)
+        // Nếu đơn đã bị hủy (CANCELLED), voucher được hoàn về và có thể lưu lại nếu đã được lưu trước đó
+        boolean voucherUsed = orderRepository.existsByUserUserIdAndVoucherVoucherId(userId, voucherId);
+        if (voucherUsed) {
+            throw new RuntimeException("Voucher này đã được sử dụng và không thể lưu lại");
         }
 
         // Add voucher to customer's list
@@ -225,6 +235,34 @@ public class CustomerService {
                 .collect(Collectors.toList())
         );
         customerRepository.save(customer);
+    }
+
+    /**
+     * Restore voucher to customer's saved list when order is cancelled
+     * Only restore if voucher was previously saved (used in a cancelled order)
+     */
+    @Transactional
+    public void restoreVoucher(Long userId, Long voucherId) {
+        Customer customer = customerRepository.findByIdWithVouchers(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + userId));
+
+        Voucher voucher = voucherRepository.findById(voucherId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy voucher với ID: " + voucherId));
+
+        // Initialize vouchers list if null
+        if (customer.getVouchers() == null) {
+            customer.setVouchers(new ArrayList<>());
+        }
+
+        // Kiểm tra xem voucher đã được lưu chưa
+        boolean alreadyExists = customer.getVouchers().stream()
+                .anyMatch(v -> v.getVoucherId().equals(voucherId));
+
+        // Chỉ restore nếu chưa có trong list (đã bị xóa khi thanh toán)
+        if (!alreadyExists) {
+            customer.getVouchers().add(voucher);
+            customerRepository.save(customer);
+        }
     }
 
     @Transactional(readOnly = true)

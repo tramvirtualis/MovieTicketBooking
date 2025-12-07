@@ -236,7 +236,7 @@ export default function SearchResults() {
               <Section id="coming-soon" title={`Phim Sắp Chiếu (${filteredComingSoon.length})`}>
                 <CardsGrid 
                   items={filteredComingSoon} 
-                  isNowShowing={true} 
+                  isNowShowing={false} 
                   onPlayTrailer={handlePlayTrailer} 
                 />
               </Section>
