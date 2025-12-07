@@ -1,9 +1,8 @@
 import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:8080/api/public/schedule';
+import { API_BASE_URL } from '../config/api';
 
 const axiosInstance = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: `${API_BASE_URL}/public/schedule`,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
