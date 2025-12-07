@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { bannerService } from '../../services/bannerService';
 import cloudinaryService from '../../services/cloudinaryService';
 import ConfirmDeleteModal from '../Common/ConfirmDeleteModal';
@@ -25,6 +25,10 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [filterActive, setFilterActive] = useState('ALL'); // ALL, ACTIVE, INACTIVE
   const [togglingBannerId, setTogglingBannerId] = useState(null);
+  const [draggedBannerId, setDraggedBannerId] = useState(null);
+  const [dragOverBannerId, setDragOverBannerId] = useState(null);
+  const [updatingOrder, setUpdatingOrder] = useState(false);
+  const modalBodyRef = useRef(null);
 
   // Notification component
   const showNotification = (message, type = 'success') => {
@@ -33,6 +37,15 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
       setNotification(null);
     }, 3000);
   };
+
+  // Scroll to form when editing banner
+  useEffect(() => {
+    if (showModal && editingBanner && modalBodyRef.current) {
+      setTimeout(() => {
+        modalBodyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    }
+  }, [showModal, editingBanner]);
 
   // Load banners from API on mount
   useEffect(() => {
@@ -138,15 +151,6 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
     
     if (name === 'imageFile' && files && files.length > 0) {
       onUploadImage(files[0]);
-    } else if (name === 'displayOrder') {
-      // Xử lý displayOrder: cho phép để trống hoặc số nguyên >= 0
-      const numValue = value === '' ? null : parseInt(value);
-      if (value === '' || (!isNaN(numValue) && numValue >= 0)) {
-        setFormData({ ...formData, [name]: numValue });
-        if (validationErrors[name]) {
-          setValidationErrors({ ...validationErrors, [name]: null });
-        }
-      }
     } else {
       setFormData({ ...formData, [name]: value });
       // Clear validation error when user types
@@ -186,9 +190,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
       const bannerData = {
         name: formData.name.trim(),
         image: formData.image.trim(),
-        displayOrder: formData.displayOrder !== null && formData.displayOrder !== undefined 
-          ? parseInt(formData.displayOrder) 
-          : null
+        displayOrder: null // Tự động gán khi lưu
       };
 
       let result;
@@ -247,6 +249,13 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
     setImagePreview(banner.image || '');
     setValidationErrors({});
     setShowModal(true);
+    
+    // Scroll xuống form sau khi modal mở
+    setTimeout(() => {
+      if (modalBodyRef.current) {
+        modalBodyRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   };
 
   // Handle delete
@@ -308,20 +317,150 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
   // Handle add new
   const handleAddNew = () => {
     setEditingBanner(null);
-    // Tính displayOrder mặc định (max + 1)
-    const maxOrder = banners.length > 0 
-      ? Math.max(...banners.map(b => b.displayOrder || 0))
-      : -1;
     setFormData({
       name: '',
       image: '',
       imageFile: null,
-      displayOrder: maxOrder + 1
+      displayOrder: null
     });
     setImagePreview('');
     setValidationErrors({});
     setError(null);
     setShowModal(true);
+  };
+
+  // Handle drag start
+  const handleDragStart = (e, bannerId) => {
+    setDraggedBannerId(bannerId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.target.outerHTML);
+    e.target.style.opacity = '0.5';
+  };
+
+  // Handle drag over
+  const handleDragOver = (e, bannerId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (bannerId !== draggedBannerId) {
+      setDragOverBannerId(bannerId);
+    }
+  };
+
+  // Handle drag leave
+  const handleDragLeave = () => {
+    setDragOverBannerId(null);
+  };
+
+  // Sort banners by displayOrder before filtering
+  const sortedBanners = [...banners].sort((a, b) => {
+    const orderA = a.displayOrder !== undefined ? a.displayOrder : 999;
+    const orderB = b.displayOrder !== undefined ? b.displayOrder : 999;
+    return orderA - orderB;
+  });
+
+  // Filter banners
+  const filteredBanners = sortedBanners.filter(banner => {
+    if (filterActive === 'ACTIVE') return banner.isActive === true;
+    if (filterActive === 'INACTIVE') return banner.isActive === false;
+    return true; // ALL
+  });
+
+  // Handle drop
+  const handleDrop = async (e, targetBannerId) => {
+    e.preventDefault();
+    setDragOverBannerId(null);
+    
+    if (!draggedBannerId || draggedBannerId === targetBannerId) {
+      setDraggedBannerId(null);
+      return;
+    }
+
+    const draggedBanner = banners.find(b => b.id === draggedBannerId);
+    const targetBanner = banners.find(b => b.id === targetBannerId);
+    
+    if (!draggedBanner || !targetBanner) {
+      setDraggedBannerId(null);
+      return;
+    }
+
+    // Tìm index của banner được kéo và banner đích trong filteredBanners
+    const draggedIndex = filteredBanners.findIndex(b => b.id === draggedBannerId);
+    const targetIndex = filteredBanners.findIndex(b => b.id === targetBannerId);
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedBannerId(null);
+      return;
+    }
+
+    // Tạo mảng mới với thứ tự đã thay đổi (dựa trên filteredBanners)
+    const newFilteredBanners = [...filteredBanners];
+    const [removed] = newFilteredBanners.splice(draggedIndex, 1);
+    newFilteredBanners.splice(targetIndex, 0, removed);
+
+    // Tạo map để cập nhật displayOrder cho các banners đã được sắp xếp lại
+    // Sử dụng index trong filteredBanners làm displayOrder mới
+    const orderMap = new Map();
+    newFilteredBanners.forEach((banner, index) => {
+      orderMap.set(banner.id, index);
+    });
+
+    // Cập nhật displayOrder cho tất cả banners
+    // Các banners trong filteredBanners sẽ có displayOrder mới theo index
+    // Các banners không trong filter sẽ giữ nguyên displayOrder cũ
+    setUpdatingOrder(true);
+    try {
+      const updatePromises = [];
+      
+      // Cập nhật displayOrder cho các banners trong filteredBanners
+      newFilteredBanners.forEach((banner, index) => {
+        const newOrder = index;
+        const oldBanner = sortedBanners.find(b => b.id === banner.id);
+        if (oldBanner && oldBanner.displayOrder !== newOrder) {
+          updatePromises.push(
+            bannerService.updateBanner(banner.id, {
+              name: banner.name,
+              image: banner.image,
+              isActive: banner.isActive,
+              displayOrder: newOrder
+            })
+          );
+        }
+      });
+
+      if (updatePromises.length > 0) {
+        await Promise.all(updatePromises);
+      }
+
+      // Reload banners
+      const reloadResult = await bannerService.getAllBanners();
+      if (reloadResult.success) {
+        const mappedBanners = (reloadResult.data || []).map(banner => ({
+          id: banner.id,
+          name: banner.name || '',
+          image: banner.image || '',
+          isActive: banner.isActive !== undefined ? banner.isActive : true,
+          displayOrder: banner.displayOrder !== undefined ? banner.displayOrder : 0
+        }));
+        setBanners(mappedBanners);
+        if (onBannersChange) {
+          onBannersChange(mappedBanners);
+        }
+        showNotification('Cập nhật thứ tự banner thành công', 'success');
+      }
+    } catch (err) {
+      console.error('Error updating banner order:', err);
+      showNotification(err.message || 'Không thể cập nhật thứ tự banner', 'error');
+    } finally {
+      setUpdatingOrder(false);
+      setDraggedBannerId(null);
+    }
+  };
+
+  // Handle drag end
+  const handleDragEnd = (e) => {
+    e.target.style.opacity = '1';
+    setDraggedBannerId(null);
+    setDragOverBannerId(null);
   };
 
   // Handle toggle active
@@ -356,13 +495,6 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
       setTogglingBannerId(null);
     }
   };
-
-  // Filter banners
-  const filteredBanners = banners.filter(banner => {
-    if (filterActive === 'ACTIVE') return banner.isActive === true;
-    if (filterActive === 'INACTIVE') return banner.isActive === false;
-    return true; // ALL
-  });
 
   return (
     <div className="banner-management">
@@ -505,10 +637,24 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
           ) : (
             <div className="banner-grid">
               {filteredBanners.map((banner) => (
-                <div key={banner.id} className="banner-card" style={{
-                  opacity: banner.isActive ? 1 : 0.6,
-                  position: 'relative'
-                }}>
+                <div 
+                  key={banner.id} 
+                  className="banner-card" 
+                  draggable={!updatingOrder}
+                  onDragStart={(e) => handleDragStart(e, banner.id)}
+                  onDragOver={(e) => handleDragOver(e, banner.id)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, banner.id)}
+                  onDragEnd={handleDragEnd}
+                  style={{
+                    opacity: banner.isActive ? (draggedBannerId === banner.id ? 0.5 : 1) : 0.6,
+                    position: 'relative',
+                    cursor: updatingOrder ? 'wait' : 'move',
+                    border: dragOverBannerId === banner.id ? '2px solid #ffd159' : '1px solid transparent',
+                    transition: 'border 0.2s ease, opacity 0.2s ease',
+                    transform: dragOverBannerId === banner.id ? 'scale(1.02)' : 'scale(1)'
+                  }}
+                >
                   {!banner.isActive && (
                     <div style={{
                       position: 'absolute',
@@ -532,11 +678,33 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
                     </div>
                   )}
                   <div className="banner-card__image-wrapper">
+                    <div style={{
+                      position: 'absolute',
+                      top: '8px',
+                      left: '8px',
+                      background: 'rgba(0, 0, 0, 0.7)',
+                      color: '#ffd159',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      zIndex: 11,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      pointerEvents: 'none'
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 12h18M12 3v18"/>
+                      </svg>
+                      Kéo để sắp xếp
+                    </div>
                     <img 
                       src={banner.image || '/placeholder-banner.jpg'} 
                       alt={`Banner ${banner.id}`}
                       className="banner-card__image"
                       onError={(e) => { e.target.src = '/placeholder-banner.jpg'; }}
+                      draggable={false}
                     />
                     <div className="banner-card__overlay">
                       <button
@@ -544,7 +712,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
                         onClick={() => handleEdit(banner)}
                         title="Chỉnh sửa"
                       >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                         </svg>
@@ -554,7 +722,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
                         onClick={() => setDeleteConfirm(banner.id)}
                         title="Xóa"
                       >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <polyline points="3 6 5 6 21 6"/>
                           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                           <line x1="10" y1="11" x2="10" y2="17"/>
@@ -649,7 +817,7 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
               </button>
             </div>
 
-            <div className="banner-modal__body">
+            <div className="banner-modal__body" ref={modalBodyRef}>
               {/* Name Input */}
               <div className="banner-form-group">
                 <label className="banner-form-label">
@@ -676,39 +844,6 @@ function BannerManagement({ banners: initialBannersList, onBannersChange }) {
                 />
                 {validationErrors.name && (
                   <div className="banner-form-error">{validationErrors.name}</div>
-                )}
-              </div>
-
-              {/* Display Order Input */}
-              <div className="banner-form-group">
-                <label className="banner-form-label">
-                  Thứ tự hiển thị
-                </label>
-                <input
-                  type="number"
-                  name="displayOrder"
-                  value={formData.displayOrder !== null && formData.displayOrder !== undefined ? formData.displayOrder : ''}
-                  onChange={handleChange}
-                  placeholder="Tự động gán nếu để trống"
-                  min="0"
-                  className="banner-form-input"
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: `1px solid ${validationErrors.displayOrder ? '#ff5757' : 'rgba(255,255,255,0.1)'}`,
-                    borderRadius: '8px',
-                    backgroundColor: 'rgba(20, 15, 16, 0.5)',
-                    color: '#fff',
-                    fontSize: '14px',
-                    outline: 'none',
-                    transition: 'border-color 0.3s ease'
-                  }}
-                />
-                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
-                  Số nhỏ hơn sẽ hiển thị trước. Để trống sẽ tự động gán thứ tự tiếp theo.
-                </div>
-                {validationErrors.displayOrder && (
-                  <div className="banner-form-error">{validationErrors.displayOrder}</div>
                 )}
               </div>
 

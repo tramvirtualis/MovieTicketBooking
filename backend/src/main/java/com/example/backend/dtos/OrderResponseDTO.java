@@ -40,5 +40,8 @@ public class OrderResponseDTO {
     private Integer monthlyCancellationLimit;
     private Integer monthlyCancellationUsed;
     private Integer monthlyCancellationRemaining;
+    
+    // Top-up flag
+    private Boolean isTopUp;
 }
 

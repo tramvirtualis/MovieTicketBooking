@@ -266,6 +266,7 @@ public class OrderService {
         dto.setRefundAmount(order.getRefundAmount());
         dto.setCancellationReason(order.getCancellationReason());
         dto.setRefundedToWallet(order.getRefundedToWallet());
+        dto.setIsTopUp(order.getIsTopUp());
         return dto;
     }
 

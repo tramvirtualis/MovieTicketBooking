@@ -81,8 +81,10 @@ function ManagerReports({ orders: initialOrders, movies, cinemas, managerComplex
                 totalAmount: parseFloat(order.totalAmount) || totalAmount,
                 combos: order.combos || [],
                 orderDate: order.orderDate || order.createdAt || new Date().toISOString(),
-                status: 'PAID', // All orders in DB are successful
-                paymentMethod: order.paymentMethod || 'UNKNOWN'
+                status: order.status || 'PAID',
+                paymentMethod: order.paymentMethod || 'UNKNOWN',
+                isTopUp: order.isTopUp || false,
+                refundAmount: order.refundAmount || 0
               });
             });
           } else if (hasCombos) {
@@ -118,8 +120,10 @@ function ManagerReports({ orders: initialOrders, movies, cinemas, managerComplex
               totalAmount: parseFloat(order.totalAmount) || comboTotal,
               combos: order.combos || [],
               orderDate: order.orderDate || order.createdAt || new Date().toISOString(),
-              status: 'PAID',
-              paymentMethod: order.paymentMethod || 'UNKNOWN'
+              status: order.status || 'PAID',
+              paymentMethod: order.paymentMethod || 'UNKNOWN',
+              isTopUp: order.isTopUp || false,
+              refundAmount: order.refundAmount || 0
             });
           }
         });
@@ -308,9 +312,19 @@ function ManagerReports({ orders: initialOrders, movies, cinemas, managerComplex
     }
     
     const filtered = scopedOrders.filter(order => {
+      // Filter by payment method: chỉ tính VNPAY, MOMO, ZALOPAY (không tính WALLET trừ khi là top-up)
+      const paymentMethod = order.paymentMethod?.toUpperCase();
+      const isTopUp = order.isTopUp === true;
+      const isWalletPayment = paymentMethod === 'WALLET';
+      
+      // Nếu là thanh toán bằng ví và không phải top-up, không tính
+      if (isWalletPayment && !isTopUp) {
+        return false;
+      }
+      
       // Backend đã filter orders theo complexId và chỉ trả về orders đã thanh toán
       // Nên không cần check status nữa, nhưng để an toàn vẫn check
-      if (order.status !== 'PAID') {
+      if (order.status !== 'PAID' && order.status !== 'CANCELLED') {
         if (scopedOrders.indexOf(order) < 3) {
           console.log(`ManagerReports: Order ${order.bookingId} filtered out: status=${order.status}`);
         }
@@ -378,8 +392,14 @@ function ManagerReports({ orders: initialOrders, movies, cinemas, managerComplex
     filteredOrders.forEach(order => {
       const orderId = order.orderId || order.bookingId;
       if (!uniqueOrders.has(orderId)) {
+        // Tính doanh thu: nếu order bị CANCELLED, trừ đi refundAmount
+        let netAmount = order.totalAmount || 0;
+        if (order.status === 'CANCELLED' && order.refundAmount) {
+          netAmount = netAmount - (parseFloat(order.refundAmount) || 0);
+        }
+        
         uniqueOrders.set(orderId, {
-          totalAmount: order.totalAmount || 0,
+          totalAmount: netAmount,
           ticketCount: order.seats?.length || 0,
           orderType: order.orderType,
           comboAmount: order.comboAmount || 0,
@@ -432,7 +452,19 @@ function ManagerReports({ orders: initialOrders, movies, cinemas, managerComplex
         movieRevenue[movieId] = { movieId, title: movieTitle, revenue: 0, tickets: 0 };
       }
       // CHỈ tính doanh thu từ vé phim (ticketAmount), KHÔNG tính doanh thu từ đồ ăn
-      movieRevenue[movieId].revenue += order.ticketAmount || 0;
+      // Nếu order bị CANCELLED, trừ đi refundAmount tương ứng với ticketAmount
+      let ticketRevenue = order.ticketAmount || 0;
+      if (order.status === 'CANCELLED' && order.refundAmount) {
+        // Tính tỷ lệ refund cho ticketAmount (nếu có comboAmount, chỉ refund phần ticket)
+        const totalAmount = order.totalAmount || 0;
+        if (totalAmount > 0) {
+          const ticketRatio = ticketRevenue / totalAmount;
+          ticketRevenue = ticketRevenue - (parseFloat(order.refundAmount) || 0) * ticketRatio;
+        } else {
+          ticketRevenue = ticketRevenue - (parseFloat(order.refundAmount) || 0);
+        }
+      }
+      movieRevenue[movieId].revenue += Math.max(0, ticketRevenue);
       movieRevenue[movieId].tickets += order.seats?.length || 0;
     });
     return Object.values(movieRevenue).sort((a, b) => b.revenue - a.revenue);

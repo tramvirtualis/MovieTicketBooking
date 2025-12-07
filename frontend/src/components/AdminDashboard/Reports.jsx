@@ -83,8 +83,10 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
                 totalAmount: parseFloat(order.totalAmount) || totalAmount,
                 combos: order.combos || [], // Store combos for food revenue calculation
                 orderDate: order.orderDate || order.createdAt || new Date().toISOString(), // Store order date
-                status: 'PAID', // All orders in DB are successful
-                paymentMethod: order.paymentMethod || 'UNKNOWN'
+                status: order.status || 'PAID', // Use status from backend
+                paymentMethod: order.paymentMethod || 'UNKNOWN',
+                isTopUp: order.isTopUp || false,
+                refundAmount: order.refundAmount || 0
               });
             });
           } else if (hasCombos) {
@@ -118,8 +120,10 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
               totalAmount: parseFloat(order.totalAmount) || comboTotal,
               combos: order.combos || [],
               orderDate: order.orderDate || order.createdAt || new Date().toISOString(),
-              status: 'PAID',
-              paymentMethod: order.paymentMethod || 'UNKNOWN'
+              status: order.status || 'PAID',
+              paymentMethod: order.paymentMethod || 'UNKNOWN',
+              isTopUp: order.isTopUp || false,
+              refundAmount: order.refundAmount || 0
             });
           }
         });
@@ -204,8 +208,18 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
   // Filter orders based on filters
   const filteredOrders = useMemo(() => {
     return (orders || []).filter(order => {
-      // All orders from backend are already paid (filtered by backend)
-      // So we don't need to check status here
+      // Filter by payment method: chỉ tính VNPAY, MOMO, ZALOPAY (không tính WALLET trừ khi là top-up)
+      const paymentMethod = order.paymentMethod?.toUpperCase();
+      const isTopUp = order.isTopUp === true;
+      const isWalletPayment = paymentMethod === 'WALLET';
+      
+      // Nếu là thanh toán bằng ví và không phải top-up, không tính
+      if (isWalletPayment && !isTopUp) {
+        return false;
+      }
+      
+      // Tính các orders thanh toán bằng VNPAY, MOMO, ZALOPAY
+      // Và các orders top-up (nạp tiền vào ví)
       
       // Use orderDate if available, otherwise use showtime
       const orderDate = order.orderDate ? new Date(order.orderDate) : new Date(order.showtime);
@@ -231,8 +245,14 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
     filteredOrders.forEach(order => {
       const orderId = order.orderId || order.bookingId;
       if (!uniqueOrders.has(orderId)) {
+        // Tính doanh thu: nếu order bị CANCELLED, trừ đi refundAmount
+        let netAmount = order.totalAmount || 0;
+        if (order.status === 'CANCELLED' && order.refundAmount) {
+          netAmount = netAmount - (parseFloat(order.refundAmount) || 0);
+        }
+        
         uniqueOrders.set(orderId, {
-          totalAmount: order.totalAmount || 0,
+          totalAmount: netAmount,
           ticketCount: order.seats?.length || 0
         });
       } else {
@@ -265,7 +285,19 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
         movieRevenue[movieId] = { movieId, title: movieTitle, revenue: 0, tickets: 0 };
       }
       // CHỈ tính doanh thu từ vé phim (ticketAmount), KHÔNG tính doanh thu từ đồ ăn
-      movieRevenue[movieId].revenue += order.ticketAmount || 0;
+      // Nếu order bị CANCELLED, trừ đi refundAmount tương ứng với ticketAmount
+      let ticketRevenue = order.ticketAmount || 0;
+      if (order.status === 'CANCELLED' && order.refundAmount) {
+        // Tính tỷ lệ refund cho ticketAmount (nếu có comboAmount, chỉ refund phần ticket)
+        const totalAmount = order.totalAmount || 0;
+        if (totalAmount > 0) {
+          const ticketRatio = ticketRevenue / totalAmount;
+          ticketRevenue = ticketRevenue - (parseFloat(order.refundAmount) || 0) * ticketRatio;
+        } else {
+          ticketRevenue = ticketRevenue - (parseFloat(order.refundAmount) || 0);
+        }
+      }
+      movieRevenue[movieId].revenue += Math.max(0, ticketRevenue);
       movieRevenue[movieId].tickets += order.seats?.length || 0;
     });
     return Object.values(movieRevenue).sort((a, b) => b.revenue - a.revenue);
@@ -295,10 +327,16 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
       // Only process each order once per cinema
       // If already exists, add tickets (since one order can have multiple showtimes)
       if (!uniqueOrdersByCinema[key]) {
+        // Tính doanh thu: nếu order bị CANCELLED, trừ đi refundAmount
+        let netAmount = order.totalAmount || 0;
+        if (order.status === 'CANCELLED' && order.refundAmount) {
+          netAmount = netAmount - (parseFloat(order.refundAmount) || 0);
+        }
+        
         uniqueOrdersByCinema[key] = {
           cinemaId: Number(cinemaId),
           orderId: orderId,
-          totalAmount: order.totalAmount || 0,
+          totalAmount: netAmount,
           ticketCount: order.seats?.length || 0,
           cinemaName: order.cinemaName
         };
@@ -325,6 +363,7 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
       }
       
       // Sum up revenue and tickets for this cinema
+      // Note: refundAmount đã được xử lý ở uniqueOrdersByCinema
       cinemaRevenue[cinemaId].revenue += order.totalAmount || 0;
       cinemaRevenue[cinemaId].tickets += order.ticketCount || 0;
     });
@@ -373,8 +412,13 @@ function Reports({ orders: initialOrders, movies, cinemas, vouchers, users }) {
         }
         // Only count each order once per day
         if (!ordersByDate[dateStr][orderId]) {
-          ordersByDate[dateStr][orderId] = order.totalAmount || 0;
-          daily[dateStr].revenue += order.totalAmount || 0;
+          // Tính doanh thu: nếu order bị CANCELLED, trừ đi refundAmount
+          let netAmount = order.totalAmount || 0;
+          if (order.status === 'CANCELLED' && order.refundAmount) {
+            netAmount = netAmount - (parseFloat(order.refundAmount) || 0);
+          }
+          ordersByDate[dateStr][orderId] = netAmount;
+          daily[dateStr].revenue += netAmount;
         }
       }
     });
