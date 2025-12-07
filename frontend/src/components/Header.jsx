@@ -248,7 +248,7 @@ export default function Header({ children }) {
           {user && <NotificationBell />}
 
           {user ? (
-            <div className="user-menu" ref={userDropdownRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="user-menu" ref={userDropdownRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
               {/* Hiển thị username */}
               <span style={{ color: '#fff', fontWeight: 600, fontSize: '14px' }}>{user.username}</span>
 
@@ -263,25 +263,26 @@ export default function Header({ children }) {
                 </span>
               )}
 
-              {/* Avatar */}
-              <button
-                className="user-avatar"
-                onClick={() => setShowUserDropdown(!showUserDropdown)}
-                aria-label="User menu"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  padding: 0,
-                  cursor: 'pointer',
-                  borderRadius: '50%',
-                  overflow: 'hidden',
-                  width: '32px',
-                  height: '32px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'transform 200ms ease'
-                }}
+              {/* Avatar với thông báo bị chặn bên dưới */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                <button
+                  className="user-avatar"
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  aria-label="User menu"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'transform 200ms ease'
+                  }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'scale(1.1)';
                 }}
@@ -308,7 +309,21 @@ export default function Header({ children }) {
                     <path d="M8 26c0-4.418 3.582-8 8-8s8 3.582 8 8" fill="#e6e1e2" />
                   </svg>
                 )}
-              </button>
+                </button>
+                
+                {/* Thông báo tài khoản bị chặn */}
+                {user.status === false && (
+                  <span style={{
+                    color: '#ff5757',
+                    fontSize: '10px',
+                    fontWeight: 500,
+                    fontStyle: 'italic',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    (Đã bị chặn)
+                  </span>
+                )}
+              </div>
 
               {/* Dropdown menu */}
               {showUserDropdown && (

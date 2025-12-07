@@ -12,10 +12,11 @@
 
 .nav { 
   display: flex; 
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center; 
-  gap: 12px; 
-  padding: 8px 0; 
+  gap: 20px; 
+  padding: 12px 0;
+  overflow: visible;
 }
 .logo { 
   font-family: 'Montserrat', sans-serif; 
@@ -78,10 +79,11 @@
 }
 .menu { 
   display: flex; 
-  gap: 14px; 
-  flex: 1; 
+  gap: 16px; 
+  flex: 0 0 auto; 
   align-items: center; 
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 .menu a { 
   color: #e6e1e2; 
@@ -92,14 +94,22 @@
   white-space: nowrap;
 }
 .menu a:hover { color: #ffd159; }
-.menu-dropdown { position: relative; }
+.menu-dropdown { 
+  position: relative; 
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.menu-link {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 
 /* Header Search Bar */
 .header-search {
   flex: 1;
   min-width: 200px;
-  max-width: 280px;
-  margin: 0 12px;
+  max-width: 400px;
+  margin: 0 20px;
   display: flex;
   align-items: center;
   order: 3;
@@ -164,14 +174,18 @@
 }
 .actions { 
   display: flex; 
-  gap: 8px; 
+  gap: 16px; 
   align-items: center; 
   flex-shrink: 0;
   margin-left: auto;
 }
 
 /* User Menu */
-.user-menu { position: relative; }
+.user-menu { 
+  position: relative; 
+  overflow: visible;
+  z-index: 100;
+}
 .user-avatar {
   background: transparent;
   border: none;
@@ -211,7 +225,7 @@
   padding: 8px 0;
   min-width: 220px;
   box-shadow: 0 8px 24px rgba(107, 42, 122, 0.5), inset 0 1px 0 rgba(255,255,255,0.1);
-  z-index: 200;
+  z-index: 1000;
   border: 1px solid rgba(255,255,255,0.08);
   animation: dropdownFadeIn 0.3s ease-out;
 }
@@ -256,6 +270,17 @@
   height: 1px;
   background: rgba(255,255,255,0.08);
   margin: 6px 0;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.02);
+  }
 }
 
 @media (max-width: 1024px) {

@@ -102,6 +102,11 @@ public class PaymentController {
             // Lấy user hiện tại
             User user = getCurrentUser().orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
             
+            // Kiểm tra user có bị chặn không
+            if (Boolean.FALSE.equals(user.getStatus())) {
+                return ResponseEntity.badRequest().body(createErrorResponse("Tài khoản của bạn đã bị chặn. Vui lòng liên hệ quản trị viên để được hỗ trợ.", null));
+            }
+            
             // Xử lý amount - có thể là Integer, Long, Double, hoặc String
             Object amountObj = request.get("amount");
             BigDecimal totalAmount;
@@ -732,6 +737,11 @@ public class PaymentController {
 
         try {
             User user = getCurrentUser().orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
+            
+            // Kiểm tra user có bị chặn không
+            if (Boolean.FALSE.equals(user.getStatus())) {
+                return ResponseEntity.badRequest().body(createErrorResponse("Tài khoản của bạn đã bị chặn. Vui lòng liên hệ quản trị viên để được hỗ trợ.", null));
+            }
 
             // Parse booking info
             Long showtimeId = request.getShowtimeId();
@@ -1404,6 +1414,11 @@ public class PaymentController {
             } catch (Exception e) {
                 System.out.println("Error parsing token: " + e.getMessage());
             }
+        }
+        
+        // Kiểm tra user có bị chặn không
+        if (user != null && Boolean.FALSE.equals(user.getStatus())) {
+            return ResponseEntity.badRequest().body(createErrorResponse("Tài khoản của bạn đã bị chặn. Vui lòng liên hệ quản trị viên để được hỗ trợ.", null));
         }
         
         if (user == null) {

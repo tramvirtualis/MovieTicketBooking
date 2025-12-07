@@ -53,13 +53,19 @@ export default function SignIn() {
   };
 
   const handleLoginSuccess = (userData, source = 'PASSWORD') => {
-    showMessage('success', 'Đăng nhập thành công!');
+    // Kiểm tra nếu user bị chặn
+    if (userData?.status === false) {
+      showMessage('warning', 'Tài khoản của bạn đã bị chặn. Bạn vẫn có thể đăng nhập nhưng không thể mua hàng. Vui lòng liên hệ quản trị viên để được hỗ trợ.');
+    } else {
+      showMessage('success', 'Đăng nhập thành công!');
+    }
 
     console.log(`=== LOGIN DEBUG (${source}) ===`);
     console.log('Full login response data:', userData);
     console.log('User role (raw):', userData?.role);
     console.log('User role type:', typeof userData?.role);
     console.log('User role value:', JSON.stringify(userData?.role));
+    console.log('User status:', userData?.status);
 
     setTimeout(() => {
       const role = (userData?.role || '').toString().toUpperCase().trim();

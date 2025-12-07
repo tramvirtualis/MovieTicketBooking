@@ -360,9 +360,8 @@ public class AuthService {
             throw new Exception("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
-        if (Boolean.FALSE.equals(user.getStatus())) {
-            throw new Exception("Tài khoản của bạn đã bị chặn. Vui lòng liên hệ quản trị viên.");
-        }
+        // Không chặn đăng nhập nếu user bị blocked, nhưng sẽ lưu status để frontend hiển thị
+        // User bị blocked vẫn có thể đăng nhập nhưng không thể mua hàng
 
         String role = "";
         String name = null;

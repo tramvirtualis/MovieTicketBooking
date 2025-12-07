@@ -58,6 +58,11 @@ public class OrderCreationService {
         }
         User user = userOpt.get();
         
+        // Kiểm tra user có bị chặn không
+        if (Boolean.FALSE.equals(user.getStatus())) {
+            throw new IllegalStateException("Tài khoản của bạn đã bị chặn. Vui lòng liên hệ quản trị viên để được hỗ trợ.");
+        }
+        
         // 2. Lấy Showtime (chỉ khi có showtimeId)
         Showtime showtime = null;
         CinemaRoom room = null;
