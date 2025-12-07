@@ -595,26 +595,55 @@ public class OrderService {
         System.out.println("DEBUG: Total orders found for user " + userId + ": " + orders.size());
 
         // Chỉ tính các orders đã thanh toán thành công (có vnpPayDate)
+        // Và chỉ tính orders thanh toán bằng VNPAY, MOMO, ZALOPAY (không tính WALLET)
+        // Bao gồm cả orders nạp tiền vào ví (isTopUp = true)
         List<Order> paidOrders = orders.stream()
                 .filter(order -> {
                     boolean isPaid = order.getVnpPayDate() != null;
                     if (!isPaid) {
                         System.out.println("DEBUG: Order " + order.getOrderId() + " not paid (vnpPayDate is null)");
+                        return false;
                     }
-                    return isPaid;
+                    
+                    // Chỉ tính orders thanh toán bằng VNPAY, MOMO, ZALOPAY (không tính WALLET)
+                    // Trừ khi là top-up order (nạp tiền vào ví)
+                    PaymentMethod paymentMethod = order.getPaymentMethod();
+                    boolean isWalletPayment = paymentMethod == PaymentMethod.WALLET;
+                    boolean isTopUp = Boolean.TRUE.equals(order.getIsTopUp());
+                    
+                    // Nếu là thanh toán bằng ví và không phải top-up, không tính
+                    if (isWalletPayment && !isTopUp) {
+                        System.out.println("DEBUG: Order " + order.getOrderId() + " paid by WALLET (not top-up), excluding from expenses");
+                        return false;
+                    }
+                    
+                    // Tính các orders thanh toán bằng VNPAY, MOMO, ZALOPAY
+                    // Và các orders top-up (nạp tiền vào ví)
+                    return true;
                 })
                 .collect(Collectors.toList());
 
-        System.out.println("DEBUG: Paid orders count: " + paidOrders.size());
+        System.out.println("DEBUG: Paid orders count (excluding wallet payments): " + paidOrders.size());
 
         // Tính tổng chi tiêu
+        // Nếu order bị CANCELLED, trừ đi refundAmount
         BigDecimal totalSpent = paidOrders.stream()
                 .map(order -> {
                     BigDecimal amount = order.getTotalAmount();
+                    if (amount == null) {
+                        return BigDecimal.ZERO;
+                    }
+                    
+                    // Nếu order bị hủy, trừ đi số tiền đã hoàn
+                    if (order.getStatus() == OrderStatus.CANCELLED && order.getRefundAmount() != null) {
+                        BigDecimal netAmount = amount.subtract(order.getRefundAmount());
+                        System.out.println("DEBUG: Order " + order.getOrderId() + " was cancelled. Amount: " + amount + ", Refund: " + order.getRefundAmount() + ", Net: " + netAmount);
+                        return netAmount;
+                    }
+                    
                     System.out.println("DEBUG: Order " + order.getOrderId() + " amount: " + amount);
                     return amount;
                 })
-                .filter(amount -> amount != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         System.out.println("DEBUG: Total spent: " + totalSpent);
@@ -654,8 +683,17 @@ public class OrderService {
                     LocalDate orderDate = order.getOrderDate().toLocalDate();
                     return !orderDate.isBefore(currentMonthStart) && !orderDate.isAfter(currentMonthEnd);
                 })
-                .map(Order::getTotalAmount)
-                .filter(amount -> amount != null)
+                .map(order -> {
+                    BigDecimal amount = order.getTotalAmount();
+                    if (amount == null) {
+                        return BigDecimal.ZERO;
+                    }
+                    // Nếu order bị hủy, trừ đi số tiền đã hoàn
+                    if (order.getStatus() == OrderStatus.CANCELLED && order.getRefundAmount() != null) {
+                        return amount.subtract(order.getRefundAmount());
+                    }
+                    return amount;
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal lastMonthSpent = paidOrders.stream()
@@ -665,8 +703,17 @@ public class OrderService {
                     LocalDate orderDate = order.getOrderDate().toLocalDate();
                     return !orderDate.isBefore(lastMonthStart) && !orderDate.isAfter(lastMonthEnd);
                 })
-                .map(Order::getTotalAmount)
-                .filter(amount -> amount != null)
+                .map(order -> {
+                    BigDecimal amount = order.getTotalAmount();
+                    if (amount == null) {
+                        return BigDecimal.ZERO;
+                    }
+                    // Nếu order bị hủy, trừ đi số tiền đã hoàn
+                    if (order.getStatus() == OrderStatus.CANCELLED && order.getRefundAmount() != null) {
+                        return amount.subtract(order.getRefundAmount());
+                    }
+                    return amount;
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal lastThreeMonthsSpent = paidOrders.stream()
@@ -676,8 +723,17 @@ public class OrderService {
                     LocalDate orderDate = order.getOrderDate().toLocalDate();
                     return !orderDate.isBefore(threeMonthsAgoStart);
                 })
-                .map(Order::getTotalAmount)
-                .filter(amount -> amount != null)
+                .map(order -> {
+                    BigDecimal amount = order.getTotalAmount();
+                    if (amount == null) {
+                        return BigDecimal.ZERO;
+                    }
+                    // Nếu order bị hủy, trừ đi số tiền đã hoàn
+                    if (order.getStatus() == OrderStatus.CANCELLED && order.getRefundAmount() != null) {
+                        return amount.subtract(order.getRefundAmount());
+                    }
+                    return amount;
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Đếm tổng số đơn hàng đã thanh toán

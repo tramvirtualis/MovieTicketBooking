@@ -21,8 +21,55 @@
 
 .movie-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+/* Giảm kích thước movie-card trong admin */
+.movie-grid .movie-card {
+  max-width: 100%;
+}
+
+.movie-grid .movie-card__content {
+  padding: 12px;
+}
+
+.movie-grid .movie-card__title {
+  font-size: 15px;
+  margin: 0 0 8px 0;
+}
+
+.movie-grid .movie-card__meta {
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.movie-grid .movie-card__genre,
+.movie-grid .movie-card__rating,
+.movie-grid .movie-card__duration {
+  padding: 3px 8px;
+  font-size: 10px;
+}
+
+.movie-grid .movie-card__director {
+  font-size: 11px;
+}
+
+.movie-grid .movie-card__status {
+  top: 8px;
+  right: 8px;
+  padding: 4px 10px;
+  font-size: 10px;
+}
+
+.movie-grid .movie-card__action {
+  width: 36px;
+  height: 36px;
+}
+
+.movie-grid .movie-card__action svg {
+  width: 16px;
+  height: 16px;
 }
 
 @media (max-width: 768px) {
@@ -36,8 +83,8 @@
   }
 
   .movie-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
   }
 }
 
