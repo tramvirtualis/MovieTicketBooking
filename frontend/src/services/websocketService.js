@@ -23,8 +23,11 @@ class WebSocketService {
     this.onNotificationCallback = onNotification;
 
     // Create SockJS connection
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
-    const socket = new SockJS(wsUrl);
+    // SockJS requires HTTP/HTTPS URL, not ws:// URL
+    const wsUrl = import.meta.env.VITE_WS_URL || 'http://localhost:8080/ws';
+    // Convert ws:// to http:// if needed
+    const httpUrl = wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://');
+    const socket = new SockJS(httpUrl);
     
     // Create STOMP client
     this.client = new Client({
@@ -251,8 +254,11 @@ class WebSocketService {
     }
 
     // Create SockJS connection
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
-    const socket = new SockJS(wsUrl);
+    // SockJS requires HTTP/HTTPS URL, not ws:// URL
+    const wsUrl = import.meta.env.VITE_WS_URL || 'http://localhost:8080/ws';
+    // Convert ws:// to http:// if needed
+    const httpUrl = wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://');
+    const socket = new SockJS(httpUrl);
     
     // Create STOMP client
     this.client = new Client({

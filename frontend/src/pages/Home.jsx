@@ -9,6 +9,7 @@ import { Section, CardsGrid, PromosGrid } from '../components/SectionGrid.jsx';
 import { enumService } from '../services/enumService';
 import { bannerService } from '../services/bannerService';
 import { voucherService } from '../services/voucherService';
+import { API_BASE_URL } from '../config/api';
 import interstellar from '../assets/images/interstellar.jpg';
 import inception from '../assets/images/inception.jpg';
 import darkKnightRises from '../assets/images/the-dark-knight-rises.jpg';
@@ -186,8 +187,8 @@ export default function Home() {
         
         // Fetch phim đang chiếu và phim sắp chiếu song song
         const [nowShowingRes, comingSoonRes] = await Promise.all([
-          axios.get('http://localhost:8080/api/public/movies/now-showing'),
-          axios.get('http://localhost:8080/api/public/movies/coming-soon')
+          axios.get(`${API_BASE_URL}/public/movies/now-showing`),
+          axios.get(`${API_BASE_URL}/public/movies/coming-soon`)
         ]);
         
         setNowShowing(nowShowingRes.data.map(formatMovieData));
