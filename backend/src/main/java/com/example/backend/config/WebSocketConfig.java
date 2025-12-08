@@ -21,8 +21,17 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // Register the /ws endpoint, enabling SockJS fallback options
+        // Đọc từ environment variable, fallback về localhost
+        String allowedOrigins = System.getenv("ALLOWED_ORIGINS");
+        String[] origins;
+        if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
+            origins = allowedOrigins.split(",");
+        } else {
+            origins = new String[]{"http://localhost:5173", "http://localhost:3000"};
+        }
+        
         registry.addEndpoint("/ws")
-                .setAllowedOrigins("http://localhost:5173", "http://localhost:3000")
+                .setAllowedOrigins(origins)
                 .withSockJS();
     }
 }
