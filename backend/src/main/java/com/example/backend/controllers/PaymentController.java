@@ -1237,7 +1237,11 @@ public class PaymentController {
         }
         
         // Redirect về /payment/success với các params cần thiết
-        String redirectUrl = "http://localhost:5173/payment/success";
+        String frontendUrl = System.getenv("FRONTEND_URL");
+        if (frontendUrl == null || frontendUrl.isEmpty()) {
+            frontendUrl = "http://localhost:5173"; // Fallback cho local dev
+        }
+        String redirectUrl = frontendUrl + "/payment/success";
         StringBuilder queryParams = new StringBuilder();
         
         if (orderId != null && !orderId.isEmpty()) {

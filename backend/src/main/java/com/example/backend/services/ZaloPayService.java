@@ -76,7 +76,11 @@ public class ZaloPayService {
             // 3. Tạo embed_data (JSON string) nếu chưa có
             if (embedDataStr == null || embedDataStr.isEmpty()) {
                 Map<String, Object> embedData = new HashMap<>();
-                embedData.put("redirecturl", "http://localhost:5173/payment/success");
+                String frontendUrl = System.getenv("FRONTEND_URL");
+                if (frontendUrl == null || frontendUrl.isEmpty()) {
+                    frontendUrl = "http://localhost:5173"; // Fallback cho local dev
+                }
+                embedData.put("redirecturl", frontendUrl + "/payment/success");
                 embedDataStr = objectMapper.writeValueAsString(embedData);
             }
 
