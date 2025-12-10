@@ -561,8 +561,15 @@ public class PaymentController {
                                         }
                                     }
                                 } catch (Exception e) {
-                                    System.err.println("Error sending notification/email: " + e.getMessage());
+                                    System.err.println("PaymentController - ERROR sending notification/email for Order ID: " + order.getOrderId());
+                                    System.err.println("PaymentController - Error type: " + e.getClass().getName());
+                                    System.err.println("PaymentController - Error message: " + e.getMessage());
                                     e.printStackTrace();
+                                    // Log full stack trace
+                                    StackTraceElement[] stackTrace = e.getStackTrace();
+                                    for (int i = 0; i < Math.min(stackTrace.length, 10); i++) {
+                                        System.err.println("PaymentController - Stack[" + i + "]: " + stackTrace[i]);
+                                    }
                                     // Không fail callback nếu notification lỗi
                                 }
                             }
@@ -675,7 +682,9 @@ public class PaymentController {
                                 }
                             }
                         } catch (Exception e) {
-                            System.err.println("Error sending notification/email in status check: " + e.getMessage());
+                            System.err.println("PaymentController - ERROR sending notification/email in status check for Order ID: " + order.getOrderId());
+                            System.err.println("PaymentController - Error type: " + e.getClass().getName());
+                            System.err.println("PaymentController - Error message: " + e.getMessage());
                             e.printStackTrace();
                         }
                         
@@ -1113,7 +1122,9 @@ public class PaymentController {
                         }
                     }
                 } catch (Exception e) {
-                    System.err.println("Error sending notification: " + e.getMessage());
+                    System.err.println("PaymentController - ERROR sending notification/email in MoMo IPN for Order ID: " + order.getOrderId());
+                    System.err.println("PaymentController - Error type: " + e.getClass().getName());
+                    System.err.println("PaymentController - Error message: " + e.getMessage());
                     e.printStackTrace();
                     // Không fail IPN nếu notification lỗi
                 }
@@ -1222,7 +1233,10 @@ public class PaymentController {
                                     );
                                     emailService.sendBookingConfirmationEmail(fullOrder);
                                 } catch (Exception e) {
-                                    System.err.println("MoMo Redirect - Error sending notification/email: " + e.getMessage());
+                                    System.err.println("PaymentController - ERROR sending notification/email in MoMo Redirect for Order ID: " + fullOrder.getOrderId());
+                                    System.err.println("PaymentController - Error type: " + e.getClass().getName());
+                                    System.err.println("PaymentController - Error message: " + e.getMessage());
+                                    e.printStackTrace();
                                 }
                             }
                         }
@@ -1681,7 +1695,9 @@ public class PaymentController {
                     emailService.sendBookingConfirmationEmail(orderWithDetails.get());
                 }
             } catch (Exception e) {
-                log.error("Error sending notification/email: {}", e.getMessage());
+                log.error("PaymentController - ERROR sending notification/email for Order ID: {}", order.getOrderId());
+                log.error("PaymentController - Error type: {}", e.getClass().getName());
+                log.error("PaymentController - Error message: {}", e.getMessage(), e);
                 // Không fail payment nếu notification lỗi
             }
 

@@ -9,6 +9,7 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
+import jakarta.annotation.PostConstruct;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,6 +35,22 @@ public class EmailService {
     
     @Value("${spring.mail.username}")
     private String fromEmail;
+    
+    @Value("${spring.mail.host:}")
+    private String mailHost;
+    
+    @Value("${spring.mail.port:}")
+    private String mailPort;
+    
+    @PostConstruct
+    public void init() {
+        System.out.println("=== EmailService Configuration ===");
+        System.out.println("Mail Host: " + (mailHost != null && !mailHost.isEmpty() ? mailHost : "NOT SET"));
+        System.out.println("Mail Port: " + (mailPort != null && !mailPort.isEmpty() ? mailPort : "NOT SET"));
+        System.out.println("From Email: " + (fromEmail != null && !fromEmail.isEmpty() ? fromEmail : "NOT SET"));
+        System.out.println("Mail Sender: " + (mailSender != null ? "INITIALIZED" : "NULL"));
+        System.out.println("================================");
+    }
     
     /**
      * Gửi OTP cho đăng ký tài khoản
@@ -162,18 +179,28 @@ public class EmailService {
             boolean hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
             boolean hasCombos = order.getOrderCombos() != null && !order.getOrderCombos().isEmpty();
             
+            System.out.println("EmailService - Order ID: " + order.getOrderId() + 
+                             ", hasTickets: " + hasTickets + ", hasCombos: " + hasCombos);
+            
             if (!hasTickets && !hasCombos) {
+                System.out.println("EmailService - Order " + order.getOrderId() + 
+                                 " has no tickets and no combos, skipping email");
                 return; // Không có vé cũng không có đồ ăn, không gửi
             }
             
             if (order.getUser() == null) {
+                System.out.println("EmailService - Order " + order.getOrderId() + " has no user, skipping email");
                 return;
             }
             
             String toEmail = order.getUser().getEmail();
             if (toEmail == null || toEmail.isEmpty()) {
+                System.out.println("EmailService - Order " + order.getOrderId() + 
+                                 " user has no email, skipping email");
                 return;
             }
+            
+            System.out.println("EmailService - Sending email to: " + toEmail + " for Order ID: " + order.getOrderId());
             
             // Nếu có tickets, xử lý thông tin vé
             List<BookingInfo> bookingInfoList = new ArrayList<>();
@@ -340,9 +367,20 @@ public class EmailService {
             }
             
             mailSender.send(message);
+            System.out.println("EmailService - Email sent successfully to " + toEmail + 
+                             " for Order ID: " + order.getOrderId());
         } catch (Exception e) {
-            System.err.println("Error sending email: " + e.getMessage());
+            System.err.println("EmailService - ERROR sending email for Order ID: " + order.getOrderId());
+            System.err.println("EmailService - Error type: " + e.getClass().getName());
+            System.err.println("EmailService - Error message: " + e.getMessage());
+            System.err.println("EmailService - From email: " + fromEmail);
+            System.err.println("EmailService - To email: " + toEmail);
             e.printStackTrace();
+            // Log full stack trace
+            StackTraceElement[] stackTrace = e.getStackTrace();
+            for (int i = 0; i < Math.min(stackTrace.length, 10); i++) {
+                System.err.println("EmailService - Stack[" + i + "]: " + stackTrace[i]);
+            }
         }
     }
     
