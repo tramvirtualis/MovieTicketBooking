@@ -174,6 +174,8 @@ public class EmailService {
             // Đánh dấu đã gửi TRƯỚC KHI thực sự gửi để tránh duplicate
             sentEmailOrders.put(orderId, currentTime);
         }
+        
+        String toEmail = null; // Khai báo bên ngoài try-catch để có thể dùng trong catch
         try {
             // Kiểm tra: phải có ticket hoặc combo để gửi email
             boolean hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
@@ -193,7 +195,7 @@ public class EmailService {
                 return;
             }
             
-            String toEmail = order.getUser().getEmail();
+            toEmail = order.getUser().getEmail();
             if (toEmail == null || toEmail.isEmpty()) {
                 System.out.println("EmailService - Order " + order.getOrderId() + 
                                  " user has no email, skipping email");
