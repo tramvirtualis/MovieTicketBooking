@@ -15,7 +15,6 @@ class WebSocketService {
 
   connect(userId, onNotification) {
     if (this.getConnectionStatus()) {
-      console.log('WebSocket already connected');
       return;
     }
 
@@ -36,7 +35,6 @@ class WebSocketService {
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
       onConnect: (frame) => {
-        console.log('WebSocket connected');
         this.isConnected = true;
         this.reconnectAttempts = 0;
         // Wait a bit to ensure STOMP connection is fully established
@@ -55,7 +53,6 @@ class WebSocketService {
         }, 100);
       },
       onDisconnect: () => {
-        console.log('WebSocket disconnected');
         this.isConnected = false;
         this.subscriptions.clear();
       },

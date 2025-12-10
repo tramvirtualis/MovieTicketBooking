@@ -33,19 +33,6 @@ const PaymentSuccess = () => {
     const amount = searchParams.get('amount') || searchParams.get('vnp_Amount'); // Amount
     const txnRef = orderId || vnp_TxnRef || apptransid;
 
-    console.log('=== PaymentSuccess Debug ===');
-    console.log('URL Search Params:', {
-      apptransid,
-      orderId,
-      vnp_TxnRef,
-      status,
-      resultCode,
-      vnp_ResponseCode,
-      paymentMethodParam,
-      amount,
-      txnRef,
-      allParams: Object.fromEntries(searchParams.entries())
-    });
 
     // Xác định payment method
     let paymentMethod = 'UNKNOWN';
@@ -58,7 +45,6 @@ const PaymentSuccess = () => {
       // WALLET payment - đã thanh toán thành công
       paymentMethod = 'WALLET';
       transactionId = orderId;
-      console.log('Detected WALLET payment, orderId:', orderId);
       paymentStatus = 'Thành công';
       isPaymentSuccess = true;
       
@@ -87,7 +73,6 @@ const PaymentSuccess = () => {
       // ZaloPay
       paymentMethod = 'ZaloPay';
       transactionId = apptransid;
-      console.log('Detected ZaloPay payment, txnRef:', apptransid);
       // Nếu có status trong URL, dùng nó, nhưng vẫn sẽ kiểm tra order để chắc chắn
       if (status !== null && status !== undefined) {
         paymentStatus = status === '1' ? 'Thành công' : 'Thất bại';
@@ -101,7 +86,6 @@ const PaymentSuccess = () => {
       // MoMo
       paymentMethod = 'MoMo';
       transactionId = orderId;
-      console.log('Detected MoMo payment, txnRef:', orderId);
       // Nếu có resultCode trong URL, dùng nó, nhưng vẫn sẽ kiểm tra order để chắc chắn
       if (resultCode !== null && resultCode !== undefined) {
         paymentStatus = resultCode === '0' ? 'Thành công' : 'Thất bại';
@@ -115,7 +99,6 @@ const PaymentSuccess = () => {
       // VNPay
       paymentMethod = 'VNPay';
       transactionId = vnp_TxnRef;
-      console.log('Detected VNPay payment, txnRef:', vnp_TxnRef);
       // Nếu có vnp_ResponseCode trong URL, dùng nó
       if (vnp_ResponseCode !== null && vnp_ResponseCode !== undefined) {
         paymentStatus = vnp_ResponseCode === '00' ? 'Thành công' : 'Thất bại';
@@ -131,7 +114,6 @@ const PaymentSuccess = () => {
       return;
     }
 
-    console.log('Payment method detected:', paymentMethod, 'txnRef:', txnRef);
 
     // Set initial info
     setPaymentInfo({
@@ -148,7 +130,6 @@ const PaymentSuccess = () => {
     // LUÔN LUÔN thử fetch order info dựa trên txnRef để xác định thực sự thành công hay không
     // Vì chỉ lưu đơn thành công, nếu tìm thấy order = thanh toán thành công
     if (txnRef) {
-      console.log('Fetching order info for txnRef:', txnRef, 'method:', paymentMethod);
       fetchOrderInfo(txnRef, paymentMethod);
     } else {
       // Không có txnRef = không thể kiểm tra
@@ -158,7 +139,6 @@ const PaymentSuccess = () => {
   }, [searchParams]);
 
   const fetchOrderInfo = async (txnRef, method) => {
-    console.log('fetchOrderInfo called with:', txnRef, method);
     try {
       // Thử fetch order nhiều lần với delay để đợi order được lưu (tránh race condition)
       let retryCount = 0;
@@ -166,27 +146,20 @@ const PaymentSuccess = () => {
       let orderData = null;
 
       while (retryCount < maxRetries) {
-        console.log(`Attempt ${retryCount + 1}/${maxRetries} to fetch order...`);
         let result;
         if (method === 'ZaloPay') {
-          console.log('Calling checkPaymentStatus for ZaloPay...');
           result = await paymentService.checkPaymentStatus(txnRef);
         } else {
-          console.log('Calling getOrderByTxnRef for', method);
           result = await paymentService.getOrderByTxnRef(txnRef);
         }
 
-        console.log('API result:', result);
-
         if (result.success && result.data) {
           orderData = result.data;
-          console.log('Order found:', orderData);
           break;
         }
 
-        // Nếu không tìm thấy, đợi 1000ms rồi thử lại (tăng từ 500ms lên 1000ms)
+        // Nếu không tìm thấy, đợi 1000ms rồi thử lại
         if (retryCount < maxRetries - 1) {
-          console.log('Order not found, retrying in 1 second...');
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
         retryCount++;
@@ -194,7 +167,6 @@ const PaymentSuccess = () => {
 
       if (orderData) {
         // Nếu tìm thấy order thì thanh toán thành công (vì chỉ lưu đơn thành công)
-        console.log('Payment successful, order found:', orderData.orderId);
         setIsSuccess(true);
         setPaymentInfo(prev => ({
           ...prev,
@@ -222,12 +194,9 @@ const PaymentSuccess = () => {
           window.dispatchEvent(new CustomEvent('paymentSuccess', {
             detail: { orderId: orderId }
           }));
-          console.log('Payment success event dispatched for order:', orderId);
-          
           // Nếu là top-up, dispatch event để Header cập nhật wallet balance
           if (isTopUp) {
             window.dispatchEvent(new CustomEvent('walletUpdated'));
-            console.log('Wallet updated event dispatched for top-up order:', orderId);
           }
         }
 
@@ -236,7 +205,6 @@ const PaymentSuccess = () => {
         // - checkMomoStatusAndUpdateOrder (localhost testing)
         // - ZaloPay callback
         // Nên KHÔNG cần trigger từ frontend nữa để tránh duplicate
-        console.log('Order found, backend handles notification/email. OrderId:', orderId, 'isTopUp:', orderData.isTopUp);
       } else {
         // Không tìm thấy order sau nhiều lần thử = thanh toán thất bại hoặc đang xử lý
         console.error('Order not found after', maxRetries, 'attempts');

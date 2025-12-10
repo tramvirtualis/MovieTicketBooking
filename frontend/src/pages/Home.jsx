@@ -93,7 +93,6 @@ export default function Home() {
           // CUSTOMER hoặc chưa đăng nhập được phép truy cập
         }
       } catch (e) {
-        console.error('Error checking role:', e);
         // Nếu có lỗi, vẫn cho phép truy cập (không block)
       }
     };

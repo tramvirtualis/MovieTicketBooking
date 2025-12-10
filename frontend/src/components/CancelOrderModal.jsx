@@ -99,26 +99,12 @@ export default function CancelOrderModal({
                   fontSize: '14px',
                   fontFamily: 'inherit',
                   resize: 'vertical',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
+                  outline: 'none'
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#ffd159'}
                 onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)'}
               />
             </div>
-
-            <p className="movie-modal__warning" style={{ 
-              fontSize: '13px', 
-              color: '#ff9800', 
-              marginTop: '16px',
-              padding: '12px',
-              background: 'rgba(255, 152, 0, 0.1)',
-              borderRadius: '8px',
-              border: '1px solid rgba(255, 152, 0, 0.2)',
-              textAlign: 'left'
-            }}>
-              ⚠️ Sau khi hủy, bạn sẽ không thể hoàn tác hành động này.
-            </p>
           </div>
         </div>
         <div className="movie-modal__footer">

@@ -13,10 +13,13 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import jakarta.annotation.PostConstruct;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -34,6 +37,7 @@ public class EmailService {
     private final JavaMailSender mailSender;
     private final CinemaComplexRepository cinemaComplexRepository;
     private final OrderRepository orderRepository;
+    
     
     @Value("${spring.mail.username}")
     private String fromEmail;
@@ -160,7 +164,9 @@ public class EmailService {
      * 1. Mua vé xem phim (có tickets)
      * 2. Mua vé + đồ ăn
      * 3. Mua riêng đồ ăn (không có vé)
+     * Chạy async để không block request
      */
+    @Async("emailExecutor")
     public void sendBookingConfirmationEmail(Order order) {
         // Kiểm tra mailSender và cấu hình email trước
         if (mailSender == null) {

@@ -16,6 +16,40 @@ public class MomoProperties {
     private String endpoint;
     private String redirectUrl;
     private String ipnUrl;
+    
+    // Getter với fallback để đảm bảo redirectUrl luôn trỏ về backend
+    public String getRedirectUrl() {
+        if (redirectUrl != null && !redirectUrl.isEmpty()) {
+            return redirectUrl;
+        }
+        // Fallback: tự động tạo từ backend URL
+        String backendUrl = System.getenv("BACKEND_URL");
+        if (backendUrl == null || backendUrl.isEmpty()) {
+            // Thử lấy từ environment variable khác hoặc dùng localhost cho dev
+            backendUrl = System.getenv("RENDER_EXTERNAL_URL");
+            if (backendUrl == null || backendUrl.isEmpty()) {
+                backendUrl = "http://localhost:8080"; // Fallback cho local dev
+            }
+        }
+        return backendUrl + "/api/payment/momo/ipn";
+    }
+    
+    // Getter với fallback để đảm bảo ipnUrl luôn trỏ về backend
+    public String getIpnUrl() {
+        if (ipnUrl != null && !ipnUrl.isEmpty()) {
+            return ipnUrl;
+        }
+        // Fallback: tự động tạo từ backend URL
+        String backendUrl = System.getenv("BACKEND_URL");
+        if (backendUrl == null || backendUrl.isEmpty()) {
+            // Thử lấy từ environment variable khác hoặc dùng localhost cho dev
+            backendUrl = System.getenv("RENDER_EXTERNAL_URL");
+            if (backendUrl == null || backendUrl.isEmpty()) {
+                backendUrl = "http://localhost:8080"; // Fallback cho local dev
+            }
+        }
+        return backendUrl + "/api/payment/momo/ipn";
+    }
     private String requestType = "captureWallet";
     private String partnerName = "Cinesmart";
     private String storeId = "CinesmartStore";

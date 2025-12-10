@@ -543,34 +543,25 @@ public class PaymentController {
                                     String totalAmountStr = order.getTotalAmount()
                                         .setScale(0, RoundingMode.HALF_UP)
                                         .toPlainString() + " VND";
-                                    System.out.println("Attempting to send notification for Order ID: " + order.getOrderId());
-                                    notificationService.notifyOrderSuccess(
-                                        order.getUser().getUserId(),
-                                        order.getOrderId(),
-                                        totalAmountStr
-                                    );
-                                    System.out.println("Notification sent successfully for Order ID: " + order.getOrderId());
+                                    // Gửi notification và email async
+                                    final Long asyncOrderId = order.getOrderId();
+                                    final Long asyncUserId = order.getUser().getUserId();
+                                    final String asyncTotalAmountStr = totalAmountStr;
                                     
-                                    // 2. Gửi Email (chỉ cho order thường, không gửi cho top-up)
-                                    if (!Boolean.TRUE.equals(order.getIsTopUp())) {
-                                    System.out.println("PaymentController - Sending confirmation email for Order ID: " + order.getOrderId());
-                                    Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(order.getOrderId());
-                                    if (orderWithDetails.isPresent()) {
-                                        Order fullOrder = orderWithDetails.get();
-                                        // Log để debug
-                                        boolean hasTickets = fullOrder.getTickets() != null && !fullOrder.getTickets().isEmpty();
-                                        boolean hasCombos = fullOrder.getOrderCombos() != null && !fullOrder.getOrderCombos().isEmpty();
-                                        System.out.println("PaymentController - Order " + order.getOrderId() + 
-                                                         " hasTickets: " + hasTickets + ", hasCombos: " + hasCombos);
-                                        if (hasCombos) {
-                                            System.out.println("PaymentController - OrderCombos count: " + fullOrder.getOrderCombos().size());
+                                    CompletableFuture.runAsync(() -> {
+                                        try {
+                                            notificationService.notifyOrderSuccess(asyncUserId, asyncOrderId, asyncTotalAmountStr);
+                                            
+                                            if (!Boolean.TRUE.equals(order.getIsTopUp())) {
+                                                Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(asyncOrderId);
+                                                if (orderWithDetails.isPresent()) {
+                                                    emailService.sendBookingConfirmationEmail(orderWithDetails.get());
+                                                }
+                                            }
+                                        } catch (Exception e) {
+                                            log.error("Error sending notification/email for Order ID: {}", asyncOrderId, e);
                                         }
-                                        emailService.sendBookingConfirmationEmail(fullOrder);
-                                        System.out.println("PaymentController - Email service called for Order ID: " + order.getOrderId());
-                                        } else {
-                                        System.err.println("PaymentController - ERROR: Could not load order with details for Order ID: " + order.getOrderId());
-                                        }
-                                    }
+                                    });
                                 } catch (Exception e) {
                                     System.err.println("PaymentController - ERROR sending notification/email for Order ID: " + order.getOrderId());
                                     System.err.println("PaymentController - Error type: " + e.getClass().getName());
@@ -1115,23 +1106,26 @@ public class PaymentController {
                     String totalAmountStr = order.getTotalAmount()
                         .setScale(0, RoundingMode.HALF_UP)
                         .toPlainString() + " VND";
-                    System.out.println("Attempting to send notification for Order ID: " + order.getOrderId());
-                    notificationService.notifyOrderSuccess(
-                        order.getUser().getUserId(),
-                        order.getOrderId(),
-                        totalAmountStr
-                    );
-                    System.out.println("Notification sent successfully for Order ID: " + order.getOrderId());
+                    // Gửi notification và email async
+                    final Long asyncOrderId2 = order.getOrderId();
+                    final Long asyncUserId2 = order.getUser().getUserId();
+                    final String asyncTotalAmountStr2 = totalAmountStr;
+                    final boolean isTopUp2 = Boolean.TRUE.equals(order.getIsTopUp());
                     
-                    // 2. Email (chỉ cho order thường, không gửi cho top-up)
-                    if (!Boolean.TRUE.equals(order.getIsTopUp())) {
-                    System.out.println("Sending confirmation email for Order ID: " + order.getOrderId());
-                    Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(order.getOrderId());
-                    if (orderWithDetails.isPresent()) {
-                        emailService.sendBookingConfirmationEmail(orderWithDetails.get());
-                        System.out.println("Email sent successfully");
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            notificationService.notifyOrderSuccess(asyncUserId2, asyncOrderId2, asyncTotalAmountStr2);
+                            
+                            if (!isTopUp2) {
+                                Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(asyncOrderId2);
+                                if (orderWithDetails.isPresent()) {
+                                    emailService.sendBookingConfirmationEmail(orderWithDetails.get());
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.error("Error sending notification/email in MoMo IPN for Order ID: {}", asyncOrderId2, e);
                         }
-                    }
+                    });
                 } catch (Exception e) {
                     System.err.println("PaymentController - ERROR sending notification/email in MoMo IPN for Order ID: " + order.getOrderId());
                     System.err.println("PaymentController - Error type: " + e.getClass().getName());
@@ -1170,7 +1164,6 @@ public class PaymentController {
                     
                     // Chỉ xử lý nếu chưa thanh toán
                     if (order.getVnpPayDate() == null) {
-                        System.out.println("MoMo Redirect - Processing payment for order: " + order.getOrderId());
                         
                         order.setVnpPayDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
                         order.setStatus(OrderStatus.PAID);
@@ -1194,7 +1187,6 @@ public class PaymentController {
                                 isTopUpOrder = true;
                             }
                             
-                            System.out.println("MoMo Redirect - Order isTopUp: " + isTopUpOrder);
                             
                             if (isTopUpOrder) {
                                 // Credit vào wallet (với idempotency check)
@@ -1207,17 +1199,14 @@ public class PaymentController {
                                     // Kiểm tra xem đã credit chưa
                                     boolean alreadyCredited = walletTransactionRepository.existsByUserIdAndReferenceCodePattern(userId, txnRefPattern);
                                     if (alreadyCredited) {
-                                        System.out.println("MoMo Redirect - Wallet already credited for order: " + fullOrder.getOrderId());
                                     } else {
                                         String txnRef = "TOPUP-" + fullOrder.getOrderId() + "-" + System.currentTimeMillis();
                                         WalletTransaction transaction = walletService.credit(userId, topUpAmount, note, txnRef);
-                                        System.out.println("MoMo Redirect - Credited " + topUpAmount + " to wallet for user " + userId);
                                         
                                         // Gửi notification
                                         try {
                                             String amountStr = topUpAmount.setScale(0, RoundingMode.HALF_UP).toPlainString() + " VND";
                                             notificationService.notifyTopUpSuccess(userId, fullOrder.getOrderId(), amountStr);
-                                            System.out.println("MoMo Redirect - Top-up notification sent for order: " + fullOrder.getOrderId());
                                         } catch (Exception notifEx) {
                                             System.err.println("MoMo Redirect - Error sending notification: " + notifEx.getMessage());
                                         }
@@ -1237,12 +1226,19 @@ public class PaymentController {
                                     String totalAmountStr = fullOrder.getTotalAmount()
                                             .setScale(0, RoundingMode.HALF_UP)
                                             .toPlainString() + " VND";
-                                    notificationService.notifyOrderSuccess(
-                                            fullOrder.getUser().getUserId(),
-                                            fullOrder.getOrderId(),
-                                            totalAmountStr
-                                    );
-                                    emailService.sendBookingConfirmationEmail(fullOrder);
+                                    // Gửi notification và email async
+                                    final Long asyncOrderId3 = fullOrder.getOrderId();
+                                    final Long asyncUserId3 = fullOrder.getUser().getUserId();
+                                    final String asyncTotalAmountStr3 = totalAmountStr;
+                                    
+                                    CompletableFuture.runAsync(() -> {
+                                        try {
+                                            notificationService.notifyOrderSuccess(asyncUserId3, asyncOrderId3, asyncTotalAmountStr3);
+                                            emailService.sendBookingConfirmationEmail(fullOrder);
+                                        } catch (Exception e) {
+                                            log.error("Error sending notification/email in MoMo Redirect for Order ID: {}", asyncOrderId3, e);
+                                        }
+                                    });
                                 } catch (Exception e) {
                                     System.err.println("PaymentController - ERROR sending notification/email in MoMo Redirect for Order ID: " + fullOrder.getOrderId());
                                     System.err.println("PaymentController - Error type: " + e.getClass().getName());
@@ -1252,7 +1248,6 @@ public class PaymentController {
                             }
                         }
                     } else {
-                        System.out.println("MoMo Redirect - Order already processed: " + order.getOrderId());
                     }
                 }
             } catch (Exception e) {
@@ -1269,12 +1264,8 @@ public class PaymentController {
         }
         if (frontendUrl == null || frontendUrl.isEmpty()) {
             frontendUrl = "http://localhost:5173"; // Fallback cho local dev
-            System.out.println("WARNING: FRONTEND_URL not set, using fallback: " + frontendUrl);
-        } else {
-            System.out.println("Using FRONTEND_URL: " + frontendUrl);
         }
         String redirectUrl = frontendUrl + "/payment/success";
-        System.out.println("MoMo redirect URL: " + redirectUrl);
         StringBuilder queryParams = new StringBuilder();
         
         if (orderId != null && !orderId.isEmpty()) {
@@ -1423,22 +1414,12 @@ public class PaymentController {
                                                  BindingResult bindingResult,
                                                  @RequestHeader(value = "Authorization", required = false) String authHeader) {
         
-        System.out.println("=== WALLET PAYMENT ENDPOINT CALLED ===");
-        System.out.println("Auth header present: " + (authHeader != null));
-        System.out.println("PIN from request: " + (request.getPin() != null ? "PRESENT (length: " + request.getPin().length() + ")" : "NULL"));
-        
         if (bindingResult.hasErrors()) {
-            System.out.println("Validation errors: " + bindingResult.getAllErrors());
-            // Kiểm tra xem có lỗi validation liên quan đến PIN không
-            bindingResult.getAllErrors().forEach(error -> {
-                System.out.println("Validation error: " + error.getDefaultMessage() + " - Field: " + error.getObjectName());
-            });
             return ResponseEntity.badRequest().body(createErrorResponse("Dữ liệu không hợp lệ", bindingResult));
         }
 
         // Lấy user - thử từ SecurityContext trước, nếu không có thì parse từ token
         User user = getCurrentUser().orElse(null);
-        System.out.println("User from SecurityContext: " + (user != null ? user.getUsername() : "NULL"));
         
         // Nếu không có user từ SecurityContext, thử lấy từ token
         if (user == null && authHeader != null && authHeader.startsWith("Bearer ")) {
@@ -1447,9 +1428,6 @@ public class PaymentController {
                 if (jwtUtils.validateJwtToken(token)) {
                     String username = jwtUtils.getUsernameFromJwtToken(token);
                     user = userRepository.findByUsername(username).orElse(null);
-                    System.out.println("User from token: " + (user != null ? user.getUsername() : "NULL"));
-                } else {
-                    System.out.println("Token validation failed");
                 }
             } catch (Exception e) {
                 System.out.println("Error parsing token: " + e.getMessage());
@@ -1486,10 +1464,15 @@ public class PaymentController {
             final List<String> finalSeatIds = new ArrayList<>(seatIds);
             final List<Map<String, Object>> finalFoodComboMaps = new ArrayList<>(foodComboMaps);
 
+            // Tối ưu: chỉ check duplicate trong 10 giây gần nhất, limit 5 orders
             LocalDateTime tenSecondsAgo = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusSeconds(10);
-            List<Order> recentOrders = orderRepository.findByUserUserIdOrderByOrderDateDesc(finalUser.getUserId());
-            Optional<Order> duplicateOrder = recentOrders.stream()
+            List<Order> recentOrders = orderRepository.findByUserUserIdOrderByOrderDateDesc(finalUser.getUserId())
+                .stream()
                 .filter(o -> o.getOrderDate() != null && o.getOrderDate().isAfter(tenSecondsAgo))
+                .limit(5) // Chỉ check 5 orders gần nhất để tối ưu
+                .toList();
+            
+            Optional<Order> duplicateOrder = recentOrders.stream()
                 .filter(o -> {
                     if (finalShowtimeId != null && !finalSeatIds.isEmpty()) {
                         if (o.getTickets() != null && !o.getTickets().isEmpty()) {
@@ -1556,16 +1539,11 @@ public class PaymentController {
 
             // Xác thực PIN trước khi trừ tiền từ ví Cinesmart
             boolean hasPin = walletPinService.hasPin(finalUser.getUserId());
-            log.info("Wallet payment - User {} has PIN: {}", finalUser.getUserId(), hasPin);
-            log.info("Wallet payment - PIN from request: {}", request.getPin() != null ? "***" : "NULL");
-            
             if (hasPin) {
                 // User có PIN, yêu cầu xác thực
                 String pinFromRequest = request.getPin();
-                log.info("Wallet payment - PIN received: {}", pinFromRequest != null ? "PRESENT (length: " + pinFromRequest.length() + ")" : "NULL");
                 
                 if (pinFromRequest == null || pinFromRequest.trim().isEmpty()) {
-                    log.warn("Wallet payment - PIN is null or empty for user {}", finalUser.getUserId());
                     // Xóa order nếu chưa PAID
                     if (order != null && order.getStatus() != OrderStatus.PAID) {
                         try {
@@ -1581,8 +1559,6 @@ public class PaymentController {
                 // Validate PIN format (6 digits)
                 String trimmedPin = pinFromRequest.trim();
                 if (trimmedPin.length() != 6 || !trimmedPin.matches("^\\d{6}$")) {
-                    log.warn("Wallet payment - PIN format invalid for user {}: length={}, isDigits={}", 
-                        finalUser.getUserId(), trimmedPin.length(), trimmedPin.matches("^\\d+$"));
                     // Xóa order nếu chưa PAID
                     if (order != null && order.getStatus() != OrderStatus.PAID) {
                         try {
@@ -1595,21 +1571,14 @@ public class PaymentController {
                         .body(createErrorResponse("Mã PIN phải có đúng 6 chữ số", null));
                 }
                 
-                log.info("Wallet payment - Verifying PIN for user {}", finalUser.getUserId());
-                
                 // Xác thực PIN
                 try {
                     VerifyPinRequestDTO verifyRequest = new VerifyPinRequestDTO();
                     verifyRequest.setPin(trimmedPin); // Sử dụng PIN đã được trim và validate
-                    log.info("Wallet payment - Calling verifyPin for user {}", finalUser.getUserId());
                     // verifyPin() sẽ throw exception nếu PIN sai, return true nếu đúng
-                    boolean isValid = walletPinService.verifyPin(finalUser.getUserId(), verifyRequest);
-                    // Nếu đến đây được, PIN đã đúng
-                    log.info("PIN verified successfully for user {} for order {}", finalUser.getUserId(), order.getOrderId());
+                    walletPinService.verifyPin(finalUser.getUserId(), verifyRequest);
                 } catch (IllegalArgumentException | IllegalStateException e) {
                     // PIN sai hoặc bị lock
-                    log.warn("PIN verification failed for user {}: {}", finalUser.getUserId(), e.getMessage());
-                    log.info("Error message to return: {}", e.getMessage());
                     
                     // Xóa order nếu chưa PAID
                     if (order != null && order.getStatus() != OrderStatus.PAID) {
@@ -1620,11 +1589,8 @@ public class PaymentController {
                         }
                     }
                     
-                    // Đảm bảo error message được truyền đúng
-                    String errorMsg = e.getMessage();
-                    log.info("Returning error response with message: {}", errorMsg);
                     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(createErrorResponse(errorMsg, null));
+                        .body(createErrorResponse(e.getMessage(), null));
                 }
             } else {
                 // User chưa có PIN, yêu cầu tạo PIN trước
@@ -1642,7 +1608,6 @@ public class PaymentController {
 
             // Trừ tiền từ ví Cinesmart (sau khi đã xác thực PIN thành công)
             try {
-                log.info("Debiting {} from wallet for user {} for order {}", request.getAmount(), finalUser.getUserId(), order.getOrderId());
                 walletService.debit(
                     finalUser.getUserId(),
                     request.getAmount(),
@@ -1650,7 +1615,6 @@ public class PaymentController {
                     "ORDER-" + order.getOrderId()
                 );
                 walletDebited = true;
-                log.info("Successfully debited {} from wallet for order {}", request.getAmount(), order.getOrderId());
             } catch (IllegalStateException e) {
                 log.error("Insufficient wallet balance for user {}: {}", finalUser.getUserId(), e.getMessage());
                 // Số dư không đủ - xóa order và trả về lỗi
@@ -1670,13 +1634,11 @@ public class PaymentController {
 
             // Đánh dấu đơn hàng đã thanh toán thành công
             try {
-                log.info("Marking order {} as PAID", order.getOrderId());
                 order.setVnpPayDate(now);
                 order.setStatus(OrderStatus.PAID);
                 order.setVnpResponseCode("00");
                 order.setVnpTransactionStatus("WALLET_SUCCESS");
                 order = orderService.save(order);
-                log.info("Order {} marked as PAID successfully", order.getOrderId());
             } catch (Exception e) {
                 log.error("Error marking order {} as PAID: {}", order.getOrderId(), e.getMessage(), e);
                 throw e; // Re-throw để được catch ở outer catch block và refund
@@ -1690,27 +1652,27 @@ public class PaymentController {
                 // Không fail payment nếu xóa voucher lỗi
             }
 
-            // Gửi notification và email
-            try {
-                String totalAmountStr = order.getTotalAmount()
-                    .setScale(0, RoundingMode.HALF_UP)
-                    .toPlainString() + " VND";
-                notificationService.notifyOrderSuccess(
-                    order.getUser().getUserId(),
-                    order.getOrderId(),
-                    totalAmountStr
-                );
-
-                Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(order.getOrderId());
-                if (orderWithDetails.isPresent()) {
-                    emailService.sendBookingConfirmationEmail(orderWithDetails.get());
+            // Gửi notification và email ASYNC (không block response)
+            // Lưu orderId và userId trước khi async để tránh lazy loading issues
+            final Long finalOrderId = order.getOrderId();
+            final Long finalUserId = order.getUser().getUserId();
+            final String totalAmountStr = order.getTotalAmount()
+                .setScale(0, RoundingMode.HALF_UP)
+                .toPlainString() + " VND";
+            
+            // Chạy async để không block response
+            java.util.concurrent.CompletableFuture.runAsync(() -> {
+                try {
+                    notificationService.notifyOrderSuccess(finalUserId, finalOrderId, totalAmountStr);
+                    
+                    Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(finalOrderId);
+                    if (orderWithDetails.isPresent()) {
+                        emailService.sendBookingConfirmationEmail(orderWithDetails.get());
+                    }
+                } catch (Exception e) {
+                    log.error("PaymentController - ERROR sending notification/email for Order ID: {}", finalOrderId, e);
                 }
-            } catch (Exception e) {
-                log.error("PaymentController - ERROR sending notification/email for Order ID: {}", order.getOrderId());
-                log.error("PaymentController - Error type: {}", e.getClass().getName());
-                log.error("PaymentController - Error message: {}", e.getMessage(), e);
-                // Không fail payment nếu notification lỗi
-            }
+            });
 
             Map<String, Object> data = new HashMap<>();
             data.put("orderId", order.getOrderId());
@@ -1922,15 +1884,19 @@ public class PaymentController {
                                 .setScale(0, RoundingMode.HALF_UP)
                                 .toPlainString() + " VND";
                          
-                             System.out.println("Triggering notification for Order " + fullOrder.getOrderId());
-                         notificationService.notifyOrderSuccess(
-                                    fullOrder.getUser().getUserId(),
-                                    fullOrder.getOrderId(),
-                                totalAmountStr
-                         );
+                         // Gửi notification và email async
+                         final Long asyncOrderId4 = fullOrder.getOrderId();
+                         final Long asyncUserId4 = fullOrder.getUser().getUserId();
+                         final String asyncTotalAmountStr4 = totalAmountStr;
                          
-                             System.out.println("Sending email for Order " + fullOrder.getOrderId());
-                             emailService.sendBookingConfirmationEmail(fullOrder);
+                         CompletableFuture.runAsync(() -> {
+                             try {
+                                 notificationService.notifyOrderSuccess(asyncUserId4, asyncOrderId4, asyncTotalAmountStr4);
+                                 emailService.sendBookingConfirmationEmail(fullOrder);
+                             } catch (Exception e) {
+                                 log.error("Error sending notification/email in MoMo Status Check for Order ID: {}", asyncOrderId4, e);
+                             }
+                         });
                     } catch (Exception e) {
                         e.printStackTrace();
                         }

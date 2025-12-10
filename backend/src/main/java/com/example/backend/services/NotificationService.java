@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -231,7 +232,7 @@ public class NotificationService {
      * Có check duplicate để tránh tạo notification nhiều lần
      */
     @Transactional
-    public synchronized void notifyBookingSuccess(Long userId, Long orderId, String totalAmount) {
+    public void notifyBookingSuccess(Long userId, Long orderId, String totalAmount) {
         log.info("notifyBookingSuccess called for order {} and user {}", orderId, userId);
         
         // Kiểm tra xem đã có notification cho order này chưa (tránh duplicate)
@@ -325,6 +326,7 @@ public class NotificationService {
     /**
      * Gửi thông báo đặt hàng thành công (giữ lại để tương thích)
      */
+    @Async("notificationExecutor")
     public void notifyOrderSuccess(Long userId, Long orderId, String totalAmount) {
         notifyBookingSuccess(userId, orderId, totalAmount);
     }
