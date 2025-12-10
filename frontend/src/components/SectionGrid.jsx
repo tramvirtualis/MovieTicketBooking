@@ -18,82 +18,52 @@ export function Section({ id, title, linkText, children }) {
 export function CardsGrid({ items, isNowShowing = false, onPlayTrailer }) {
   const navigate = useNavigate();
   const scrollContainerRef = useRef(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
   const displayItems = items.length > 0 ? items : [];
-  const scrollInterval = 5000; // 5 giây tự động chuyển (tăng lên để mượt hơn)
   const itemsPerScroll = 5; // Số phim cuộn mỗi lần (tương ứng với grid 5 cột)
 
-  // Auto-scroll effect - cuộn theo nhóm phim
-  useEffect(() => {
-    if (displayItems.length <= itemsPerScroll || isPaused) return;
+  // Auto-scroll effect đã bị tắt - chỉ cuộn khi người dùng click nút
 
-    const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => {
-        const nextIndex = prevIndex + itemsPerScroll;
-        // Loop back to start if reached end
-        return nextIndex >= displayItems.length ? 0 : nextIndex;
-      });
-    }, scrollInterval);
-
-    return () => clearInterval(interval);
-  }, [displayItems.length, isPaused, itemsPerScroll]);
-
-  // Scroll to current index với animation mềm mại
-  useEffect(() => {
-    if (scrollContainerRef.current && displayItems.length > 0) {
+  const handlePrev = () => {
+    if (scrollContainerRef.current) {
       const container = scrollContainerRef.current.querySelector('.movie-carousel-track');
       if (container) {
         const cardElement = container.querySelector('.card');
         if (cardElement) {
           const cardWidth = cardElement.offsetWidth;
-          const gap = 24; // gap giữa các cards
-          const scrollPosition = currentIndex * (cardWidth + gap);
-          const startPosition = container.scrollLeft;
-          const distance = scrollPosition - startPosition;
-          const duration = 1000; // 1 giây cho animation mượt
-          let startTime = null;
-
-          // Custom smooth scroll với easing function
-          const easeInOutCubic = (t) => {
-            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-          };
-
-          const animateScroll = (currentTime) => {
-            if (startTime === null) startTime = currentTime;
-            const timeElapsed = currentTime - startTime;
-            const progress = Math.min(timeElapsed / duration, 1);
-            const easedProgress = easeInOutCubic(progress);
-            
-            container.scrollLeft = startPosition + distance * easedProgress;
-            
-            if (progress < 1) {
-              requestAnimationFrame(animateScroll);
-            }
-          };
-
-          requestAnimationFrame(animateScroll);
+          const gap = 24;
+          const scrollAmount = itemsPerScroll * (cardWidth + gap);
+          const newScrollLeft = Math.max(0, container.scrollLeft - scrollAmount);
+          
+          // Smooth scroll
+          container.scrollTo({
+            left: newScrollLeft,
+            behavior: 'smooth'
+          });
         }
       }
     }
-  }, [currentIndex, displayItems.length]);
-
-  const handlePrev = () => {
-    setIsPaused(true);
-    setCurrentIndex((prevIndex) => {
-      const newIndex = prevIndex - itemsPerScroll;
-      return newIndex < 0 ? Math.max(0, displayItems.length - itemsPerScroll) : newIndex;
-    });
-    setTimeout(() => setIsPaused(false), 3000);
   };
 
   const handleNext = () => {
-    setIsPaused(true);
-    setCurrentIndex((prevIndex) => {
-      const nextIndex = prevIndex + itemsPerScroll;
-      return nextIndex >= displayItems.length ? 0 : nextIndex;
-    });
-    setTimeout(() => setIsPaused(false), 3000);
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current.querySelector('.movie-carousel-track');
+      if (container) {
+        const cardElement = container.querySelector('.card');
+        if (cardElement) {
+          const cardWidth = cardElement.offsetWidth;
+          const gap = 24;
+          const scrollAmount = itemsPerScroll * (cardWidth + gap);
+          const maxScroll = container.scrollWidth - container.clientWidth;
+          const newScrollLeft = Math.min(maxScroll, container.scrollLeft + scrollAmount);
+          
+          // Smooth scroll
+          container.scrollTo({
+            left: newScrollLeft,
+            behavior: 'smooth'
+          });
+        }
+      }
+    }
   };
 
   if (displayItems.length === 0) {
@@ -132,12 +102,10 @@ export function CardsGrid({ items, isNowShowing = false, onPlayTrailer }) {
         </>
       )}
 
-      {/* Horizontal Carousel Container với auto-scroll */}
+      {/* Horizontal Carousel Container */}
       <div 
         ref={scrollContainerRef}
         className="movie-carousel-wrapper"
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
       >
         <div className="grid grid--cards movie-carousel-track">
           {displayItems.map((m, idx) => (
