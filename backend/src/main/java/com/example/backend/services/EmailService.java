@@ -2,6 +2,7 @@ package com.example.backend.services;
 
 import com.example.backend.entities.*;
 import com.example.backend.repositories.CinemaComplexRepository;
+import com.example.backend.repositories.OrderRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
@@ -32,6 +33,7 @@ public class EmailService {
     
     private final JavaMailSender mailSender;
     private final CinemaComplexRepository cinemaComplexRepository;
+    private final OrderRepository orderRepository;
     
     @Value("${spring.mail.username}")
     private String fromEmail;
@@ -160,6 +162,21 @@ public class EmailService {
      * 3. Mua riêng đồ ăn (không có vé)
      */
     public void sendBookingConfirmationEmail(Order order) {
+        // Kiểm tra mailSender và cấu hình email trước
+        if (mailSender == null) {
+            System.err.println("EmailService - ERROR: mailSender is NULL! Cannot send email for Order ID: " + order.getOrderId());
+            return;
+        }
+        
+        if (fromEmail == null || fromEmail.isEmpty()) {
+            System.err.println("EmailService - ERROR: fromEmail is NOT SET! Cannot send email for Order ID: " + order.getOrderId());
+            return;
+        }
+        
+        if (mailHost == null || mailHost.isEmpty()) {
+            System.err.println("EmailService - WARNING: mailHost is NOT SET! Email may fail for Order ID: " + order.getOrderId());
+        }
+        
         // Kiểm tra đã gửi email cho order này chưa (trong vòng 5 phút)
         // Sử dụng synchronized để tránh race condition
         Long orderId = order.getOrderId();
@@ -168,6 +185,7 @@ public class EmailService {
             Long lastSentTime = sentEmailOrders.get(orderId);
             
             if (lastSentTime != null && (currentTime - lastSentTime) < 5 * 60 * 1000) {
+                System.out.println("EmailService - Order " + orderId + " email already sent recently, skipping");
                 return; // Đã gửi trong vòng 5 phút, không gửi lại
             }
             
@@ -177,12 +195,39 @@ public class EmailService {
         
         String toEmail = null; // Khai báo bên ngoài try-catch để có thể dùng trong catch
         try {
-            // Kiểm tra: phải có ticket hoặc combo để gửi email
+            // Nếu order không có tickets, có thể cần load orderCombos
+            // Vì findByIdWithDetails không fetch orderCombos để tránh MultipleBagFetchException
             boolean hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
+            if (!hasTickets) {
+                // Load order với orderCombos nếu chưa có tickets
+                Optional<Order> orderWithCombos = orderRepository.findByIdWithOrderCombos(order.getOrderId());
+                if (orderWithCombos.isPresent()) {
+                    order = orderWithCombos.get();
+                }
+            }
+            
+            // Kiểm tra: phải có ticket hoặc combo để gửi email
+            hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
             boolean hasCombos = order.getOrderCombos() != null && !order.getOrderCombos().isEmpty();
             
             System.out.println("EmailService - Order ID: " + order.getOrderId() + 
                              ", hasTickets: " + hasTickets + ", hasCombos: " + hasCombos);
+            
+            // Debug: Log chi tiết về orderCombos
+            if (order.getOrderCombos() != null) {
+                System.out.println("EmailService - OrderCombos is not null, size: " + order.getOrderCombos().size());
+                if (!order.getOrderCombos().isEmpty()) {
+                    for (OrderCombo combo : order.getOrderCombos()) {
+                        System.out.println("EmailService - OrderCombo: " + combo.getOrderComboId() + 
+                                         ", FoodCombo: " + (combo.getFoodCombo() != null ? combo.getFoodCombo().getName() : "NULL") +
+                                         ", Quantity: " + combo.getQuantity());
+                    }
+                } else {
+                    System.out.println("EmailService - OrderCombos list is EMPTY");
+                }
+            } else {
+                System.out.println("EmailService - OrderCombos is NULL");
+            }
             
             if (!hasTickets && !hasCombos) {
                 System.out.println("EmailService - Order " + order.getOrderId() + 

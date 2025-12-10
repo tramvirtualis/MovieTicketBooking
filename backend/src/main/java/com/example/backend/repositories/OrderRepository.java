@@ -74,6 +74,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     boolean hasEverUsedVoucher(@Param("userId") Long userId, @Param("voucherId") Long voucherId);
     
     // Load order with all relations for email sending
+    // Note: Cannot fetch both tickets and orderCombos in same query (MultipleBagFetchException)
+    // So we fetch tickets here, and orderCombos will be loaded lazily or via separate query
     @Query("SELECT DISTINCT o FROM Order o " +
            "LEFT JOIN FETCH o.tickets t " +
            "LEFT JOIN FETCH t.showtime s " +
@@ -85,10 +87,17 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "LEFT JOIN FETCH cc.address a " +
            "LEFT JOIN FETCH o.user u " +
            "LEFT JOIN FETCH o.voucher v " +
-           "LEFT JOIN FETCH o.orderCombos oc " +
-           "LEFT JOIN FETCH oc.foodCombo fc " +
            "WHERE o.orderId = :orderId")
     Optional<Order> findByIdWithDetails(@Param("orderId") Long orderId);
+    
+    // Load order with orderCombos (for email sending when order has food only)
+    @Query("SELECT DISTINCT o FROM Order o " +
+           "LEFT JOIN FETCH o.orderCombos oc " +
+           "LEFT JOIN FETCH oc.foodCombo fc " +
+           "LEFT JOIN FETCH o.user u " +
+           "LEFT JOIN FETCH o.voucher v " +
+           "WHERE o.orderId = :orderId")
+    Optional<Order> findByIdWithOrderCombos(@Param("orderId") Long orderId);
 
     long countByUserUserIdAndStatusAndCancelledAtBetween(
         Long userId,

@@ -553,11 +553,22 @@ public class PaymentController {
                                     
                                     // 2. Gửi Email (chỉ cho order thường, không gửi cho top-up)
                                     if (!Boolean.TRUE.equals(order.getIsTopUp())) {
-                                    System.out.println("Sending confirmation email for Order ID: " + order.getOrderId());
+                                    System.out.println("PaymentController - Sending confirmation email for Order ID: " + order.getOrderId());
                                     Optional<Order> orderWithDetails = orderRepository.findByIdWithDetails(order.getOrderId());
                                     if (orderWithDetails.isPresent()) {
-                                        emailService.sendBookingConfirmationEmail(orderWithDetails.get());
-                                        System.out.println("Email sent successfully");
+                                        Order fullOrder = orderWithDetails.get();
+                                        // Log để debug
+                                        boolean hasTickets = fullOrder.getTickets() != null && !fullOrder.getTickets().isEmpty();
+                                        boolean hasCombos = fullOrder.getOrderCombos() != null && !fullOrder.getOrderCombos().isEmpty();
+                                        System.out.println("PaymentController - Order " + order.getOrderId() + 
+                                                         " hasTickets: " + hasTickets + ", hasCombos: " + hasCombos);
+                                        if (hasCombos) {
+                                            System.out.println("PaymentController - OrderCombos count: " + fullOrder.getOrderCombos().size());
+                                        }
+                                        emailService.sendBookingConfirmationEmail(fullOrder);
+                                        System.out.println("PaymentController - Email service called for Order ID: " + order.getOrderId());
+                                        } else {
+                                        System.err.println("PaymentController - ERROR: Could not load order with details for Order ID: " + order.getOrderId());
                                         }
                                     }
                                 } catch (Exception e) {
