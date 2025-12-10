@@ -35,11 +35,24 @@ class WebSocketService {
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
-      onConnect: () => {
+      onConnect: (frame) => {
         console.log('WebSocket connected');
         this.isConnected = true;
         this.reconnectAttempts = 0;
-        this.subscribeToNotifications();
+        // Wait a bit to ensure STOMP connection is fully established
+        setTimeout(() => {
+          if (this.client && this.client.connected) {
+            this.subscribeToNotifications();
+          } else {
+            console.warn('STOMP client not fully connected, retrying subscription...');
+            // Retry after a short delay
+            setTimeout(() => {
+              if (this.client && this.client.connected) {
+                this.subscribeToNotifications();
+              }
+            }, 500);
+          }
+        }, 100);
       },
       onDisconnect: () => {
         console.log('WebSocket disconnected');
@@ -67,23 +80,33 @@ class WebSocketService {
       return;
     }
 
+    // Check if client is connected before subscribing
+    if (!this.client || !this.client.connected) {
+      console.warn('STOMP client not connected, cannot subscribe to notifications');
+      return;
+    }
+
     const destination = `/queue/notifications/${this.userId}`;
     
-    const subscription = this.client.subscribe(destination, (message) => {
-      try {
-        const notification = JSON.parse(message.body);
-        console.log('Received notification:', notification);
-        
-        if (this.onNotificationCallback) {
-          this.onNotificationCallback(notification);
+    try {
+      const subscription = this.client.subscribe(destination, (message) => {
+        try {
+          const notification = JSON.parse(message.body);
+          console.log('Received notification:', notification);
+          
+          if (this.onNotificationCallback) {
+            this.onNotificationCallback(notification);
+          }
+        } catch (error) {
+          console.error('Error parsing notification:', error);
         }
-      } catch (error) {
-        console.error('Error parsing notification:', error);
-      }
-    });
+      });
 
-    this.subscriptions.set(destination, subscription);
-    console.log(`Subscribed to ${destination}`);
+      this.subscriptions.set(destination, subscription);
+      console.log(`Subscribed to ${destination}`);
+    } catch (error) {
+      console.error('Error subscribing to notifications:', error);
+    }
   }
 
   subscribeToActivities(role, username, onActivity) {

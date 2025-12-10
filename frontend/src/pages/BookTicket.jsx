@@ -8,6 +8,7 @@ import showtimeService from '../services/showtimeService';
 import { movieService } from '../services/movieService';
 import { cinemaComplexService } from '../services/cinemaComplexService';
 import { websocketService } from '../services/websocketService';
+import { API_BASE_URL } from '../config/api';
 
 // Generate seats for a room
 function generateSeats(rows, cols) {
@@ -222,7 +223,7 @@ export default function BookTicket() {
 
       // Load prices
       try {
-        const response = await fetch('http://localhost:8080/api/public/prices');
+        const response = await fetch(`${API_BASE_URL}/public/prices`);
         const result = await response.json();
         if (result.success && result.data) {
           // Map prices from backend format to frontend format
@@ -453,7 +454,7 @@ export default function BookTicket() {
           // Load currently selected seats (real-time status)
           try {
             console.log('[BookTicket] Loading real-time seat status for showtimeId:', selectedShowtime.showtimeId);
-            const statusResponse = await fetch(`http://localhost:8080/api/public/seats/status?showtimeId=${selectedShowtime.showtimeId}`);
+            const statusResponse = await fetch(`${API_BASE_URL}/public/seats/status?showtimeId=${selectedShowtime.showtimeId}`);
             const statusResult = await statusResponse.json();
 
             if (statusResult.success && statusResult.selectedSeats) {

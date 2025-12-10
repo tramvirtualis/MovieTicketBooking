@@ -101,62 +101,64 @@ export default function Home() {
     checkRole();
   }, [navigate]);
 
-  // Fetch banners from backend
+  // Fetch all data in parallel for faster loading
   useEffect(() => {
-    const fetchBanners = async () => {
+    const fetchAllData = async () => {
       try {
+        setLoading(true);
         setLoadingBanners(true);
-        const result = await bannerService.getPublicBanners();
-        if (result.success && result.data) {
-          // Map banners to image URLs for HeroCarousel
-          const bannerImages = result.data
-            .filter(banner => banner.image) // Only include banners with images
+        setLoadingPromos(true);
+        
+        // Fetch all data in parallel
+        const [bannersResult, vouchersResult, nowShowingRes, comingSoonRes] = await Promise.all([
+          bannerService.getPublicBanners().catch(err => {
+            console.error('Error fetching banners:', err);
+            return { success: false, data: null };
+          }),
+          voucherService.getPublicVouchers().catch(err => {
+            console.error('Error fetching vouchers:', err);
+            return { success: false, data: null };
+          }),
+          axios.get(`${API_BASE_URL}/public/movies/now-showing`).catch(err => {
+            console.error('Error fetching now showing movies:', err);
+            return { data: [] };
+          }),
+          axios.get(`${API_BASE_URL}/public/movies/coming-soon`).catch(err => {
+            console.error('Error fetching coming soon movies:', err);
+            return { data: [] };
+          })
+        ]);
+        
+        // Process banners
+        if (bannersResult.success && bannersResult.data) {
+          const bannerImages = bannersResult.data
+            .filter(banner => banner.image)
             .map(banner => banner.image);
           
-          // Fallback to default posters if no banners
           if (bannerImages.length > 0) {
             setBanners(bannerImages);
           } else {
-            // Use default posters if no banners in database
             setBanners([interstellar, inception, darkKnightRises, driveMyCar]);
           }
         } else {
-          // Fallback to default posters on error
           setBanners([interstellar, inception, darkKnightRises, driveMyCar]);
         }
-      } catch (err) {
-        console.error('Error fetching banners:', err);
-        // Fallback to default posters on error
-        setBanners([interstellar, inception, darkKnightRises, driveMyCar]);
-      } finally {
         setLoadingBanners(false);
-      }
-    };
-
-    fetchBanners();
-  }, []);
-
-  // Fetch public vouchers from backend
-  useEffect(() => {
-    const fetchVouchers = async () => {
-      try {
-        setLoadingPromos(true);
-        const result = await voucherService.getPublicVouchers();
-        if (result.success && result.data) {
-          // Map vouchers to promo format
-          const mappedPromos = result.data
+        
+        // Process vouchers
+        if (vouchersResult.success && vouchersResult.data) {
+          const now = new Date();
+          const mappedPromos = vouchersResult.data
             .filter(voucher => {
-              // Only show active vouchers
-              const now = new Date();
               const startDate = voucher.startDate ? new Date(voucher.startDate) : null;
               const endDate = voucher.endDate ? new Date(voucher.endDate) : null;
               
               if (startDate && endDate) {
                 return now >= startDate && now <= endDate;
               }
-              return true; // Include if dates are missing
+              return true;
             })
-            .slice(0, 6) // Limit to 6 vouchers
+            .slice(0, 6)
             .map(voucher => ({
               title: voucher.name || voucher.code || 'Voucher',
               desc: voucher.description || `Mã: ${voucher.code || 'N/A'}`,
@@ -165,42 +167,26 @@ export default function Home() {
           
           setPromos(mappedPromos);
         } else {
-          // Fallback to empty array on error
           setPromos([]);
         }
-      } catch (err) {
-        console.error('Error fetching vouchers:', err);
-        setPromos([]);
-      } finally {
         setLoadingPromos(false);
-      }
-    };
-
-    fetchVouchers();
-  }, []);
-
-  // Fetch movies from backend
-  useEffect(() => {
-    const fetchMovies = async () => {
-      try {
-        setLoading(true);
         
-        // Fetch phim đang chiếu và phim sắp chiếu song song
-        const [nowShowingRes, comingSoonRes] = await Promise.all([
-          axios.get(`${API_BASE_URL}/public/movies/now-showing`),
-          axios.get(`${API_BASE_URL}/public/movies/coming-soon`)
-        ]);
-        
-        setNowShowing(nowShowingRes.data.map(formatMovieData));
-        setComingSoon(comingSoonRes.data.map(formatMovieData));
-      } catch (err) {
-        console.error('Error fetching movies:', err);
-      } finally {
+        // Process movies
+        setNowShowing((nowShowingRes.data || []).map(formatMovieData));
+        setComingSoon((comingSoonRes.data || []).map(formatMovieData));
         setLoading(false);
+      } catch (err) {
+        console.error('Error fetching data:', err);
+        setLoading(false);
+        setLoadingBanners(false);
+        setLoadingPromos(false);
+        // Set fallback values
+        setBanners([interstellar, inception, darkKnightRises, driveMyCar]);
+        setPromos([]);
       }
     };
 
-    fetchMovies();
+    fetchAllData();
   }, []);
 
   const handlePlayTrailer = (trailerId) => {

@@ -5,6 +5,7 @@ import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import { Section, CardsGrid } from '../components/SectionGrid.jsx';
 import { enumService } from '../services/enumService';
+import { API_BASE_URL } from '../config/api';
 
 // Helper function để map AgeRating từ backend sang format frontend (13+, 16+, 18+, P, K)
 const mapAgeRating = (ageRating) => {
@@ -69,8 +70,8 @@ export default function SearchResults() {
         setLoading(true);
         
         const [nowShowingRes, comingSoonRes] = await Promise.all([
-          axios.get('http://localhost:8080/api/public/movies/now-showing'),
-          axios.get('http://localhost:8080/api/public/movies/coming-soon')
+          axios.get(`${API_BASE_URL}/public/movies/now-showing`),
+          axios.get(`${API_BASE_URL}/public/movies/coming-soon`)
         ]);
         
         setNowShowing(nowShowingRes.data.map(formatMovieData));
