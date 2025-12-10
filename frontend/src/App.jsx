@@ -26,6 +26,7 @@ import BookTicket from './pages/BookTicket.jsx';
 import PaymentSuccess from './pages/PaymentSuccess.jsx';
 import SearchResults from './pages/SearchResults.jsx';
 import TransactionHistory from './pages/TransactionHistory.jsx';
+import NotFound from './pages/NotFound.jsx';
 
 export default function App() {
   return (
@@ -163,6 +164,9 @@ export default function App() {
             <ManagerDashboard />
           </ProtectedRoute>
         } />
+
+        {/* 404 - Catch all route - phải đặt cuối cùng */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </NotificationProvider>
   );

@@ -76,11 +76,21 @@ public class ZaloPayService {
             // 3. Tạo embed_data (JSON string) nếu chưa có
             if (embedDataStr == null || embedDataStr.isEmpty()) {
                 Map<String, Object> embedData = new HashMap<>();
+                // Lấy FRONTEND_URL từ biến môi trường hoặc từ application.properties
                 String frontendUrl = System.getenv("FRONTEND_URL");
                 if (frontendUrl == null || frontendUrl.isEmpty()) {
-                    frontendUrl = "http://localhost:5173"; // Fallback cho local dev
+                    // Thử lấy từ System property (nếu set qua -D)
+                    frontendUrl = System.getProperty("frontend.url");
                 }
-                embedData.put("redirecturl", frontendUrl + "/payment/success");
+                if (frontendUrl == null || frontendUrl.isEmpty()) {
+                    frontendUrl = "http://localhost:5173"; // Fallback cho local dev
+                    System.out.println("WARNING: FRONTEND_URL not set, using fallback: " + frontendUrl);
+                } else {
+                    System.out.println("Using FRONTEND_URL: " + frontendUrl);
+                }
+                String redirectUrl = frontendUrl + "/payment/success";
+                embedData.put("redirecturl", redirectUrl);
+                System.out.println("ZaloPay redirect URL set to: " + redirectUrl);
                 embedDataStr = objectMapper.writeValueAsString(embedData);
             }
 

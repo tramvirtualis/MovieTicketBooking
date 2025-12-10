@@ -1239,9 +1239,17 @@ public class PaymentController {
         // Redirect về /payment/success với các params cần thiết
         String frontendUrl = System.getenv("FRONTEND_URL");
         if (frontendUrl == null || frontendUrl.isEmpty()) {
+            // Thử lấy từ System property (nếu set qua -D)
+            frontendUrl = System.getProperty("frontend.url");
+        }
+        if (frontendUrl == null || frontendUrl.isEmpty()) {
             frontendUrl = "http://localhost:5173"; // Fallback cho local dev
+            System.out.println("WARNING: FRONTEND_URL not set, using fallback: " + frontendUrl);
+        } else {
+            System.out.println("Using FRONTEND_URL: " + frontendUrl);
         }
         String redirectUrl = frontendUrl + "/payment/success";
+        System.out.println("MoMo redirect URL: " + redirectUrl);
         StringBuilder queryParams = new StringBuilder();
         
         if (orderId != null && !orderId.isEmpty()) {
