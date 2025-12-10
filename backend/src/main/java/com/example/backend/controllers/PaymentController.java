@@ -48,6 +48,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -1371,7 +1372,9 @@ public class PaymentController {
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
         response.put("message", "Wallet endpoint is working!");
-        response.put("timestamp", LocalDateTime.now().toString());
+        response.put("timestamp", LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
+            .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+            .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
         return ResponseEntity.ok(response);
     }
 

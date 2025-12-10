@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.stream.Collectors;
 import com.example.backend.entities.enums.Action;
@@ -315,7 +316,7 @@ public class VoucherService {
                 .endDate(voucher.getEndDate())
                 .scope(voucher.getScope())
                 .orderAmount(orderAmount)
-                .orderDate(orderDate != null ? orderDate : LocalDateTime.now())
+                .orderDate(orderDate != null ? orderDate : LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))
                 .isPublicVoucher(voucher.getScope() == VoucherScope.PUBLIC)
                 .build();
         

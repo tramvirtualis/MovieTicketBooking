@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -59,7 +61,7 @@ public class NotificationService {
                     .type(notification.getType())
                     .title(notification.getTitle())
                     .message(notification.getMessage())
-                    .timestamp(LocalDateTime.now())
+                    .timestamp(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))
                     .data(dataJson)
                     .isRead(false)
                     .build();
@@ -166,7 +168,11 @@ public class NotificationService {
                 .type(notification.getType())
                 .title(notification.getTitle())
                 .message(notification.getMessage())
-                .timestamp(notification.getTimestamp() != null ? notification.getTimestamp().toString() : null)
+                .timestamp(notification.getTimestamp() != null 
+                    ? notification.getTimestamp()
+                        .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                        .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+                    : null)
                 .data(data)
                 .isRead(notification.getIsRead())
                 .build();
@@ -180,7 +186,9 @@ public class NotificationService {
                 .type("REVIEW_SUCCESS")
                 .title("Đánh giá thành công")
                 .message("Bạn đã đánh giá phim \"" + movieTitle + "\" thành công!")
-                .timestamp(LocalDateTime.now().toString())
+                .timestamp(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
                 .build();
         sendNotificationToUser(userId, notification);
     }
@@ -193,7 +201,9 @@ public class NotificationService {
                 .type("VOUCHER_ADDED")
                 .title("Voucher mới")
                 .message("Bạn đã nhận được voucher mới: " + voucherName + " (Mã: " + voucherCode + ")")
-                .timestamp(LocalDateTime.now().toString())
+                .timestamp(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
                 .data(java.util.Map.of("voucherCode", voucherCode, "voucherName", voucherName))
                 .build();
         sendNotificationToUser(userId, notification);
@@ -207,7 +217,9 @@ public class NotificationService {
                 .type("VOUCHER_SAVED")
                 .title("Lưu voucher thành công")
                 .message("Bạn đã lưu voucher \"" + voucherName + "\" (Mã: " + voucherCode + ") thành công!")
-                .timestamp(LocalDateTime.now().toString())
+                .timestamp(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
                 .data(java.util.Map.of("voucherCode", voucherCode, "voucherName", voucherName))
                 .build();
         sendNotificationToUser(userId, notification);
@@ -301,7 +313,9 @@ public class NotificationService {
                 .type("BOOKING_SUCCESS")
                 .title(title)
                 .message(message)
-                .timestamp(LocalDateTime.now().toString())
+                .timestamp(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
                 .data(java.util.Map.of("orderId", orderId, "totalAmount", totalAmount))
                 .build();
         sendNotificationToUser(userId, notification);
@@ -365,7 +379,9 @@ public class NotificationService {
                 .type("ORDER_CANCELLED")
                 .title(title)
                 .message(message)
-                .timestamp(LocalDateTime.now().toString())
+                .timestamp(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
                 .data(java.util.Map.of("orderId", orderId, "refundAmount", refundAmount))
                 .build();
         sendNotificationToUser(userId, notification);
@@ -418,7 +434,9 @@ public class NotificationService {
                 .type("TOPUP_SUCCESS")
                 .title("Nạp tiền thành công")
                 .message("Bạn đã nạp tiền vào ví Cinesmart thành công! Số tiền: " + amount + ", Mã đơn hàng: #" + orderId)
-                .timestamp(LocalDateTime.now().toString())
+                .timestamp(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
                 .data(java.util.Map.of("orderId", orderId, "amount", amount, "type", "topup"))
                 .build();
         sendNotificationToUser(userId, notification);

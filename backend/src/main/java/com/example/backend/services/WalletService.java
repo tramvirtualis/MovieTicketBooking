@@ -2,6 +2,7 @@ package com.example.backend.services;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -40,7 +41,7 @@ public class WalletService {
                             .customer(customer)
                             .balance(BigDecimal.ZERO)
                             .locked(Boolean.FALSE)
-                            .updatedAt(LocalDateTime.now())
+                            .updatedAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))
                             .build();
                     return walletRepository.save(wallet);
                 });
@@ -55,7 +56,7 @@ public class WalletService {
         ensureWalletUnlocked(wallet);
 
         wallet.setBalance(wallet.getBalance().add(amount));
-        wallet.setUpdatedAt(LocalDateTime.now());
+        wallet.setUpdatedAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
 
         WalletTransaction transaction = WalletTransaction.builder()
                 .wallet(wallet)
@@ -63,7 +64,7 @@ public class WalletService {
                 .type(WalletTransactionType.CREDIT)
                 .description(description)
                 .balanceAfter(wallet.getBalance())
-                .createdAt(LocalDateTime.now())
+                .createdAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))
                 .referenceCode(referenceCode)
                 .build();
 
@@ -85,7 +86,7 @@ public class WalletService {
         }
 
         wallet.setBalance(wallet.getBalance().subtract(amount));
-        wallet.setUpdatedAt(LocalDateTime.now());
+        wallet.setUpdatedAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
 
         WalletTransaction transaction = WalletTransaction.builder()
                 .wallet(wallet)
@@ -93,7 +94,7 @@ public class WalletService {
                 .type(WalletTransactionType.DEBIT)
                 .description(description)
                 .balanceAfter(wallet.getBalance())
-                .createdAt(LocalDateTime.now())
+                .createdAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))
                 .referenceCode(referenceCode)
                 .build();
 

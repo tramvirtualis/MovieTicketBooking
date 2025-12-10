@@ -45,7 +45,7 @@ public class ActivityLog {
     @PrePersist
     protected void onCreate() {
         if (timestamp == null) {
-            timestamp = LocalDateTime.now();
+            timestamp = LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
         }
     }
 }

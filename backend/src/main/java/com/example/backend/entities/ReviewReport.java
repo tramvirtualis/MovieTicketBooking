@@ -32,7 +32,7 @@ public class ReviewReport {
 
     @PrePersist
     protected void onCreate() {
-        reportedAt = LocalDateTime.now();
+        reportedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
     }
 }
 

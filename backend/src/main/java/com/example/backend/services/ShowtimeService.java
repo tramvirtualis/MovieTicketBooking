@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -295,7 +296,7 @@ public class ShowtimeService {
             // Chưa có showtime, mặc định là COMING_SOON
             newStatus = MovieStatus.COMING_SOON;
         } else {
-            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
             
             // Tìm showtime sớm nhất và muộn nhất
             Optional<Showtime> earliestShowtime = showtimes.stream()
@@ -340,7 +341,7 @@ public class ShowtimeService {
             throw new RuntimeException("Thời gian bắt đầu phải trước thời gian kết thúc");
         }
         
-        if (newStartTime.isBefore(java.time.LocalDateTime.now())) {
+        if (newStartTime.isBefore(java.time.LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))) {
             throw new RuntimeException("Lịch chiếu không được đặt trong quá khứ");
         }
         
@@ -485,7 +486,7 @@ public class ShowtimeService {
         java.time.LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
         System.out.println("startOfDay: " + startOfDay);
         System.out.println("endOfDay: " + endOfDay);
-        System.out.println("Current time: " + java.time.LocalDateTime.now());
+        System.out.println("Current time: " + java.time.LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
         
         // Get showtimes for the date (without province filter)
         List<Showtime> allShowtimes = showtimeRepository.findPublicShowtimesWithoutProvince(movieId, startOfDay, endOfDay);

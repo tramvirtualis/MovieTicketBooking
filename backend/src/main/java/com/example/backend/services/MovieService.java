@@ -24,6 +24,7 @@ import com.example.backend.entities.Showtime;
 
 import lombok.RequiredArgsConstructor;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import com.example.backend.entities.enums.Action;
 import com.example.backend.entities.enums.ObjectType;
 import com.example.backend.utils.SecurityUtils;
@@ -159,7 +160,7 @@ public class MovieService {
             if (updateMovieDTO.getStatus() == MovieStatus.ENDED) {
                 // Lấy tất cả showtimes của phim
                 List<Showtime> allShowtimes = showtimeRepository.findAllByMovieId(movieId);
-                LocalDateTime now = LocalDateTime.now();
+                LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
                 
                 // Kiểm tra xem còn có suất chiếu trong tương lai không
                 boolean hasFutureShowtime = allShowtimes.stream()

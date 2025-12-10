@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.backend.entities.Manager;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -104,7 +105,7 @@ public class ActivityLogService {
                     .objectId(objectId)
                     .objectName(objectName != null ? objectName : "")
                     .description(description != null ? description : "")
-                    .timestamp(LocalDateTime.now())
+                    .timestamp(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))
                     .build();
 
             log.info("ActivityLog entity created, attempting to save...");

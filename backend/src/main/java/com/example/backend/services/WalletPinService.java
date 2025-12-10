@@ -1,6 +1,7 @@
 package com.example.backend.services;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -102,8 +103,8 @@ public class WalletPinService {
                 .hashedPin(hashedPin)
                 .failedAttempts(0)
                 .lockedUntil(null)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .createdAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))
+                .updatedAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))
                 .build();
 
         walletPinRepository.save(walletPin);
@@ -143,7 +144,7 @@ public class WalletPinService {
             
             // Nếu vượt quá số lần cho phép, lock PIN
             if (walletPin.getFailedAttempts() >= MAX_FAILED_ATTEMPTS) {
-                walletPin.setLockedUntil(LocalDateTime.now().plusMinutes(LOCK_DURATION_MINUTES));
+                walletPin.setLockedUntil(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).plusMinutes(LOCK_DURATION_MINUTES));
                 log.warn("PIN locked for customer ID: {} due to too many failed attempts", userId);
                 walletPinRepository.save(walletPin);
                 throw new IllegalStateException("Bạn đã nhập sai mã PIN quá nhiều lần. Mã PIN đã bị khóa trong " + 
@@ -161,7 +162,7 @@ public class WalletPinService {
         walletPin.setHashedPin(hashedNewPin);
         walletPin.setFailedAttempts(0); // Reset failed attempts
         walletPin.setLockedUntil(null); // Unlock nếu đang bị lock
-        walletPin.setUpdatedAt(LocalDateTime.now());
+        walletPin.setUpdatedAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
 
         walletPinRepository.save(walletPin);
         log.info("PIN updated successfully for customer ID: {}", userId);
@@ -202,7 +203,7 @@ public class WalletPinService {
             
             // Nếu vượt quá số lần cho phép, lock PIN
             if (walletPin.getFailedAttempts() >= MAX_FAILED_ATTEMPTS) {
-                walletPin.setLockedUntil(LocalDateTime.now().plusMinutes(LOCK_DURATION_MINUTES));
+                walletPin.setLockedUntil(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).plusMinutes(LOCK_DURATION_MINUTES));
                 log.warn("PIN locked for customer ID: {} due to too many failed attempts", userId);
                 walletPinRepository.save(walletPin);
                 throw new IllegalStateException("Bạn đã nhập sai mã PIN quá nhiều lần. Mã PIN đã bị khóa trong " + 
@@ -227,7 +228,7 @@ public class WalletPinService {
         }
         
         // Nếu thời gian lock đã hết, tự động unlock
-        if (LocalDateTime.now().isAfter(walletPin.getLockedUntil())) {
+        if (LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).isAfter(walletPin.getLockedUntil())) {
             walletPin.setLockedUntil(null);
             walletPin.setFailedAttempts(0);
             walletPinRepository.save(walletPin);
@@ -245,7 +246,7 @@ public class WalletPinService {
             return 0;
         }
         
-        long minutes = java.time.Duration.between(LocalDateTime.now(), walletPin.getLockedUntil()).toMinutes();
+        long minutes = java.time.Duration.between(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")), walletPin.getLockedUntil()).toMinutes();
         return Math.max(0, minutes);
     }
 }

@@ -96,7 +96,7 @@ public class ScheduleService {
     }
 
     private List<Showtime> fetchShowtimes(LocalDate date, Long movieId, Long cinemaId) {
-        LocalDateTime startTime = LocalDateTime.now();
+        LocalDateTime startTime = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
         LocalDateTime endTime = null;
 
         if (date != null) {

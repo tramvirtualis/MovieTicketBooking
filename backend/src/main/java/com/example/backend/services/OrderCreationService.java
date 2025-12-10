@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -84,7 +85,7 @@ public class OrderCreationService {
         Order order = Order.builder()
                 .user(user)
                 .totalAmount(totalAmount)
-                .orderDate(LocalDateTime.now())
+                .orderDate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))
                 .paymentMethod(paymentMethod)
                 .status(OrderStatus.PENDING)
                 .tickets(new ArrayList<>())

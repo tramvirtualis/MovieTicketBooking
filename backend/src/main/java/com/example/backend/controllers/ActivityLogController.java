@@ -17,6 +17,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,8 +50,8 @@ public class ActivityLogController {
         try {
             // Nếu có days, tính startDate từ hiện tại
             if (days != null && days > 0) {
-                startDate = LocalDateTime.now().minusDays(days);
-                endDate = LocalDateTime.now();
+                startDate = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusDays(days);
+                endDate = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
             }
             
             List<ActivityLogResponseDTO> activities = activityLogService.getAllActivities(
@@ -104,8 +105,8 @@ public class ActivityLogController {
             }
 
             if (days != null && days > 0) {
-                startDate = LocalDateTime.now().minusDays(days);
-                endDate = LocalDateTime.now();
+                startDate = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusDays(days);
+                endDate = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
             }
 
             List<ActivityLogResponseDTO> activities = activityLogService.getManagerActivities(

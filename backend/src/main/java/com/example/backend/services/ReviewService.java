@@ -1,6 +1,7 @@
 package com.example.backend.services;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -63,7 +64,7 @@ public class ReviewService {
             review = existingReview.get();
             review.setRating(createReviewDTO.getRating());
             review.setContext(createReviewDTO.getContext());
-            review.setCreatedUpdate(LocalDateTime.now());
+            review.setCreatedUpdate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
         } else {
             // Tạo đánh giá mới
             review = Review.builder()
@@ -71,8 +72,8 @@ public class ReviewService {
                 .movie(movie)
                 .rating(createReviewDTO.getRating())
                 .context(createReviewDTO.getContext())
-                .createdAt(LocalDateTime.now())
-                .createdUpdate(LocalDateTime.now())
+                .createdAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))
+                .createdUpdate(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))
                 .build();
         }
         
