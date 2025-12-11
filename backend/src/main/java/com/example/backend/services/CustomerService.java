@@ -159,11 +159,6 @@ public class CustomerService {
     public VoucherResponseDTO saveVoucher(Long userId, Long voucherId) {
         Customer customer = customerRepository.findByIdWithVouchers(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với ID: " + userId));
-        
-        // Kiểm tra user có bị chặn không
-        if (customer.getUser() != null && customer.getUser().getStatus() != null && !customer.getUser().getStatus()) {
-            throw new RuntimeException("Tài khoản của bạn đã bị chặn. Bạn không thể lưu voucher. Vui lòng liên hệ quản trị viên để được hỗ trợ.");
-        }
 
         Voucher voucher = voucherRepository.findById(voucherId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy voucher với ID: " + voucherId));

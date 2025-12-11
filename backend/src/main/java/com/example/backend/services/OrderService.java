@@ -597,7 +597,7 @@ public class OrderService {
 
         // Chỉ tính các orders đã thanh toán thành công (có vnpPayDate)
         // Và chỉ tính orders thanh toán bằng VNPAY, MOMO, ZALOPAY (không tính WALLET)
-        // Bao gồm cả orders nạp tiền vào ví (isTopUp = true)
+        // KHÔNG tính orders nạp tiền vào ví (isTopUp = true) - sẽ tính riêng
         List<Order> paidOrders = orders.stream()
                 .filter(order -> {
                     boolean isPaid = order.getVnpPayDate() != null;
@@ -606,23 +606,53 @@ public class OrderService {
                         return false;
                     }
                     
+                    // Loại bỏ đơn nạp tiền vào ví
+                    boolean isTopUp = Boolean.TRUE.equals(order.getIsTopUp());
+                    if (isTopUp) {
+                        System.out.println("DEBUG: Order " + order.getOrderId() + " is top-up, excluding from expenses");
+                        return false;
+                    }
+                    
                     // Chỉ tính orders thanh toán bằng VNPAY, MOMO, ZALOPAY (không tính WALLET)
-                    // Trừ khi là top-up order (nạp tiền vào ví)
                     PaymentMethod paymentMethod = order.getPaymentMethod();
                     boolean isWalletPayment = paymentMethod == PaymentMethod.WALLET;
-                    boolean isTopUp = Boolean.TRUE.equals(order.getIsTopUp());
                     
-                    // Nếu là thanh toán bằng ví và không phải top-up, không tính
-                    if (isWalletPayment && !isTopUp) {
-                        System.out.println("DEBUG: Order " + order.getOrderId() + " paid by WALLET (not top-up), excluding from expenses");
+                    // Nếu là thanh toán bằng ví, không tính
+                    if (isWalletPayment) {
+                        System.out.println("DEBUG: Order " + order.getOrderId() + " paid by WALLET, excluding from expenses");
                         return false;
                     }
                     
                     // Tính các orders thanh toán bằng VNPAY, MOMO, ZALOPAY
-                    // Và các orders top-up (nạp tiền vào ví)
                     return true;
                 })
                 .collect(Collectors.toList());
+        
+        // Tính riêng tổng số tiền nạp vào ví
+        List<Order> topUpOrders = orders.stream()
+                .filter(order -> {
+                    boolean isPaid = order.getVnpPayDate() != null;
+                    if (!isPaid) {
+                        return false;
+                    }
+                    boolean isTopUp = Boolean.TRUE.equals(order.getIsTopUp());
+                    return isTopUp;
+                })
+                .collect(Collectors.toList());
+        
+        BigDecimal totalTopUp = topUpOrders.stream()
+                .map(order -> {
+                    BigDecimal amount = order.getTotalAmount();
+                    if (amount == null) {
+                        return BigDecimal.ZERO;
+                    }
+                    // Nếu order bị hủy, trừ đi số tiền đã hoàn
+                    if (order.getStatus() == OrderStatus.CANCELLED && order.getRefundAmount() != null) {
+                        return amount.subtract(order.getRefundAmount());
+                    }
+                    return amount;
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         System.out.println("DEBUG: Paid orders count (excluding wallet payments): " + paidOrders.size());
 
@@ -737,10 +767,11 @@ public class OrderService {
                 })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Đếm tổng số đơn hàng đã thanh toán
+        // Đếm tổng số đơn hàng đã thanh toán (không tính đơn nạp tiền)
         long totalOrders = paidOrders.size();
 
-        System.out.println("DEBUG: Total orders: " + totalOrders);
+        System.out.println("DEBUG: Total orders (excluding top-up): " + totalOrders);
+        System.out.println("DEBUG: Total top-up amount: " + totalTopUp);
         System.out.println("DEBUG: This month spent: " + thisMonthSpent);
         System.out.println("DEBUG: Last month spent: " + lastMonthSpent);
         System.out.println("DEBUG: Last 3 months spent: " + lastThreeMonthsSpent);
@@ -749,6 +780,7 @@ public class OrderService {
         statistics.put("totalSpent", totalSpent);
         statistics.put("totalTickets", totalTickets);
         statistics.put("totalOrders", totalOrders);
+        statistics.put("totalTopUp", totalTopUp);
         statistics.put("thisMonthSpent", thisMonthSpent);
         statistics.put("lastMonthSpent", lastMonthSpent);
         statistics.put("lastThreeMonthsSpent", lastThreeMonthsSpent);

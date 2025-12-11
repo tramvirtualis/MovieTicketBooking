@@ -66,6 +66,7 @@ export default function Profile() {
     totalSpent: 0,
     totalTickets: 0,
     totalOrders: 0,
+    totalTopUp: 0,
     thisMonthSpent: 0,
     lastMonthSpent: 0,
     lastThreeMonthsSpent: 0
@@ -303,6 +304,7 @@ export default function Profile() {
           totalSpent: stats.totalSpent ? Number(stats.totalSpent) : 0,
           totalTickets: stats.totalTickets ? Number(stats.totalTickets) : 0,
           totalOrders: stats.totalOrders ? Number(stats.totalOrders) : 0,
+          totalTopUp: stats.totalTopUp ? Number(stats.totalTopUp) : 0,
           thisMonthSpent: stats.thisMonthSpent ? Number(stats.thisMonthSpent) : 0,
           lastMonthSpent: stats.lastMonthSpent ? Number(stats.lastMonthSpent) : 0,
           lastThreeMonthsSpent: stats.lastThreeMonthsSpent ? Number(stats.lastThreeMonthsSpent) : 0
@@ -1052,8 +1054,8 @@ export default function Profile() {
                     </div>
                   ) : (
                     <>
-                      {/* Main Statistics - 2 columns */}
-                      <div className="profile-stats-grid" style={{ marginBottom: '32px', gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                      {/* Main Statistics - 3 columns */}
+                      <div className="profile-stats-grid" style={{ marginBottom: '32px', gridTemplateColumns: 'repeat(3, 1fr)' }}>
                         {/* Tổng chi tiêu */}
                         <div className="profile-stat-card">
                           <div className="profile-stat-card__icon text-[#ffd159]">
@@ -1082,6 +1084,22 @@ export default function Profile() {
                           <div className="profile-stat-card__content">
                             <div className="profile-stat-card__value">{expenseStats.totalOrders}</div>
                             <div className="profile-stat-card__label">Tổng số đơn hàng</div>
+                          </div>
+                        </div>
+
+                        {/* Tổng số tiền nạp vào ví */}
+                        <div className="profile-stat-card">
+                          <div className="profile-stat-card__icon text-[#4a90e2]">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                              <line x1="1" y1="10" x2="23" y2="10"/>
+                            </svg>
+                          </div>
+                          <div className="profile-stat-card__content">
+                            <div className="profile-stat-card__value">
+                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(expenseStats.totalTopUp)}
+                            </div>
+                            <div className="profile-stat-card__label">Tổng số tiền nạp vào ví</div>
                           </div>
                         </div>
                       </div>

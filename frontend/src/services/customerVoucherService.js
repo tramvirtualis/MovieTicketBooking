@@ -26,16 +26,21 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Giữ nguyên error object để có thể truy cập đầy đủ thông tin
+    // Chỉ thêm message nếu chưa có
     if (error.response) {
-      const errorMessage = error.response.data?.message || error.response.data?.error || 'Có lỗi xảy ra';
-      return Promise.reject({
-        message: errorMessage,
-        validationErrors: error.response.data?.errors || null,
-      });
+      if (!error.message) {
+        error.message = error.response.data?.message || error.response.data?.error || 'Có lỗi xảy ra';
+      }
+      // Đảm bảo response được giữ lại
+      return Promise.reject(error);
     } else if (error.request) {
-      return Promise.reject({ message: 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.' });
+      return Promise.reject({ 
+        ...error,
+        message: error.message || 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.' 
+      });
     } else {
-      return Promise.reject({ message: error.message || 'Có lỗi xảy ra' });
+      return Promise.reject(error);
     }
   }
 );
@@ -117,24 +122,12 @@ export const customerVoucherService = {
    * @returns {Promise<Object>} Response từ server
    */
   saveVoucher: async (voucherId) => {
-    try {
-      console.log('customerVoucherService: Saving voucher:', voucherId);
-      const response = await axiosInstance.post(`/customer/vouchers/${voucherId}`);
-      console.log('customerVoucherService: Save response:', response.data);
-      return {
-        success: true,
-        data: mapVoucherFromBackend(response.data.data),
-        message: response.data.message || 'Lưu voucher thành công',
-      };
-    } catch (error) {
-      console.error('customerVoucherService: Error saving voucher:', error);
-      console.error('customerVoucherService: Error response:', error.response);
-      const errorMessage = error.response?.data?.message || error.message || 'Không thể lưu voucher';
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
+    const response = await axiosInstance.post(`/customer/vouchers/${voucherId}`);
+    return {
+      success: true,
+      data: mapVoucherFromBackend(response.data.data),
+      message: response.data.message || 'Lưu voucher thành công',
+    };
   },
 
   /**
@@ -172,11 +165,17 @@ export const customerVoucherService = {
         message: response.data.message || 'Kiểm tra voucher thành công',
       };
     } catch (error) {
+      // Nếu là lỗi 401, throw để loadData có thể xử lý
+      if (error.response?.status === 401) {
+        throw error;
+      }
       return {
         success: false,
         hasVoucher: false,
         isUsed: false,
-        error: error.message || 'Không thể kiểm tra voucher',
+        error: error.response?.data?.message || error.message || 'Không thể kiểm tra voucher',
+        status: error.response?.status,
+        response: error.response,
       };
     }
   },

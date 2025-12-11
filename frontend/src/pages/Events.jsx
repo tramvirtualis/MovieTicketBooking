@@ -92,16 +92,15 @@ export default function Events() {
   const [loading, setLoading] = useState(true);
   const [savingVoucherId, setSavingVoucherId] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showBlockedModal, setShowBlockedModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Load public vouchers and user's saved vouchers
   const loadData = async () => {
     setLoading(true);
     try {
-      console.log('Events: Loading public vouchers...');
       // Load public vouchers
       const publicVouchers = await getPublicVouchers();
-      console.log('Events: Public vouchers loaded:', publicVouchers);
       
       // Load user's saved vouchers and check used vouchers if logged in
       const token = localStorage.getItem('jwt');
@@ -118,9 +117,19 @@ export default function Events() {
                   hasVoucher: checkResult.hasVoucher || false,
                   isUsed: checkResult.isUsed || false
                 });
+              } else if (checkResult.status === 401) {
+                // Token hết hạn, clear localStorage và dừng load (không reload trang ở đây)
+                localStorage.removeItem('jwt');
+                localStorage.removeItem('user');
+                break; // Dừng vòng lặp
               }
             } catch (error) {
-              console.error(`Error checking voucher ${voucher.voucherId}:`, error);
+              // Kiểm tra nếu là lỗi 401
+              if (error.response?.status === 401) {
+                localStorage.removeItem('jwt');
+                localStorage.removeItem('user');
+                break; // Dừng vòng lặp, không reload trang ở đây
+              }
               // Set default values if check fails
               const voucherId = Number(voucher.voucherId);
               statusMap.set(voucherId, {
@@ -129,9 +138,13 @@ export default function Events() {
               });
             }
           }
-          console.log('Events: Voucher status loaded:', statusMap.size);
         } catch (error) {
-          console.error('Error loading voucher status:', error);
+          // Kiểm tra nếu là lỗi 401
+          if (error.response?.status === 401) {
+            localStorage.removeItem('jwt');
+            localStorage.removeItem('user');
+            // Không reload trang ở đây, chỉ clear localStorage
+          }
         }
       }
 
@@ -152,10 +165,8 @@ export default function Events() {
         })
         .filter((voucher) => voucher.status !== 'expired'); // Ẩn các voucher đã hết hạn
 
-      console.log('Events: Mapped vouchers:', mappedVouchers.length);
       setVouchers(mappedVouchers);
     } catch (error) {
-      console.error('Error loading vouchers:', error);
       setVouchers([]);
     } finally {
       setLoading(false);
@@ -167,13 +178,11 @@ export default function Events() {
     
     // Reload voucher status when window gains focus (e.g., after canceling order)
     const handleFocus = () => {
-      console.log('Events: Window focused, reloading voucher status...');
       loadData();
     };
     
     // Listen for custom event when order is cancelled
     const handleOrderCancelled = () => {
-      console.log('Events: Order cancelled, reloading voucher status...');
       loadData();
     };
     
@@ -193,13 +202,6 @@ export default function Events() {
       return;
     }
 
-    // Check if user is blocked
-    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-    if (storedUser.status === false) {
-      setShowBlockedModal(true);
-      return;
-    }
-
     // Check current status
     const currentStatus = voucherStatus.get(Number(voucherId));
     if (currentStatus && currentStatus.hasVoucher) {
@@ -208,36 +210,41 @@ export default function Events() {
 
     setSavingVoucherId(voucherId);
     try {
-      console.log('Events: Saving voucher:', voucherId);
       const result = await customerVoucherService.saveVoucher(voucherId);
-      console.log('Events: Save result:', result);
       
-      if (result.success) {
-        // Reload voucher status to ensure consistency
-        try {
-          const checkResult = await customerVoucherService.checkVoucher(voucherId);
-          if (checkResult.success) {
-            setVoucherStatus(prev => {
-              const newMap = new Map(prev);
-              newMap.set(Number(voucherId), {
-                hasVoucher: checkResult.hasVoucher || false,
-                isUsed: checkResult.isUsed || false
-              });
-              return newMap;
+      // Reload voucher status to ensure consistency
+      try {
+        const checkResult = await customerVoucherService.checkVoucher(voucherId);
+        if (checkResult.success) {
+          setVoucherStatus(prev => {
+            const newMap = new Map(prev);
+            newMap.set(Number(voucherId), {
+              hasVoucher: checkResult.hasVoucher || false,
+              isUsed: checkResult.isUsed || false
             });
-          }
-        } catch (reloadError) {
-          console.error('Error reloading voucher status:', reloadError);
+            return newMap;
+          });
         }
-      } else {
-        const errorMsg = result.error || 'Không thể lưu voucher';
-        console.error('Save failed:', errorMsg);
-        alert(errorMsg);
+      } catch (reloadError) {
+        // Ignore reload error
       }
     } catch (error) {
-      console.error('Error saving voucher:', error);
       const errorMsg = error.response?.data?.message || error.message || 'Không thể lưu voucher';
-      alert(errorMsg);
+      const status = error.response?.status;
+      
+      // CHỈ reload khi thực sự là lỗi 401 (token hết hạn)
+      // Các lỗi khác (400, 403, etc.) chỉ hiển thị error message
+      if (status === 401) {
+        // Chỉ reload khi thực sự là 401, không phải các lỗi khác
+        localStorage.removeItem('jwt');
+        localStorage.removeItem('user');
+        window.location.reload();
+        return;
+      } else {
+        // Tất cả các lỗi khác (400, 403, 500, etc.) chỉ hiển thị error message
+        setErrorMessage(errorMsg);
+        setShowErrorModal(true);
+      }
     } finally {
       setSavingVoucherId(null);
     }
@@ -350,24 +357,29 @@ export default function Events() {
       {/* Login Modal */}
       <ConfirmModal
         isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
+        onClose={() => {
+          setShowLoginModal(false);
+          // Reload trang để cập nhật header
+          window.location.reload();
+        }}
         onConfirm={() => {
           setShowLoginModal(false);
           window.location.href = '/signin';
         }}
         title="Yêu cầu đăng nhập"
-        message="Vui lòng đăng nhập để lưu voucher"
+        message="Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại để tiếp tục."
         confirmText="Đăng nhập"
         cancelText="Hủy"
         type="alert"
       />
 
+      {/* Error Modal */}
       <ConfirmModal
-        isOpen={showBlockedModal}
-        onClose={() => setShowBlockedModal(false)}
-        onConfirm={() => setShowBlockedModal(false)}
-        title="Tài khoản bị chặn"
-        message="Tài khoản của bạn đã bị chặn. Bạn không thể lưu voucher. Vui lòng liên hệ quản trị viên để được hỗ trợ."
+        isOpen={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        onConfirm={() => setShowErrorModal(false)}
+        title="Lỗi"
+        message={errorMessage}
         confirmText="Đã hiểu"
         type="alert"
         confirmButtonStyle="primary"
