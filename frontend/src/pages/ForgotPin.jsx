@@ -109,16 +109,19 @@ export default function ForgotPin() {
     }
 
     try {
-      await walletPinService.resetPinWithOtp({
+      console.log('[ForgotPin] Calling resetPinWithOtp with:', { email, otp, newPin, confirmPin });
+      const result = await walletPinService.resetPinWithOtp({
         email,
         otp,
         newPin,
         confirmPin
       });
+      console.log('[ForgotPin] Reset result:', result);
       
       // Reset thành công, hiển thị modal
       setShowSuccessModal(true);
     } catch (err) {
+      console.error('[ForgotPin] Error resetting PIN:', err);
       setError(err.message || 'Đặt lại mã PIN thất bại');
     }
     
@@ -248,6 +251,23 @@ export default function ForgotPin() {
           </section>
         </div>
         <Footer />
+
+        {/* Success Modal */}
+        <ConfirmModal
+          isOpen={showSuccessModal}
+          onClose={() => {
+            setShowSuccessModal(false);
+            navigate('/profile?tab=pin');
+          }}
+          onConfirm={() => {
+            setShowSuccessModal(false);
+            navigate('/profile?tab=pin');
+          }}
+          title="Thành công"
+          message="Đặt lại mã PIN thành công!"
+          confirmText="Đã hiểu"
+          type="alert"
+        />
       </div>
     );
   }
@@ -387,6 +407,23 @@ export default function ForgotPin() {
           </section>
         </div>
         <Footer />
+
+        {/* Success Modal */}
+        <ConfirmModal
+          isOpen={showSuccessModal}
+          onClose={() => {
+            setShowSuccessModal(false);
+            navigate('/profile?tab=pin');
+          }}
+          onConfirm={() => {
+            setShowSuccessModal(false);
+            navigate('/profile?tab=pin');
+          }}
+          title="Thành công"
+          message="Đặt lại mã PIN thành công!"
+          confirmText="Đã hiểu"
+          type="alert"
+        />
       </div>
     );
   }

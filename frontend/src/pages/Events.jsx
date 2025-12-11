@@ -92,6 +92,7 @@ export default function Events() {
   const [loading, setLoading] = useState(true);
   const [savingVoucherId, setSavingVoucherId] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
 
   // Load public vouchers and user's saved vouchers
   const loadData = async () => {
@@ -189,6 +190,13 @@ export default function Events() {
     const token = localStorage.getItem('jwt');
     if (!token) {
       setShowLoginModal(true);
+      return;
+    }
+
+    // Check if user is blocked
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (storedUser.status === false) {
+      setShowBlockedModal(true);
       return;
     }
 
@@ -352,6 +360,17 @@ export default function Events() {
         confirmText="Đăng nhập"
         cancelText="Hủy"
         type="alert"
+      />
+
+      <ConfirmModal
+        isOpen={showBlockedModal}
+        onClose={() => setShowBlockedModal(false)}
+        onConfirm={() => setShowBlockedModal(false)}
+        title="Tài khoản bị chặn"
+        message="Tài khoản của bạn đã bị chặn. Bạn không thể lưu voucher. Vui lòng liên hệ quản trị viên để được hỗ trợ."
+        confirmText="Đã hiểu"
+        type="alert"
+        confirmButtonStyle="primary"
       />
     </div>
   );

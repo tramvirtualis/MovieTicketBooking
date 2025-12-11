@@ -143,10 +143,26 @@ public class WalletPinController {
 
     /**
      * Gửi OTP để quên mã PIN (public endpoint - không cần authentication)
+     * Nhưng nếu user đã đăng nhập, chỉ cho phép đổi PIN của chính họ
      */
     @PostMapping("/forgot/send-otp")
     public ResponseEntity<?> sendForgotPinOtp(@Valid @RequestBody ForgotPinRequestDTO request, HttpSession session) {
         try {
+            // Kiểm tra nếu user đã đăng nhập, chỉ cho phép đổi PIN của chính họ
+            try {
+                String username = SecurityContextHolder.getContext().getAuthentication().getName();
+                if (username != null && !username.equals("anonymousUser")) {
+                    // User đã đăng nhập, kiểm tra email có khớp không
+                    Customer currentCustomer = customerRepository.findByUsername(username)
+                            .orElse(null);
+                    if (currentCustomer != null && !currentCustomer.getEmail().equals(request.getEmail())) {
+                        return ResponseEntity.badRequest().body(createError("Email không đúng. Vui lòng kiểm tra lại email của bạn."));
+                    }
+                }
+            } catch (Exception e) {
+                // User chưa đăng nhập, cho phép tiếp tục (tính năng Forgot PIN)
+            }
+            
             walletPinService.sendForgotPinOtp(request, session);
             
             Map<String, Object> response = new HashMap<>();
@@ -163,10 +179,26 @@ public class WalletPinController {
     
     /**
      * Đặt lại mã PIN sau khi xác thực OTP (public endpoint - không cần authentication)
+     * Nhưng nếu user đã đăng nhập, chỉ cho phép đổi PIN của chính họ
      */
     @PostMapping("/forgot/reset")
     public ResponseEntity<?> resetPinWithOtp(@Valid @RequestBody ResetPinRequestDTO request, HttpSession session) {
         try {
+            // Kiểm tra nếu user đã đăng nhập, chỉ cho phép đổi PIN của chính họ
+            try {
+                String username = SecurityContextHolder.getContext().getAuthentication().getName();
+                if (username != null && !username.equals("anonymousUser")) {
+                    // User đã đăng nhập, kiểm tra email có khớp không
+                    Customer currentCustomer = customerRepository.findByUsername(username)
+                            .orElse(null);
+                    if (currentCustomer != null && !currentCustomer.getEmail().equals(request.getEmail())) {
+                        return ResponseEntity.badRequest().body(createError("Email không đúng. Vui lòng kiểm tra lại email của bạn."));
+                    }
+                }
+            } catch (Exception e) {
+                // User chưa đăng nhập, cho phép tiếp tục (tính năng Forgot PIN)
+            }
+            
             walletPinService.resetPinWithOtp(request, session);
             
             Map<String, Object> response = new HashMap<>();
