@@ -321,17 +321,8 @@ public class AuthService {
     }
 
     public LoginResponseDTO login(String username, String password) throws Exception {
-        // Hỗ trợ đăng nhập bằng username hoặc email
+        // Chỉ tìm kiếm bằng username (không hỗ trợ email)
         Optional<User> userOpt = userRepository.findByUsername(username);
-        
-        // Nếu không tìm thấy bằng username, thử tìm bằng email (chỉ cho Customer)
-        if (userOpt.isEmpty()) {
-            Optional<Customer> customerOpt = customerRepository.findByEmail(username);
-            if (customerOpt.isPresent()) {
-                Customer customer = customerOpt.get();
-                userOpt = userRepository.findById(customer.getUserId());
-            }
-        }
         
         if (userOpt.isEmpty()) {
             throw new Exception("Tên đăng nhập hoặc mật khẩu không đúng");

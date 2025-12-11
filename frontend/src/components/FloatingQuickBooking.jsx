@@ -11,14 +11,23 @@ const FloatingQuickBooking = () => {
   };
 
   const handleFilterChange = (filters) => {
-    // Navigate to schedule page with filters
-    const params = new URLSearchParams();
-    if (filters.cinemaId) params.set('cinema', filters.cinemaId);
-    if (filters.movieId) params.set('movie', filters.movieId);
-    if (filters.date) params.set('date', filters.date);
+    // Check if this is a reset (all values are undefined)
+    const isReset = filters.cinemaId === undefined && 
+                    filters.movieId === undefined && 
+                    filters.date === undefined;
     
-    navigate(`/schedule?${params.toString()}`);
-    setIsOpen(false); // Close panel after navigating
+    // Only navigate if not a reset (i.e., at least one filter is selected)
+    if (!isReset) {
+      // Navigate to schedule page with filters
+      const params = new URLSearchParams();
+      if (filters.cinemaId) params.set('cinema', filters.cinemaId);
+      if (filters.movieId) params.set('movie', filters.movieId);
+      if (filters.date) params.set('date', filters.date);
+      
+      navigate(`/schedule?${params.toString()}`);
+      setIsOpen(false); // Close panel after navigating
+    }
+    // If reset, just reset the form without navigating
   };
 
   return (

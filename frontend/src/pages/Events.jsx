@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Header from '../components/Header.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 import { customerVoucherService } from '../services/customerVoucherService';
 import { voucherService } from '../services/voucherService';
 
@@ -90,6 +91,7 @@ export default function Events() {
   const [voucherStatus, setVoucherStatus] = useState(new Map()); // Map<voucherId, {hasVoucher: boolean, isUsed: boolean}>
   const [loading, setLoading] = useState(true);
   const [savingVoucherId, setSavingVoucherId] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Load public vouchers and user's saved vouchers
   const loadData = async () => {
@@ -186,8 +188,7 @@ export default function Events() {
   const handleSave = async (voucherId) => {
     const token = localStorage.getItem('jwt');
     if (!token) {
-      alert('Vui lòng đăng nhập để lưu voucher');
-      window.location.href = '/signin';
+      setShowLoginModal(true);
       return;
     }
 
@@ -337,6 +338,21 @@ export default function Events() {
           )}
         </section>
       </div>
+
+      {/* Login Modal */}
+      <ConfirmModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onConfirm={() => {
+          setShowLoginModal(false);
+          window.location.href = '/signin';
+        }}
+        title="Yêu cầu đăng nhập"
+        message="Vui lòng đăng nhập để lưu voucher"
+        confirmText="Đăng nhập"
+        cancelText="Hủy"
+        type="alert"
+      />
     </div>
   );
 }

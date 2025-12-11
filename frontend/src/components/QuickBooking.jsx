@@ -23,15 +23,33 @@ const QuickBooking = ({ onFilterChange, horizontal = false, hideTitle = false, i
   // Update when initialFilters change
   useEffect(() => {
     if (initialFilters) {
-      if (initialFilters.cinemaId !== undefined) {
-        setSelectedCinemaId(initialFilters.cinemaId ? String(initialFilters.cinemaId) : '');
+      // Check if all values are undefined (reset case)
+      const allUndefined = initialFilters.cinemaId === undefined && 
+                          initialFilters.movieId === undefined && 
+                          initialFilters.date === undefined;
+      
+      if (allUndefined) {
+        // Reset all fields
+        setSelectedCinemaId('');
+        setSelectedMovieId('');
+        setSelectedDate('');
+      } else {
+        // Update individual fields
+        if (initialFilters.cinemaId !== undefined) {
+          setSelectedCinemaId(initialFilters.cinemaId ? String(initialFilters.cinemaId) : '');
+        }
+        if (initialFilters.movieId !== undefined) {
+          setSelectedMovieId(initialFilters.movieId ? String(initialFilters.movieId) : '');
+        }
+        if (initialFilters.date !== undefined) {
+          setSelectedDate(initialFilters.date || '');
+        }
       }
-      if (initialFilters.movieId !== undefined) {
-        setSelectedMovieId(initialFilters.movieId ? String(initialFilters.movieId) : '');
-      }
-      if (initialFilters.date !== undefined) {
-        setSelectedDate(initialFilters.date || '');
-      }
+    } else {
+      // Reset when initialFilters is null/undefined
+      setSelectedCinemaId('');
+      setSelectedMovieId('');
+      setSelectedDate('');
     }
   }, [initialFilters]);
   
@@ -315,10 +333,8 @@ const QuickBooking = ({ onFilterChange, horizontal = false, hideTitle = false, i
     setSelectedMovieId(movieId);
     setError(null);
     
-    // Clear date if movie changes (unless cinema is also selected, then we'll filter dates)
-    if (!selectedCinemaId) {
-      setSelectedDate('');
-    }
+    // Don't clear date if it's already selected - we'll filter based on movie + date
+    // Only clear date if no cinema is selected AND no date is selected (but this shouldn't happen)
     
     if (!movieId) {
       // Reset to all cinemas and dates if no movie selected
@@ -460,6 +476,11 @@ const QuickBooking = ({ onFilterChange, horizontal = false, hideTitle = false, i
           }
         }
         setDateTimeOptions(dates);
+        
+        // If date is already selected, verify it's still valid for this movie
+        if (selectedDate && !availableDates.has(selectedDate)) {
+          setSelectedDate('');
+        }
       } else {
         // No cinema and no date selected, get cinemas and dates for this movie
         const availableDates = new Set();
@@ -542,24 +563,26 @@ const QuickBooking = ({ onFilterChange, horizontal = false, hideTitle = false, i
         const availableMovies = new Set();
         
         try {
-      const listings = await scheduleService.getListings({
+          const listings = await scheduleService.getListings({
             cinemaId: cinemaIdNum,
             date: dateStr
-      });
-      
-      if (listings && listings.length > 0) {
+          });
+          
+          if (listings && listings.length > 0) {
             listings.forEach(listing => {
               if (listing.movieId) {
                 availableMovies.add(listing.movieId);
               }
             });
-      }
-    } catch (err) {
+          }
+        } catch (err) {
           console.error('Error loading movies for cinema + date:', err);
         }
         
-        // Filter movies list to only show available movies
-        const filteredMovies = movies.filter(m => availableMovies.has(m.movieId));
+        // Load all movies first, then filter by available movies for this cinema + date
+        const allMoviesOptions = await scheduleService.getOptions({ cinemaId: cinemaIdNum });
+        const allMovies = allMoviesOptions?.movies || [];
+        const filteredMovies = allMovies.filter(m => availableMovies.has(m.movieId));
         setMovies(filteredMovies);
         
         // Clear selected movie if it's not in filtered list
@@ -647,6 +670,12 @@ const QuickBooking = ({ onFilterChange, horizontal = false, hideTitle = false, i
   
   // Handle showtime selection - check age rating and navigate
   const handleShowtimeSelect = async (showtime) => {
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (storedUser.status === false) {
+      setError('Tài khoản của bạn đã bị chặn. Bạn không thể đặt vé. Vui lòng liên hệ quản trị viên để được hỗ trợ.');
+      return;
+    }
+    
     setPendingShowtime(showtime);
     setLoadingMovie(true);
     setError(null);
@@ -698,6 +727,28 @@ const QuickBooking = ({ onFilterChange, horizontal = false, hideTitle = false, i
     setSelectedMovieId('');
     setSelectedDate('');
     setError(null);
+    
+    // Reset date options to all 7 days
+    const today = new Date();
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      dates.push({
+        value: date.toISOString().split('T')[0],
+        label: formatDateLabel(date, i)
+      });
+    }
+    setDateTimeOptions(dates);
+    
+    // Notify parent component to reset filters and URL
+    if (onFilterChange) {
+      onFilterChange({
+        cinemaId: undefined,
+        movieId: undefined,
+        date: undefined
+      });
+    }
     
     // Reload all options
     const loadAllOptions = async () => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 import { cinemaComplexService } from '../services/cinemaComplexService';
 import '../styles/pages/food-drinks.css';
 import '../styles/components/food-item-card.css';
@@ -17,6 +18,14 @@ export default function FoodAndDrinks() {
   const [loadingMenu, setLoadingMenu] = useState(false);
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
+  
+  // Check if user is blocked
+  useEffect(() => {
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    setIsBlocked(storedUser.status === false);
+  }, []);
 
   // Load cinemas from API
   useEffect(() => {
@@ -99,6 +108,10 @@ export default function FoodAndDrinks() {
   };
 
   const addToCart = (item) => {
+    if (isBlocked) {
+      setShowBlockedModal(true);
+      return;
+    }
     const existingItem = cart.find(cartItem => cartItem.id === item.id);
     if (existingItem) {
       setCart(cart.map(cartItem => 
@@ -147,6 +160,10 @@ export default function FoodAndDrinks() {
   };
 
   const handleCheckout = () => {
+    if (isBlocked) {
+      setShowBlockedModal(true);
+      return;
+    }
     // Save cart to localStorage and navigate to checkout
     const cartData = {
       items: cart,
@@ -278,7 +295,7 @@ export default function FoodAndDrinks() {
                               }}>
                                 <button
                                   onClick={() => updateItemQuantity(item, quantity - 1)}
-                                  disabled={quantity === 0}
+                                  disabled={quantity === 0 || isBlocked}
                                   style={{
                                     background: quantity > 0 ? 'rgba(123, 97, 255, 0.4)' : 'rgba(123, 97, 255, 0.2)',
                                     border: 'none',
@@ -318,7 +335,14 @@ export default function FoodAndDrinks() {
                                   {quantity}
                                 </span>
                                 <button
-                                  onClick={() => updateItemQuantity(item, quantity + 1)}
+                                  onClick={() => {
+                                    if (isBlocked) {
+                                      setShowBlockedModal(true);
+                                      return;
+                                    }
+                                    updateItemQuantity(item, quantity + 1);
+                                  }}
+                                  disabled={isBlocked}
                                   style={{
                                     background: 'rgba(123, 97, 255, 0.4)',
                                     border: 'none',
@@ -527,7 +551,12 @@ export default function FoodAndDrinks() {
                       <span>Tổng cộng:</span>
                       <span className="food-cart-modal__total-amount">{formatPrice(getTotalAmount())}</span>
                     </div>
-                    <button className="btn btn--primary food-cart-checkout-btn" onClick={handleCheckout}>
+                    <button 
+                      className="btn btn--primary food-cart-checkout-btn" 
+                      onClick={handleCheckout}
+                      disabled={isBlocked}
+                      style={isBlocked ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                    >
                       Đặt hàng
                     </button>
                   </div>
@@ -537,6 +566,17 @@ export default function FoodAndDrinks() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={showBlockedModal}
+        onClose={() => setShowBlockedModal(false)}
+        onConfirm={() => setShowBlockedModal(false)}
+        title="Tài khoản bị chặn"
+        message="Tài khoản của bạn đã bị chặn. Bạn không thể đặt đồ ăn. Vui lòng liên hệ quản trị viên để được hỗ trợ."
+        confirmText="Đã hiểu"
+        type="alert"
+        confirmButtonStyle="primary"
+      />
 
       <Footer />
     </div>

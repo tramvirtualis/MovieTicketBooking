@@ -19,25 +19,8 @@ export function CardsGrid({ items, isNowShowing = false, onPlayTrailer }) {
   const navigate = useNavigate();
   const scrollContainerRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
   const displayItems = items.length > 0 ? items : [];
-  const scrollInterval = 5000; // 5 giây tự động chuyển (tăng lên để mượt hơn)
   const itemsPerScroll = 5; // Số phim cuộn mỗi lần (tương ứng với grid 5 cột)
-
-  // Auto-scroll effect - cuộn theo nhóm phim
-  useEffect(() => {
-    if (displayItems.length <= itemsPerScroll || isPaused) return;
-
-    const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => {
-        const nextIndex = prevIndex + itemsPerScroll;
-        // Loop back to start if reached end
-        return nextIndex >= displayItems.length ? 0 : nextIndex;
-      });
-    }, scrollInterval);
-
-    return () => clearInterval(interval);
-  }, [displayItems.length, isPaused, itemsPerScroll]);
 
   // Scroll to current index với animation mềm mại
   useEffect(() => {
@@ -79,21 +62,17 @@ export function CardsGrid({ items, isNowShowing = false, onPlayTrailer }) {
   }, [currentIndex, displayItems.length]);
 
   const handlePrev = () => {
-    setIsPaused(true);
     setCurrentIndex((prevIndex) => {
       const newIndex = prevIndex - itemsPerScroll;
       return newIndex < 0 ? Math.max(0, displayItems.length - itemsPerScroll) : newIndex;
     });
-    setTimeout(() => setIsPaused(false), 3000);
   };
 
   const handleNext = () => {
-    setIsPaused(true);
     setCurrentIndex((prevIndex) => {
       const nextIndex = prevIndex + itemsPerScroll;
       return nextIndex >= displayItems.length ? 0 : nextIndex;
     });
-    setTimeout(() => setIsPaused(false), 3000);
   };
 
   if (displayItems.length === 0) {
@@ -132,12 +111,10 @@ export function CardsGrid({ items, isNowShowing = false, onPlayTrailer }) {
         </>
       )}
 
-      {/* Horizontal Carousel Container với auto-scroll */}
+      {/* Horizontal Carousel Container */}
       <div 
         ref={scrollContainerRef}
         className="movie-carousel-wrapper"
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
       >
         <div className="grid grid--cards movie-carousel-track">
           {displayItems.map((m, idx) => (

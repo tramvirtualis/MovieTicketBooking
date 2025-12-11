@@ -65,6 +65,7 @@ export default function Checkout() {
     email: ''
   });
   const [loadingVouchers, setLoadingVouchers] = useState(false);
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double submission
   const isRedirectingToPayment = useRef(false); // Track if redirecting to payment gateway
   const [walletBalance, setWalletBalance] = useState(null);
@@ -504,6 +505,13 @@ export default function Checkout() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Check if user is blocked
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (storedUser.status === false) {
+      setShowBlockedModal(true);
+      return;
+    }
     e.stopPropagation();
 
     // Prevent double submission - disable button ngay lập tức
@@ -1162,6 +1170,17 @@ export default function Checkout() {
         message={confirmModal.message}
         type={confirmModal.type}
         confirmText={confirmModal.type === 'alert' ? 'Đã hiểu' : 'Xác nhận'}
+      />
+
+      <ConfirmModal
+        isOpen={showBlockedModal}
+        onClose={() => setShowBlockedModal(false)}
+        onConfirm={() => setShowBlockedModal(false)}
+        title="Tài khoản bị chặn"
+        message="Tài khoản của bạn đã bị chặn. Bạn không thể thanh toán. Vui lòng liên hệ quản trị viên để được hỗ trợ."
+        confirmText="Đã hiểu"
+        type="alert"
+        confirmButtonStyle="primary"
       />
 
       <Footer />

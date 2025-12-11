@@ -8,6 +8,7 @@ import SignIn from './pages/SignIn.jsx';
 import SignUp from './pages/SignUp.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
+import ForgotPin from './pages/ForgotPin.jsx';
 import MovieDetail from './pages/MovieDetail.jsx';
 import Schedule from './pages/Schedule.jsx';
 import Cinemas from './pages/Cinemas.jsx';
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/register" element={<SignUp />} />
         <Route path="/forgot" element={<ForgotPassword />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/forgot-pin" element={<ForgotPin />} />
         <Route path="/reset" element={<ResetPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/movie/:id" element={<MovieDetail />} />
@@ -68,21 +70,9 @@ export default function App() {
             <Library />
           </ProtectedRoute>
         } />
-        <Route path="/food-drinks" element={
-          <ProtectedRoute allowedRoles="CUSTOMER">
-            <FoodAndDrinks />
-          </ProtectedRoute>
-        } />
-        <Route path="/food-and-drinks" element={
-          <ProtectedRoute allowedRoles="CUSTOMER">
-            <FoodAndDrinks />
-          </ProtectedRoute>
-        } />
-        <Route path="/order-food" element={
-          <ProtectedRoute allowedRoles="CUSTOMER">
-            <FoodAndDrinks />
-          </ProtectedRoute>
-        } />
+        <Route path="/food-drinks" element={<FoodAndDrinks />} />
+        <Route path="/food-and-drinks" element={<FoodAndDrinks />} />
+        <Route path="/order-food" element={<FoodAndDrinks />} />
         <Route path="/food-drinks-with-ticket" element={
           <ProtectedRoute allowedRoles="CUSTOMER">
             <FoodAndDrinksWithTicket />

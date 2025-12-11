@@ -23,10 +23,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final JwtUtils jwtUtils;
-
-    public SecurityConfig(JwtUtils jwtUtils) {
-        this.jwtUtils = jwtUtils;
+    @Bean
+    public JwtUtils jwtUtils() {
+        return new JwtUtils();
     }
 
     @Bean
@@ -50,7 +49,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtUtils jwtUtils) throws Exception {
         // Instantiate filter manually to avoid double registration by Spring Boot
         JwtAuthenticationFilter jwtAuthenticationFilter = new JwtAuthenticationFilter(jwtUtils);
 
@@ -69,6 +68,8 @@ public class SecurityConfig {
                         // Payment callbacks - không cần auth
                         .requestMatchers("/api/payment/zalopay/callback").permitAll() // ZaloPay callback không cần auth
                         .requestMatchers("/api/payment/momo/ipn").permitAll() // MoMo IPN không cần auth
+                        // Forgot PIN endpoints - không cần authentication
+                        .requestMatchers("/api/wallet/pin/forgot/**").permitAll() // Forgot PIN endpoints
 
                         // WebSocket endpoints - không cần authentication
                         .requestMatchers("/ws/**").permitAll()

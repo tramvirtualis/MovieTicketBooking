@@ -16,13 +16,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.backend.dtos.CreatePinRequestDTO;
+import com.example.backend.dtos.ForgotPinRequestDTO;
 import com.example.backend.dtos.PinStatusResponseDTO;
+import com.example.backend.dtos.ResetPinRequestDTO;
 import com.example.backend.dtos.UpdatePinRequestDTO;
 import com.example.backend.dtos.VerifyPinRequestDTO;
 import com.example.backend.entities.Customer;
 import com.example.backend.repositories.CustomerRepository;
 import com.example.backend.services.WalletPinService;
 
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -136,6 +139,46 @@ public class WalletPinController {
         Customer customer = customerRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với username: " + username));
         return customer.getUserId();
+    }
+
+    /**
+     * Gửi OTP để quên mã PIN (public endpoint - không cần authentication)
+     */
+    @PostMapping("/forgot/send-otp")
+    public ResponseEntity<?> sendForgotPinOtp(@Valid @RequestBody ForgotPinRequestDTO request, HttpSession session) {
+        try {
+            walletPinService.sendForgotPinOtp(request, session);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Mã OTP đã được gửi đến email của bạn");
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest().body(createError(ex.getMessage()));
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createError("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
+    }
+    
+    /**
+     * Đặt lại mã PIN sau khi xác thực OTP (public endpoint - không cần authentication)
+     */
+    @PostMapping("/forgot/reset")
+    public ResponseEntity<?> resetPinWithOtp(@Valid @RequestBody ResetPinRequestDTO request, HttpSession session) {
+        try {
+            walletPinService.resetPinWithOtp(request, session);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Đặt lại mã PIN thành công");
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest().body(createError(ex.getMessage()));
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createError("Có lỗi xảy ra. Vui lòng thử lại sau."));
+        }
     }
 
     /**

@@ -105,5 +105,32 @@ export const walletPinService = {
     }
     throw new Error(res.data.message || 'Xác thực mã PIN thất bại');
   },
+
+  /**
+   * Gửi OTP để quên mã PIN
+   */
+  sendForgotPinOtp: async (email) => {
+    const res = await axiosInstance.post('/wallet/pin/forgot/send-otp', { email });
+    if (res.data.success) {
+      return { success: true, message: res.data.message };
+    }
+    throw new Error(res.data.message || 'Gửi OTP thất bại');
+  },
+
+  /**
+   * Đặt lại mã PIN sau khi xác thực OTP
+   */
+  resetPinWithOtp: async ({ email, otp, newPin, confirmPin }) => {
+    const res = await axiosInstance.post('/wallet/pin/forgot/reset', {
+      email,
+      otp,
+      newPin,
+      confirmPin
+    });
+    if (res.data.success) {
+      return { success: true, message: res.data.message };
+    }
+    throw new Error(res.data.message || 'Đặt lại mã PIN thất bại');
+  },
 };
 

@@ -4,6 +4,7 @@ import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import QuickBooking from '../components/QuickBooking.jsx';
 import AgeConfirmationModal from '../components/AgeConfirmationModal.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 import scheduleService from '../services/scheduleService.js';
 import showtimeService from '../services/showtimeService.js';
 import { enumService } from '../services/enumService.js';
@@ -70,15 +71,10 @@ export default function Schedule() {
     const movieParam = searchParams.get('movie');
     const cinemaParam = searchParams.get('cinema');
     
-    if (dateParam !== null) {
-      setDate(dateParam || '');
-    }
-    if (movieParam !== null) {
-      setMovie(movieParam || '');
-    }
-    if (cinemaParam !== null) {
-      setCinema(cinemaParam || '');
-    }
+    // Update or reset state based on URL params
+    setDate(dateParam || '');
+    setMovie(movieParam || '');
+    setCinema(cinemaParam || '');
   }, [searchParams]);
   const [options, setOptions] = useState({ movies: [], cinemas: [] });
   const [listings, setListings] = useState([]);
@@ -94,6 +90,7 @@ export default function Schedule() {
   const [pendingShowtimeId, setPendingShowtimeId] = useState(null);
   const [pendingMovieData, setPendingMovieData] = useState(null);
   const [loadingMovie, setLoadingMovie] = useState(false);
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -379,6 +376,13 @@ export default function Schedule() {
     // Format age rating for display
     const ratingDisplay = ageRating ? formatAgeRating(ageRating) : null;
     
+    // Check if user is blocked
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (storedUser.status === false) {
+      setShowBlockedModal(true);
+      return;
+    }
+    
     // If movie age rating is 'P' or null/undefined (assume safe), navigate directly
     if (ratingDisplay === 'P' || !ratingDisplay) {
       navigate(`/book-ticket?showtimeId=${showtime.id}`);
@@ -460,7 +464,13 @@ export default function Schedule() {
           if (filters.date) params.set('date', filters.date);
           
           // Update URL without reloading page
-          navigate(`/schedule?${params.toString()}`, { replace: true });
+          const queryString = params.toString();
+          if (queryString) {
+            navigate(`/schedule?${queryString}`, { replace: true });
+          } else {
+            // If no params, navigate to clean URL
+            navigate('/schedule', { replace: true });
+          }
           
           // Update state
           if (filters.cinemaId !== undefined) {
@@ -795,6 +805,17 @@ export default function Schedule() {
         movieTitle={pendingMovieData?.title || movie?.title}
         ageRating={pendingMovieData?.ageRating || movie?.ageRating}
         loading={loadingMovie}
+      />
+
+      <ConfirmModal
+        isOpen={showBlockedModal}
+        onClose={() => setShowBlockedModal(false)}
+        onConfirm={() => setShowBlockedModal(false)}
+        title="Tài khoản bị chặn"
+        message="Tài khoản của bạn đã bị chặn. Bạn không thể đặt vé. Vui lòng liên hệ quản trị viên để được hỗ trợ."
+        confirmText="Đã hiểu"
+        type="alert"
+        confirmButtonStyle="primary"
       />
     </div>
   );

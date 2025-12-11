@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ConfirmModal from './ConfirmModal.jsx';
 
 export default function BookingModal({ isOpen, onClose, movieTitle, options, onShowtimeClick, onFiltersChange }) {
   const navigate = useNavigate();
@@ -65,6 +66,7 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
   const [cinema, setCinema] = useState(''); // Default: Tất cả (empty = all cinemas)
   const [format, setFormat] = useState('Tất cả');
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
   
   
   // Update format when options.formats changes
@@ -349,6 +351,13 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
                                     return;
                                   }
                                   
+                                  // Check if user is blocked
+                                  const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+                                  if (storedUser.status === false) {
+                                    setShowBlockedModal(true);
+                                    return;
+                                  }
+                                  
                                   // If logged in, proceed with booking
                                   if (onShowtimeClick) {
                                     onShowtimeClick(bookingUrl);
@@ -403,6 +412,13 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
                                 if (!token) {
                                   // Show login modal if not logged in
                                   setShowLoginModal(true);
+                                  return;
+                                }
+                                
+                                // Check if user is blocked
+                                const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+                                if (storedUser.status === false) {
+                                  setShowBlockedModal(true);
                                   return;
                                 }
                                 
@@ -471,6 +487,17 @@ export default function BookingModal({ isOpen, onClose, movieTitle, options, onS
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={showBlockedModal}
+        onClose={() => setShowBlockedModal(false)}
+        onConfirm={() => setShowBlockedModal(false)}
+        title="Tài khoản bị chặn"
+        message="Tài khoản của bạn đã bị chặn. Bạn không thể đặt vé. Vui lòng liên hệ quản trị viên để được hỗ trợ."
+        confirmText="Đã hiểu"
+        type="alert"
+        confirmButtonStyle="primary"
+      />
     </div>
   );
 }

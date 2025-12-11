@@ -2,13 +2,11 @@ package com.example.backend.utils;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
-@Component
 public class JwtUtils {
 
     // Fixed secret key - phải đủ 64 bytes (512 bits) cho HS512

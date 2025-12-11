@@ -2,11 +2,15 @@ package com.example.backend.services;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Random;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.backend.dtos.ForgotPinRequestDTO;
+import com.example.backend.dtos.OtpSessionDTO;
+import com.example.backend.dtos.ResetPinRequestDTO;
 import com.example.backend.dtos.CreatePinRequestDTO;
 import com.example.backend.dtos.PinStatusResponseDTO;
 import com.example.backend.dtos.UpdatePinRequestDTO;
@@ -16,6 +20,7 @@ import com.example.backend.entities.WalletPin;
 import com.example.backend.repositories.CustomerRepository;
 import com.example.backend.repositories.WalletPinRepository;
 
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -31,10 +36,17 @@ public class WalletPinService {
     private final WalletPinRepository walletPinRepository;
     private final CustomerRepository customerRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
     // Cấu hình bảo mật
     private static final int MAX_FAILED_ATTEMPTS = 5; // Số lần nhập sai tối đa
     private static final int LOCK_DURATION_MINUTES = 30; // Thời gian lock (phút)
+    
+    // Cấu hình OTP quên PIN
+    private static final int OTP_LENGTH = 6;
+    private static final long FORGOT_PIN_OTP_VALIDITY_MINUTES = 5;
+    private static final long FORGOT_PIN_RESEND_COOLDOWN_SECONDS = 30;
+    private static final String FORGOT_PIN_OTP_SESSION_KEY = "FORGOT_PIN_OTP_SESSION";
 
     /**
      * Kiểm tra xem customer đã có PIN chưa
@@ -247,6 +259,127 @@ public class WalletPinService {
         
         long minutes = java.time.Duration.between(LocalDateTime.now(), walletPin.getLockedUntil()).toMinutes();
         return Math.max(0, minutes);
+    }
+    
+    /**
+     * Gửi OTP để quên mã PIN
+     */
+    @Transactional
+    public void sendForgotPinOtp(ForgotPinRequestDTO request, HttpSession session) {
+        String email = request.getEmail();
+        
+        // Kiểm tra email có tồn tại trong hệ thống không
+        Customer customer = customerRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Email không đúng. Vui lòng kiểm tra lại email của bạn."));
+        
+        // Kiểm tra customer có PIN chưa
+        if (!walletPinRepository.existsByCustomerUserId(customer.getUserId())) {
+            throw new IllegalStateException("Bạn chưa có mã PIN. Vui lòng tạo mã PIN trước.");
+        }
+        
+        // Kiểm tra cooldown 30 giây từ session
+        OtpSessionDTO existingOtp = (OtpSessionDTO) session.getAttribute(FORGOT_PIN_OTP_SESSION_KEY);
+        long nowMillis = System.currentTimeMillis();
+        
+        if (existingOtp != null && existingOtp.getEmail().equals(email)) {
+            long timeSinceLastSent = (nowMillis - existingOtp.getLastSentAtMillis()) / 1000;
+            
+            if (timeSinceLastSent < FORGOT_PIN_RESEND_COOLDOWN_SECONDS) {
+                long remainingSeconds = FORGOT_PIN_RESEND_COOLDOWN_SECONDS - timeSinceLastSent;
+                throw new RuntimeException("Vui lòng đợi " + remainingSeconds + " giây trước khi gửi lại OTP");
+            }
+        }
+        
+        // Tạo mã OTP ngẫu nhiên
+        String otpCode = generateOtpCode();
+        
+        // Lưu OTP vào session với thời gian hết hạn 5 phút
+        OtpSessionDTO otpSession = new OtpSessionDTO();
+        otpSession.setEmail(email);
+        otpSession.setOtpCode(otpCode);
+        otpSession.setCreatedAtMillis(nowMillis);
+        otpSession.setExpiresAtMillis(nowMillis + (FORGOT_PIN_OTP_VALIDITY_MINUTES * 60 * 1000));
+        otpSession.setLastSentAtMillis(nowMillis);
+        
+        session.setAttribute(FORGOT_PIN_OTP_SESSION_KEY, otpSession);
+        session.setMaxInactiveInterval((int) (FORGOT_PIN_OTP_VALIDITY_MINUTES * 60));
+        
+        // Gửi email
+        emailService.sendForgotPinOtpEmail(email, otpCode);
+        
+        log.info("Forgot PIN OTP sent to email: {}", email);
+    }
+    
+    /**
+     * Đặt lại mã PIN sau khi xác thực OTP
+     */
+    @Transactional
+    public void resetPinWithOtp(ResetPinRequestDTO request, HttpSession session) {
+        String email = request.getEmail();
+        
+        // Validate new PIN và confirm PIN khớp nhau
+        if (!request.getNewPin().equals(request.getConfirmPin())) {
+            throw new IllegalArgumentException("Mã PIN mới và xác nhận mã PIN không khớp");
+        }
+        
+        // Lấy customer từ email
+        Customer customer = customerRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Email không tồn tại trong hệ thống"));
+        
+        // Xác thực OTP từ session
+        OtpSessionDTO otpSession = (OtpSessionDTO) session.getAttribute(FORGOT_PIN_OTP_SESSION_KEY);
+        if (otpSession == null) {
+            throw new RuntimeException("Không tìm thấy OTP trong session. Vui lòng gửi lại OTP");
+        }
+        
+        // Kiểm tra email có khớp không
+        if (!otpSession.getEmail().equals(email)) {
+            throw new RuntimeException("Email không khớp với email đã gửi OTP");
+        }
+        
+        // Kiểm tra OTP có khớp không
+        if (!otpSession.getOtpCode().equals(request.getOtp())) {
+            throw new RuntimeException("Mã OTP không đúng");
+        }
+        
+        // Kiểm tra OTP có hết hạn không
+        long nowMillis = System.currentTimeMillis();
+        if (nowMillis > otpSession.getExpiresAtMillis()) {
+            session.removeAttribute(FORGOT_PIN_OTP_SESSION_KEY);
+            throw new RuntimeException("Mã OTP đã hết hạn. Vui lòng gửi lại OTP");
+        }
+        
+        // Lấy PIN hiện tại
+        WalletPin walletPin = walletPinRepository.findByCustomerUserId(customer.getUserId())
+                .orElseThrow(() -> new IllegalStateException("Bạn chưa có mã PIN. Vui lòng tạo mã PIN trước."));
+        
+        // Hash PIN mới bằng BCrypt
+        String hashedNewPin = passwordEncoder.encode(request.getNewPin());
+        
+        // Cập nhật PIN
+        walletPin.setHashedPin(hashedNewPin);
+        walletPin.setFailedAttempts(0); // Reset failed attempts
+        walletPin.setLockedUntil(null); // Unlock nếu đang bị lock
+        walletPin.setUpdatedAt(LocalDateTime.now());
+        
+        walletPinRepository.save(walletPin);
+        
+        // Xóa OTP khỏi session sau khi reset thành công
+        session.removeAttribute(FORGOT_PIN_OTP_SESSION_KEY);
+        
+        log.info("PIN reset successfully for customer ID: {} via forgot PIN", customer.getUserId());
+    }
+    
+    /**
+     * Tạo mã OTP ngẫu nhiên
+     */
+    private String generateOtpCode() {
+        Random random = new Random();
+        StringBuilder otp = new StringBuilder();
+        for (int i = 0; i < OTP_LENGTH; i++) {
+            otp.append(random.nextInt(10));
+        }
+        return otp.toString();
     }
 }
 

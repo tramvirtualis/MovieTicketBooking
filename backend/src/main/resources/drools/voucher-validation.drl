@@ -1,4 +1,4 @@
-package com.example.backend.drools.rules;
+package com.example.backend.drools;
 
 import com.example.backend.dtos.VoucherValidationFact;
 import com.example.backend.entities.enums.DiscountType;

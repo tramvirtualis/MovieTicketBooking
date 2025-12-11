@@ -14,6 +14,13 @@ export default function Wallet() {
     const [topUpLoading, setTopUpLoading] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState('MOMO'); // MOMO hoặc ZALOPAY
     const [message, setMessage] = useState({ type: '', text: '' });
+    const [isBlocked, setIsBlocked] = useState(false);
+    
+    // Check if user is blocked
+    useEffect(() => {
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        setIsBlocked(storedUser.status === false);
+    }, []);
 
     const loadWalletData = useCallback(async () => {
         try {
@@ -35,6 +42,11 @@ export default function Wallet() {
     const handleTopUp = async (e) => {
         e.preventDefault();
         setMessage({ type: '', text: '' });
+        
+        if (isBlocked) {
+            setMessage({ type: 'error', text: 'Tài khoản của bạn đã bị chặn. Bạn không thể nạp ví. Vui lòng liên hệ quản trị viên để được hỗ trợ.' });
+            return;
+        }
 
         const amount = Number(topUpAmount);
         if (!amount || amount < 10000) {
@@ -172,6 +184,7 @@ export default function Wallet() {
                                                     className="w-full bg-[#1f191a] border border-[#4a3f41] rounded-lg px-4 py-3 text-white focus:border-[#e83b41] focus:outline-none transition-colors pl-4 pr-12"
                                                     placeholder="Nhập số tiền..."
                                                     required
+                                                    disabled={isBlocked}
                                                 />
                                                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#c9c4c5]">đ</span>
                                             </div>
@@ -226,7 +239,7 @@ export default function Wallet() {
 
                                         <button
                                             type="submit"
-                                            disabled={topUpLoading}
+                                            disabled={topUpLoading || isBlocked}
                                             className="w-full bg-gradient-to-r from-[#e83b41] to-[#ff5258] text-white font-bold py-3 rounded-lg hover:shadow-lg hover:shadow-[#e83b41]/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                                         >
                                             {topUpLoading ? (

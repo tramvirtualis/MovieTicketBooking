@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, useLocation, useNavigationType } from 're
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import AgeConfirmationModal from '../components/AgeConfirmationModal.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 import { cinemaRoomService } from '../services/cinemaRoomService';
 import showtimeService from '../services/showtimeService';
 import { movieService } from '../services/movieService';
@@ -135,6 +136,34 @@ export default function BookTicket() {
   const location = useLocation();
 
   const navType = useNavigationType();
+  
+  // Check if user is blocked
+  const [isUserBlocked, setIsUserBlocked] = useState(() => {
+    try {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      // Only block if status is explicitly false
+      const blocked = storedUser.status === false;
+      console.log('[BookTicket] User blocked check:', { 
+        hasUser: !!storedUser.userId, 
+        status: storedUser.status, 
+        blocked 
+      });
+      return blocked;
+    } catch (e) {
+      console.error('[BookTicket] Error checking user status:', e);
+      return false;
+    }
+  });
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
+  
+  useEffect(() => {
+    if (isUserBlocked) {
+      console.log('[BookTicket] User is blocked, showing modal');
+      setShowBlockedModal(true);
+    } else {
+      console.log('[BookTicket] User is not blocked, rendering normal page');
+    }
+  }, [isUserBlocked]);
 
   // Force reload on back navigation to ensure fresh state
   // Use sessionStorage with timeout to handle Strict Mode and prevent infinite loops
@@ -768,6 +797,10 @@ export default function BookTicket() {
   };
 
   const handleSeatClick = (seatId) => {
+    if (isUserBlocked) {
+      setShowBlockedModal(true);
+      return;
+    }
     if (bookedSeatsForShowtime.has(seatId)) return; // Can't select booked seats
     if (temporarilySelectedSeats.has(seatId) && !selectedSeats.includes(seatId)) {
       // Can't select seats that are temporarily selected by others (unless it's already selected by this user)
@@ -937,6 +970,34 @@ export default function BookTicket() {
     navigate('/orders');
   };
 
+  // If user is blocked, only show modal
+  if (isUserBlocked) {
+    console.log('[BookTicket] Rendering blocked user view');
+    return (
+      <div className="min-h-screen cinema-mood">
+        <Header />
+        <ConfirmModal
+          isOpen={showBlockedModal}
+          onClose={() => {
+            setShowBlockedModal(false);
+            navigate('/');
+          }}
+          onConfirm={() => {
+            setShowBlockedModal(false);
+            navigate('/');
+          }}
+          title="Tài khoản bị chặn"
+          message="Tài khoản của bạn đã bị chặn. Bạn không thể đặt vé. Vui lòng liên hệ quản trị viên để được hỗ trợ."
+          confirmText="Đã hiểu"
+          type="alert"
+          confirmButtonStyle="primary"
+        />
+        <Footer />
+      </div>
+    );
+  }
+
+  console.log('[BookTicket] Rendering normal booking page, isUserBlocked:', isUserBlocked);
   return (
     <div className="min-h-screen cinema-mood">
       <Header />
@@ -1249,6 +1310,10 @@ export default function BookTicket() {
                             <button
                               className="btn btn--primary"
                               onClick={() => {
+                                if (isUserBlocked) {
+                                  setShowBlockedModal(true);
+                                  return;
+                                }
                                 // Save booking info to localStorage
                                 // Đảm bảo seats là array và có ít nhất 1 ghế
                                 if (!selectedSeats || selectedSeats.length === 0) {
@@ -1508,6 +1573,23 @@ export default function BookTicket() {
         }}
         movieTitle={movieData?.title}
         ageRating={movieData?.ageRating}
+      />
+
+      <ConfirmModal
+        isOpen={showBlockedModal}
+        onClose={() => {
+          setShowBlockedModal(false);
+          navigate('/');
+        }}
+        onConfirm={() => {
+          setShowBlockedModal(false);
+          navigate('/');
+        }}
+        title="Tài khoản bị chặn"
+        message="Tài khoản của bạn đã bị chặn. Bạn không thể đặt vé. Vui lòng liên hệ quản trị viên để được hỗ trợ."
+        confirmText="Đã hiểu"
+        type="alert"
+        confirmButtonStyle="primary"
       />
 
       <Footer />

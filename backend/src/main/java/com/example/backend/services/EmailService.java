@@ -70,6 +70,23 @@ public class EmailService {
     }
     
     /**
+     * Gửi OTP cho quên mã PIN
+     */
+    public void sendForgotPinOtpEmail(String toEmail, String otpCode) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(toEmail);
+            message.setSubject("Mã OTP đặt lại mã PIN Cinesmart");
+            message.setText(buildForgotPinOtpContent(otpCode));
+            
+            mailSender.send(message);
+        } catch (Exception e) {
+            throw new RuntimeException("Không thể gửi email OTP: " + e.getMessage());
+        }
+    }
+    
+    /**
      * Xác nhận đặt lại mật khẩu thành công
      */
     public void sendPasswordResetConfirmationEmail(String toEmail) {
@@ -130,6 +147,23 @@ public class EmailService {
                 Trân trọng,
                 Đội ngũ Cinesmart
                 """;
+    }
+    
+    private String buildForgotPinOtpContent(String otpCode) {
+        return String.format("""
+                Xin chào,
+                
+                Bạn đã yêu cầu đặt lại mã PIN cho ví Cinesmart của mình.
+                
+                Mã OTP của bạn là: %s
+                
+                Mã OTP này có hiệu lực trong 5 phút.
+                
+                Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này và mã PIN của bạn sẽ không thay đổi.
+                
+                Trân trọng,
+                Đội ngũ Cinesmart
+                """, otpCode);
     }
     
     // Track emails đã gửi trong session để tránh duplicate

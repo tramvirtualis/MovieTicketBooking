@@ -25,6 +25,12 @@ export default function ReviewForm({ movie, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (storedUser.status === false) {
+      setError('Tài khoản của bạn đã bị chặn. Bạn không thể đánh giá. Vui lòng liên hệ quản trị viên để được hỗ trợ.');
+      return;
+    }
+    
     if (rating === 0) {
       setError('Vui lòng chọn số sao đánh giá');
       return;

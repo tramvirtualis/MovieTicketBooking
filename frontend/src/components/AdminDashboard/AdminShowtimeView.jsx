@@ -462,7 +462,7 @@ export default function AdminShowtimeView() {
                             {room.roomName}
                           </div>
                           <div className="showtime-timeline-room-type">
-                            {room.roomType}
+                            {cinemaRoomService.mapRoomTypeFromBackend(room.roomType)}
                           </div>
                           <div className="showtime-timeline-room-count">
                             {roomShowtimes.length} suất

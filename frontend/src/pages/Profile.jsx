@@ -407,6 +407,12 @@ export default function Profile() {
   const handleTopUp = async (e) => {
     e.preventDefault();
     setWalletMessage({ type: '', text: '' });
+    
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (currentUser.status === false) {
+      setWalletMessage({ type: 'error', text: 'Tài khoản của bạn đã bị chặn. Bạn không thể nạp ví. Vui lòng liên hệ quản trị viên để được hỗ trợ.' });
+      return;
+    }
 
     const amount = Number(topUpAmount);
     if (!amount || amount < 10000) {
@@ -1174,6 +1180,7 @@ export default function Profile() {
                                   className="w-full bg-[#1f191a] border border-[#4a3f41] rounded-lg px-4 py-3 text-white focus:border-[#e83b41] focus:outline-none transition-colors pl-4 pr-12"
                                   placeholder="Nhập số tiền..."
                                   required
+                                  disabled={storedUser.status === false}
                                 />
                                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#c9c4c5]">đ</span>
                               </div>
@@ -1228,7 +1235,7 @@ export default function Profile() {
 
                             <button
                               type="submit"
-                              disabled={topUpLoading}
+                              disabled={topUpLoading || storedUser.status === false}
                               className="w-full bg-gradient-to-r from-[#e83b41] to-[#ff5258] text-white font-bold py-3 rounded-lg hover:shadow-lg hover:shadow-[#e83b41]/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                             >
                               {topUpLoading ? (
@@ -1354,7 +1361,7 @@ export default function Profile() {
                             />
                           </div>
 
-                          <div className="flex justify-center pt-4">
+                          <div className="flex flex-col items-center gap-4 pt-4">
                             <button
                               type="submit"
                               className="btn btn--primary"
@@ -1371,6 +1378,24 @@ export default function Profile() {
                             >
                               {hasPin === true ? 'Đổi mã PIN' : 'Tạo mã PIN'}
                             </button>
+                            
+                            {hasPin === true && (
+                              <button
+                                type="button"
+                                onClick={() => navigate('/forgot-pin')}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#c9c4c5',
+                                  fontSize: '13px',
+                                  cursor: 'pointer',
+                                  textDecoration: 'underline',
+                                  padding: '8px'
+                                }}
+                              >
+                                Quên mã PIN?
+                              </button>
+                            )}
                           </div>
                         </form>
                       </div>

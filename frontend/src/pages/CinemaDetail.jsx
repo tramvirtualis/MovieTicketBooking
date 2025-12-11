@@ -3,6 +3,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import AgeConfirmationModal from '../components/AgeConfirmationModal.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 import { cinemaComplexService } from '../services/cinemaComplexService';
 import scheduleService from '../services/scheduleService';
 import { movieService } from '../services/movieService';
@@ -312,7 +313,16 @@ export default function CinemaDetail() {
     }
   };
 
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
+  
   const handleShowtimeClick = (showtime, movie) => {
+    // Check if user is blocked
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (storedUser.status === false) {
+      setShowBlockedModal(true);
+      return;
+    }
+    
     // Kiểm tra age rating - nếu là P thì không cần xác nhận
     const rating = formatAgeRating(movie.ageRating);
     
@@ -621,6 +631,17 @@ export default function CinemaDetail() {
         onConfirm={handleConfirmAgeAndContinue}
         movieTitle={pendingMovie?.movieTitle}
         ageRating={pendingMovie?.ageRating}
+      />
+
+      <ConfirmModal
+        isOpen={showBlockedModal}
+        onClose={() => setShowBlockedModal(false)}
+        onConfirm={() => setShowBlockedModal(false)}
+        title="Tài khoản bị chặn"
+        message="Tài khoản của bạn đã bị chặn. Bạn không thể đặt vé. Vui lòng liên hệ quản trị viên để được hỗ trợ."
+        confirmText="Đã hiểu"
+        type="alert"
+        confirmButtonStyle="primary"
       />
 
       <Footer />

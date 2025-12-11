@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 import { foodComboService } from '../services/foodComboService.js';
 
 const cinemas = [
@@ -132,6 +133,7 @@ export default function FoodAndDrinksWithTicket() {
   const [selectedCinema, setSelectedCinema] = useState('');
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
   const [pendingBooking, setPendingBooking] = useState(null);
   const [menuItemsFromDB, setMenuItemsFromDB] = useState([]);
   const [loadingMenu, setLoadingMenu] = useState(false);
@@ -217,6 +219,11 @@ export default function FoodAndDrinksWithTicket() {
   };
 
   const addToCart = (item) => {
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (storedUser.status === false) {
+      setShowBlockedModal(true);
+      return;
+    }
     const existingItem = cart.find(cartItem => cartItem.id === item.id);
     if (existingItem) {
       setCart(cart.map(cartItem => 
@@ -265,6 +272,11 @@ export default function FoodAndDrinksWithTicket() {
   };
 
   const handleCheckout = () => {
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    if (storedUser.status === false) {
+      setShowBlockedModal(true);
+      return;
+    }
     // Save cart to localStorage and navigate to checkout
     const cartData = {
       items: cart,
@@ -666,6 +678,17 @@ export default function FoodAndDrinksWithTicket() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={showBlockedModal}
+        onClose={() => setShowBlockedModal(false)}
+        onConfirm={() => setShowBlockedModal(false)}
+        title="Tài khoản bị chặn"
+        message="Tài khoản của bạn đã bị chặn. Bạn không thể đặt đồ ăn. Vui lòng liên hệ quản trị viên để được hỗ trợ."
+        confirmText="Đã hiểu"
+        type="alert"
+        confirmButtonStyle="primary"
+      />
 
       <Footer />
     </div>
