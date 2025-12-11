@@ -56,6 +56,12 @@ public class EmailService {
         System.out.println("Mail Port: " + (mailPort != null && !mailPort.isEmpty() ? mailPort : "NOT SET"));
         System.out.println("From Email: " + (fromEmail != null && !fromEmail.isEmpty() ? fromEmail : "NOT SET"));
         System.out.println("Mail Sender: " + (mailSender != null ? "INITIALIZED" : "NULL"));
+        if (mailSender == null) {
+            System.err.println("WARNING: JavaMailSender is NULL! Email functionality will not work!");
+        }
+        if (fromEmail == null || fromEmail.isEmpty()) {
+            System.err.println("WARNING: MAIL_USERNAME is NOT SET! Email functionality will not work!");
+        }
         System.out.println("================================");
     }
     
@@ -64,6 +70,15 @@ public class EmailService {
      */
     public void sendOtpEmail(String toEmail, String otpCode) {
         try {
+            if (mailSender == null) {
+                System.err.println("EmailService - ERROR: mailSender is NULL for OTP email to " + toEmail);
+                throw new RuntimeException("Mail sender không được khởi tạo");
+            }
+            if (fromEmail == null || fromEmail.isEmpty()) {
+                System.err.println("EmailService - ERROR: fromEmail is NOT SET for OTP email to " + toEmail);
+                throw new RuntimeException("Email người gửi chưa được cấu hình");
+            }
+            
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom(fromEmail);
             message.setTo(toEmail);
@@ -71,7 +86,14 @@ public class EmailService {
             message.setText(buildOtpEmailContent(otpCode));
             
             mailSender.send(message);
+            System.out.println("EmailService - OTP email sent successfully to " + toEmail);
+        } catch (jakarta.mail.MessagingException me) {
+            System.err.println("EmailService - MessagingException sending OTP to " + toEmail + ": " + me.getMessage());
+            me.printStackTrace();
+            throw new RuntimeException("Không thể gửi email OTP: " + me.getMessage());
         } catch (Exception e) {
+            System.err.println("EmailService - Exception sending OTP to " + toEmail + ": " + e.getMessage());
+            e.printStackTrace();
             throw new RuntimeException("Không thể gửi email OTP: " + e.getMessage());
         }
     }
@@ -81,6 +103,15 @@ public class EmailService {
      */
     public void sendForgotPasswordOtpEmail(String toEmail, String otpCode) {
         try {
+            if (mailSender == null) {
+                System.err.println("EmailService - ERROR: mailSender is NULL for forgot password OTP to " + toEmail);
+                throw new RuntimeException("Mail sender không được khởi tạo");
+            }
+            if (fromEmail == null || fromEmail.isEmpty()) {
+                System.err.println("EmailService - ERROR: fromEmail is NOT SET for forgot password OTP to " + toEmail);
+                throw new RuntimeException("Email người gửi chưa được cấu hình");
+            }
+            
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom(fromEmail);
             message.setTo(toEmail);
@@ -88,7 +119,14 @@ public class EmailService {
             message.setText(buildForgotPasswordOtpContent(otpCode));
             
             mailSender.send(message);
+            System.out.println("EmailService - Forgot password OTP email sent successfully to " + toEmail);
+        } catch (jakarta.mail.MessagingException me) {
+            System.err.println("EmailService - MessagingException sending forgot password OTP to " + toEmail + ": " + me.getMessage());
+            me.printStackTrace();
+            throw new RuntimeException("Không thể gửi email OTP: " + me.getMessage());
         } catch (Exception e) {
+            System.err.println("EmailService - Exception sending forgot password OTP to " + toEmail + ": " + e.getMessage());
+            e.printStackTrace();
             throw new RuntimeException("Không thể gửi email OTP: " + e.getMessage());
         }
     }

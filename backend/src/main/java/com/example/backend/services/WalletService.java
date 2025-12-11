@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -103,8 +104,36 @@ public class WalletService {
         return transaction;
     }
 
-    @Transactional
+    @Transactional(readOnly = true, timeout = 5)
     public WalletResponseDTO getWalletSnapshot(Long userId, int monthlyLimit, int monthlyUsed) {
+        // Try to get wallet first (read-only, faster)
+        Optional<Wallet> walletOpt = walletRepository.findByCustomerUserId(userId);
+        if (walletOpt.isEmpty()) {
+            // If wallet doesn't exist, create it (requires write transaction)
+            return getWalletSnapshotWithCreate(userId, monthlyLimit, monthlyUsed);
+        }
+        
+        Wallet wallet = walletOpt.get();
+        List<WalletTransaction> transactions = walletTransactionRepository
+                .findRecentByWalletId(wallet.getWalletId()).stream()
+                .limit(DEFAULT_RECENT_TRANSACTION_LIMIT)
+                .collect(Collectors.toList());
+
+        return WalletResponseDTO.builder()
+                .walletId(wallet.getWalletId())
+                .balance(wallet.getBalance())
+                .updatedAt(wallet.getUpdatedAt())
+                .locked(Boolean.TRUE.equals(wallet.getLocked()))
+                .monthlyCancellationLimit(monthlyLimit)
+                .monthlyCancellationUsed(monthlyUsed)
+                .recentTransactions(transactions.stream()
+                        .map(this::mapTransactionToDTO)
+                        .toList())
+                .build();
+    }
+    
+    @Transactional(timeout = 5)
+    private WalletResponseDTO getWalletSnapshotWithCreate(Long userId, int monthlyLimit, int monthlyUsed) {
         Wallet wallet = getOrCreateWallet(userId);
         List<WalletTransaction> transactions = walletTransactionRepository
                 .findRecentByWalletId(wallet.getWalletId()).stream()
@@ -124,7 +153,7 @@ public class WalletService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<WalletTransactionDTO> getTransactions(Long userId) {
         Wallet wallet = getOrCreateWallet(userId);
         return walletTransactionRepository.findRecentByWalletId(wallet.getWalletId()).stream()

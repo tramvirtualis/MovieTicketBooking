@@ -1,4 +1,4 @@
-package com.example.backend.drools.rules;
+package drools;
 
 import com.example.backend.dtos.ShowtimeValidationFact;
 import java.time.LocalDateTime;
