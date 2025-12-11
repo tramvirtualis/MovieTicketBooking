@@ -56,7 +56,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/payment")
@@ -540,36 +539,21 @@ public class PaymentController {
                                 }
                                 
                                 try {
-                                    // Gửi Notification và Email async (không block response)
+                                    // Gửi Notification (trực tiếp - cần transaction context)
                                     String totalAmountStr = order.getTotalAmount()
                                         .setScale(0, RoundingMode.HALF_UP)
                                         .toPlainString() + " VND";
                                     
-                                    final Long finalOrderId = order.getOrderId();
-                                    final Long finalUserId = order.getUser().getUserId();
-                                    final boolean isTopUp = Boolean.TRUE.equals(order.getIsTopUp());
+                                    log.info("PaymentController - Sending notification for Order ID: {}", order.getOrderId());
+                                    notificationService.notifyOrderSuccess(order.getUser().getUserId(), order.getOrderId(), totalAmountStr);
                                     
-                                    log.info("PaymentController - Triggering async notification/email for Order ID: {}", finalOrderId);
-                                    
-                                    CompletableFuture.runAsync(() -> {
-                                        try {
-                                            log.info("PaymentController - Async: Sending notification for Order ID: {}", finalOrderId);
-                                            notificationService.notifyOrderSuccess(finalUserId, finalOrderId, totalAmountStr);
-                                            
-                                            if (!isTopUp) {
-                                                log.info("PaymentController - Async: Sending email for Order ID: {}", finalOrderId);
-                                                emailService.sendBookingConfirmationEmail(finalOrderId);
-                                                log.info("PaymentController - Async: Email method called for Order ID: {}", finalOrderId);
-                                            } else {
-                                                log.info("PaymentController - Async: Skipping email for Order ID: {} (is top-up)", finalOrderId);
-                                            }
-                                        } catch (Exception e) {
-                                            log.error("PaymentController - ERROR in async notification/email for Order ID: {}", finalOrderId, e);
-                                            e.printStackTrace();
-                                        }
-                                    });
+                                    // Gửi Email async (không block response)
+                                    if (!Boolean.TRUE.equals(order.getIsTopUp())) {
+                                        log.info("PaymentController - Triggering async email for Order ID: {}", order.getOrderId());
+                                        emailService.sendBookingConfirmationEmail(order.getOrderId());
+                                    }
                                 } catch (Exception e) {
-                                    log.error("PaymentController - ERROR triggering async notification/email for Order ID: {}", order.getOrderId(), e);
+                                    log.error("PaymentController - ERROR sending notification/email for Order ID: {}", order.getOrderId(), e);
                                     e.printStackTrace();
                                 }
                             }
@@ -663,29 +647,21 @@ public class PaymentController {
                         removeVoucherFromUser(order);
                         }
                         
-                        // Gửi notification và email xác nhận (async)
+                        // Gửi notification và email xác nhận
                         try {
                             String totalAmountStr = order.getTotalAmount()
                                 .setScale(0, RoundingMode.HALF_UP)
                                 .toPlainString() + " VND";
                             
-                            final Long finalOrderId2 = order.getOrderId();
-                            final Long finalUserId2 = order.getUser().getUserId();
-                            final boolean isTopUp2 = Boolean.TRUE.equals(order.getIsTopUp());
+                            // Notification (trực tiếp - cần transaction)
+                            notificationService.notifyOrderSuccess(order.getUser().getUserId(), order.getOrderId(), totalAmountStr);
                             
-                            CompletableFuture.runAsync(() -> {
-                                try {
-                                    notificationService.notifyOrderSuccess(finalUserId2, finalOrderId2, totalAmountStr);
-                                    
-                                    if (!isTopUp2) {
-                                        emailService.sendBookingConfirmationEmail(finalOrderId2);
-                                    }
-                                } catch (Exception e) {
-                                    log.error("Error in async notification/email in status check for Order ID: {}", finalOrderId2, e);
-                                }
-                            });
+                            // Email (async)
+                            if (!Boolean.TRUE.equals(order.getIsTopUp())) {
+                                emailService.sendBookingConfirmationEmail(order.getOrderId());
+                            }
                         } catch (Exception e) {
-                            log.error("Error triggering async notification/email in status check for Order ID: {}", order.getOrderId(), e);
+                            log.error("Error sending notification/email in status check for Order ID: {}", order.getOrderId(), e);
                         }
                         
                         return ResponseEntity.ok(createSuccessResponse("Thanh toán thành công", 
@@ -1105,24 +1081,14 @@ public class PaymentController {
                         .setScale(0, RoundingMode.HALF_UP)
                         .toPlainString() + " VND";
                     
-                    // Gửi notification và email async
-                    final Long finalOrderId3 = order.getOrderId();
-                    final Long finalUserId3 = order.getUser().getUserId();
-                    final boolean isTopUp3 = Boolean.TRUE.equals(order.getIsTopUp());
+                    // Gửi notification (trực tiếp) và email (async)
+                    notificationService.notifyOrderSuccess(order.getUser().getUserId(), order.getOrderId(), totalAmountStr);
                     
-                    CompletableFuture.runAsync(() -> {
-                        try {
-                            notificationService.notifyOrderSuccess(finalUserId3, finalOrderId3, totalAmountStr);
-                            
-                            if (!isTopUp3) {
-                                emailService.sendBookingConfirmationEmail(finalOrderId3);
-                            }
-                        } catch (Exception e) {
-                            log.error("Error in async notification/email in MoMo IPN for Order ID: {}", finalOrderId3, e);
-                        }
-                    });
+                    if (!Boolean.TRUE.equals(order.getIsTopUp())) {
+                        emailService.sendBookingConfirmationEmail(order.getOrderId());
+                    }
                 } catch (Exception e) {
-                    log.error("Error triggering async notification/email in MoMo IPN for Order ID: {}", order.getOrderId(), e);
+                    log.error("Error sending notification/email in MoMo IPN for Order ID: {}", order.getOrderId(), e);
                 }
             }
             
@@ -1218,20 +1184,11 @@ public class PaymentController {
                                             .setScale(0, RoundingMode.HALF_UP)
                                             .toPlainString() + " VND";
                                     
-                                    // Gửi notification và email async
-                                    final Long finalOrderId4 = fullOrder.getOrderId();
-                                    final Long finalUserId4 = fullOrder.getUser().getUserId();
-                                    
-                                    CompletableFuture.runAsync(() -> {
-                                        try {
-                                            notificationService.notifyOrderSuccess(finalUserId4, finalOrderId4, totalAmountStr);
-                                            emailService.sendBookingConfirmationEmail(finalOrderId4);
-                                        } catch (Exception e) {
-                                            log.error("Error in async notification/email in MoMo Redirect for Order ID: {}", finalOrderId4, e);
-                                        }
-                                    });
+                                    // Gửi notification (trực tiếp) và email (async)
+                                    notificationService.notifyOrderSuccess(fullOrder.getUser().getUserId(), fullOrder.getOrderId(), totalAmountStr);
+                                    emailService.sendBookingConfirmationEmail(fullOrder.getOrderId());
                                 } catch (Exception e) {
-                                    log.error("Error triggering async notification/email in MoMo Redirect for Order ID: {}", fullOrder.getOrderId(), e);
+                                    log.error("Error sending notification/email in MoMo Redirect for Order ID: {}", fullOrder.getOrderId(), e);
                                 }
                             }
                         }
@@ -1633,25 +1590,16 @@ public class PaymentController {
                 // Không fail payment nếu xóa voucher lỗi
             }
 
-            // Gửi notification và email async
+            // Gửi notification (trực tiếp) và email (async)
             try {
                 String totalAmountStr = order.getTotalAmount()
                     .setScale(0, RoundingMode.HALF_UP)
                     .toPlainString() + " VND";
                 
-                final Long finalOrderId5 = order.getOrderId();
-                final Long finalUserId5 = order.getUser().getUserId();
-                
-                CompletableFuture.runAsync(() -> {
-                    try {
-                        notificationService.notifyOrderSuccess(finalUserId5, finalOrderId5, totalAmountStr);
-                        emailService.sendBookingConfirmationEmail(finalOrderId5);
-                    } catch (Exception e) {
-                        log.error("Error in async notification/email for Order ID: {}", finalOrderId5, e);
-                    }
-                });
+                notificationService.notifyOrderSuccess(order.getUser().getUserId(), order.getOrderId(), totalAmountStr);
+                emailService.sendBookingConfirmationEmail(order.getOrderId());
             } catch (Exception e) {
-                log.error("Error triggering async notification/email for Order ID: {}", order.getOrderId(), e);
+                log.error("Error sending notification/email for Order ID: {}", order.getOrderId(), e);
             }
 
             Map<String, Object> data = new HashMap<>();
@@ -1864,19 +1812,11 @@ public class PaymentController {
                                 .setScale(0, RoundingMode.HALF_UP)
                                 .toPlainString() + " VND";
                             
-                            final Long finalOrderId6 = fullOrder.getOrderId();
-                            final Long finalUserId6 = fullOrder.getUser().getUserId();
-                            
-                            CompletableFuture.runAsync(() -> {
-                                try {
-                                    notificationService.notifyOrderSuccess(finalUserId6, finalOrderId6, totalAmountStr);
-                                    emailService.sendBookingConfirmationEmail(finalOrderId6);
-                                } catch (Exception e) {
-                                    log.error("Error in async notification/email in MoMo Status Check for Order ID: {}", finalOrderId6, e);
-                                }
-                            });
+                            // Gửi notification (trực tiếp) và email (async)
+                            notificationService.notifyOrderSuccess(fullOrder.getUser().getUserId(), fullOrder.getOrderId(), totalAmountStr);
+                            emailService.sendBookingConfirmationEmail(fullOrder.getOrderId());
                         } catch (Exception e) {
-                            log.error("Error triggering async notification/email in MoMo Status Check for Order ID: {}", fullOrder.getOrderId(), e);
+                            log.error("Error sending notification/email in MoMo Status Check for Order ID: {}", fullOrder.getOrderId(), e);
                         }
                     }
                 } else {
