@@ -29,6 +29,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -165,27 +166,31 @@ public class EmailService {
      * 2. Mua vé + đồ ăn
      * 3. Mua riêng đồ ăn (không có vé)
      * Chạy async để không block request
+     * 
+     * @param orderId ID của đơn hàng cần gửi email
      */
     @Async("emailExecutor")
-    public void sendBookingConfirmationEmail(Order order) {
+    @Transactional(readOnly = true)
+    public void sendBookingConfirmationEmail(Long orderId) {
+        System.out.println("EmailService - Starting sendBookingConfirmationEmail for Order ID: " + orderId);
+        
         // Kiểm tra mailSender và cấu hình email trước
         if (mailSender == null) {
-            System.err.println("EmailService - ERROR: mailSender is NULL! Cannot send email for Order ID: " + order.getOrderId());
+            System.err.println("EmailService - ERROR: mailSender is NULL! Cannot send email for Order ID: " + orderId);
             return;
         }
         
         if (fromEmail == null || fromEmail.isEmpty()) {
-            System.err.println("EmailService - ERROR: fromEmail is NOT SET! Cannot send email for Order ID: " + order.getOrderId());
+            System.err.println("EmailService - ERROR: fromEmail is NOT SET! Cannot send email for Order ID: " + orderId);
             return;
         }
         
         if (mailHost == null || mailHost.isEmpty()) {
-            System.err.println("EmailService - WARNING: mailHost is NOT SET! Email may fail for Order ID: " + order.getOrderId());
+            System.err.println("EmailService - WARNING: mailHost is NOT SET! Email may fail for Order ID: " + orderId);
         }
         
         // Kiểm tra đã gửi email cho order này chưa (trong vòng 5 phút)
         // Sử dụng synchronized để tránh race condition
-        Long orderId = order.getOrderId();
         synchronized (sentEmailOrders) {
             Long currentTime = System.currentTimeMillis();
             Long lastSentTime = sentEmailOrders.get(orderId);
@@ -200,13 +205,22 @@ public class EmailService {
         }
         
         String toEmail = null; // Khai báo bên ngoài try-catch để có thể dùng trong catch
+        Order order = null;
         try {
-            // Nếu order không có tickets, có thể cần load orderCombos
-            // Vì findByIdWithDetails không fetch orderCombos để tránh MultipleBagFetchException
+            // Load order with ticket details first
+            Optional<Order> orderWithDetailsOpt = orderRepository.findByIdWithDetails(orderId);
+            if (orderWithDetailsOpt.isEmpty()) {
+                System.err.println("EmailService - ERROR: Order not found with ID: " + orderId);
+                return;
+            }
+            order = orderWithDetailsOpt.get();
+            
+            // Check if order has tickets
             boolean hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
+            
+            // If no tickets, load order with orderCombos instead
             if (!hasTickets) {
-                // Load order với orderCombos nếu chưa có tickets
-                Optional<Order> orderWithCombos = orderRepository.findByIdWithOrderCombos(order.getOrderId());
+                Optional<Order> orderWithCombos = orderRepository.findByIdWithOrderCombos(orderId);
                 if (orderWithCombos.isPresent()) {
                     order = orderWithCombos.get();
                 }
@@ -218,22 +232,6 @@ public class EmailService {
             
             System.out.println("EmailService - Order ID: " + order.getOrderId() + 
                              ", hasTickets: " + hasTickets + ", hasCombos: " + hasCombos);
-            
-            // Debug: Log chi tiết về orderCombos
-            if (order.getOrderCombos() != null) {
-                System.out.println("EmailService - OrderCombos is not null, size: " + order.getOrderCombos().size());
-                if (!order.getOrderCombos().isEmpty()) {
-                    for (OrderCombo combo : order.getOrderCombos()) {
-                        System.out.println("EmailService - OrderCombo: " + combo.getOrderComboId() + 
-                                         ", FoodCombo: " + (combo.getFoodCombo() != null ? combo.getFoodCombo().getName() : "NULL") +
-                                         ", Quantity: " + combo.getQuantity());
-                    }
-                } else {
-                    System.out.println("EmailService - OrderCombos list is EMPTY");
-                }
-            } else {
-                System.out.println("EmailService - OrderCombos is NULL");
-            }
             
             if (!hasTickets && !hasCombos) {
                 System.out.println("EmailService - Order " + order.getOrderId() + 
@@ -423,7 +421,7 @@ public class EmailService {
             System.out.println("EmailService - Email sent successfully to " + toEmail + 
                              " for Order ID: " + order.getOrderId());
         } catch (Exception e) {
-            System.err.println("EmailService - ERROR sending email for Order ID: " + order.getOrderId());
+            System.err.println("EmailService - ERROR sending email for Order ID: " + orderId);
             System.err.println("EmailService - Error type: " + e.getClass().getName());
             System.err.println("EmailService - Error message: " + e.getMessage());
             System.err.println("EmailService - From email: " + fromEmail);
@@ -434,6 +432,19 @@ public class EmailService {
             for (int i = 0; i < Math.min(stackTrace.length, 10); i++) {
                 System.err.println("EmailService - Stack[" + i + "]: " + stackTrace[i]);
             }
+        }
+    }
+    
+    /**
+     * Overload method để hỗ trợ backward compatibility
+     * @deprecated Sử dụng sendBookingConfirmationEmail(Long orderId) thay thế
+     */
+    @Deprecated
+    public void sendBookingConfirmationEmail(Order order) {
+        if (order != null && order.getOrderId() != null) {
+            sendBookingConfirmationEmail(order.getOrderId());
+        } else {
+            System.err.println("EmailService - ERROR: Cannot send email - order or orderId is null");
         }
     }
     

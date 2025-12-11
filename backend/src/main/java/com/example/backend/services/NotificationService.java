@@ -393,8 +393,9 @@ public class NotificationService {
     /**
      * Gửi thông báo nạp tiền vào ví thành công
      */
+    @Async("notificationExecutor")
     @Transactional
-    public synchronized void notifyTopUpSuccess(Long userId, Long orderId, String amount) {
+    public void notifyTopUpSuccess(Long userId, Long orderId, String amount) {
         log.info("notifyTopUpSuccess called for order {} and user {}", orderId, userId);
         
         // Kiểm tra xem đã có notification cho order này chưa (tránh duplicate)
