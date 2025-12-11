@@ -325,10 +325,15 @@ public class NotificationService {
     
     /**
      * Gửi thông báo đặt hàng thành công (giữ lại để tương thích)
+     * Không dùng @Async vì notifyBookingSuccess cần transaction context
+     * Nếu cần async, gọi từ PaymentController với CompletableFuture
      */
-    @Async("notificationExecutor")
     public void notifyOrderSuccess(Long userId, Long orderId, String totalAmount) {
-        notifyBookingSuccess(userId, orderId, totalAmount);
+        try {
+            notifyBookingSuccess(userId, orderId, totalAmount);
+        } catch (Exception e) {
+            log.error("Error in notifyOrderSuccess for order {} and user {}: {}", orderId, userId, e.getMessage(), e);
+        }
     }
     
     /**
