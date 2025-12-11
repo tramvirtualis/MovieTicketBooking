@@ -15,6 +15,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -230,8 +231,9 @@ public class NotificationService {
      * Gửi thông báo đặt vé thành công
      * Sử dụng method này sau khi tạo booking/order thành công
      * Có check duplicate để tránh tạo notification nhiều lần
+     * Sử dụng REQUIRES_NEW để tạo transaction mới (cho phép chạy async)
      */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void notifyBookingSuccess(Long userId, Long orderId, String totalAmount) {
         log.info("notifyBookingSuccess called for order {} and user {}", orderId, userId);
         
@@ -325,9 +327,10 @@ public class NotificationService {
     
     /**
      * Gửi thông báo đặt hàng thành công (giữ lại để tương thích)
-     * Không dùng @Async vì notifyBookingSuccess cần transaction context
-     * Nếu cần async, gọi từ PaymentController với CompletableFuture
+     * Sử dụng @Async để không block request thread
+     * notifyBookingSuccess sử dụng REQUIRES_NEW nên có thể chạy async
      */
+    @Async("notificationExecutor")
     public void notifyOrderSuccess(Long userId, Long orderId, String totalAmount) {
         try {
             notifyBookingSuccess(userId, orderId, totalAmount);
