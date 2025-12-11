@@ -18,7 +18,10 @@ public class AsyncConfig {
         executor.setMaxPoolSize(5);
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("email-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
         executor.initialize();
+        System.out.println("AsyncConfig - emailExecutor initialized with thread prefix: email-");
         return executor;
     }
     
@@ -29,7 +32,10 @@ public class AsyncConfig {
         executor.setMaxPoolSize(5);
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("notification-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
         executor.initialize();
+        System.out.println("AsyncConfig - notificationExecutor initialized with thread prefix: notification-");
         return executor;
     }
 }

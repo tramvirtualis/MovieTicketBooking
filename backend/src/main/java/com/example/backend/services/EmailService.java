@@ -170,23 +170,29 @@ public class EmailService {
      * @param orderId ID của đơn hàng cần gửi email
      */
     @Async("emailExecutor")
-    @Transactional(readOnly = true)
     public void sendBookingConfirmationEmail(Long orderId) {
+        System.out.println("========================================");
         System.out.println("EmailService - Starting sendBookingConfirmationEmail for Order ID: " + orderId);
+        System.out.println("Thread: " + Thread.currentThread().getName());
+        System.out.println("========================================");
         
         // Kiểm tra mailSender và cấu hình email trước
         if (mailSender == null) {
             System.err.println("EmailService - ERROR: mailSender is NULL! Cannot send email for Order ID: " + orderId);
             return;
         }
+        System.out.println("EmailService - mailSender is OK");
         
         if (fromEmail == null || fromEmail.isEmpty()) {
             System.err.println("EmailService - ERROR: fromEmail is NOT SET! Cannot send email for Order ID: " + orderId);
             return;
         }
+        System.out.println("EmailService - fromEmail: " + fromEmail);
         
         if (mailHost == null || mailHost.isEmpty()) {
             System.err.println("EmailService - WARNING: mailHost is NOT SET! Email may fail for Order ID: " + orderId);
+        } else {
+            System.out.println("EmailService - mailHost: " + mailHost);
         }
         
         // Kiểm tra đã gửi email cho order này chưa (trong vòng 5 phút)
@@ -207,6 +213,7 @@ public class EmailService {
         String toEmail = null; // Khai báo bên ngoài try-catch để có thể dùng trong catch
         Order order = null;
         try {
+            System.out.println("EmailService - Step 1: Loading order with ID: " + orderId);
             // Load order with ticket details first
             Optional<Order> orderWithDetailsOpt = orderRepository.findByIdWithDetails(orderId);
             if (orderWithDetailsOpt.isEmpty()) {
@@ -214,15 +221,21 @@ public class EmailService {
                 return;
             }
             order = orderWithDetailsOpt.get();
+            System.out.println("EmailService - Step 1: Order loaded successfully");
             
             // Check if order has tickets
             boolean hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
+            System.out.println("EmailService - Step 2: Checking tickets - hasTickets: " + hasTickets);
             
             // If no tickets, load order with orderCombos instead
             if (!hasTickets) {
+                System.out.println("EmailService - Step 2b: No tickets found, loading orderCombos...");
                 Optional<Order> orderWithCombos = orderRepository.findByIdWithOrderCombos(orderId);
                 if (orderWithCombos.isPresent()) {
                     order = orderWithCombos.get();
+                    System.out.println("EmailService - Step 2b: Order with combos loaded");
+                } else {
+                    System.err.println("EmailService - ERROR: Cannot load order with combos for ID: " + orderId);
                 }
             }
             
@@ -230,28 +243,29 @@ public class EmailService {
             hasTickets = order.getTickets() != null && !order.getTickets().isEmpty();
             boolean hasCombos = order.getOrderCombos() != null && !order.getOrderCombos().isEmpty();
             
-            System.out.println("EmailService - Order ID: " + order.getOrderId() + 
+            System.out.println("EmailService - Step 3: Final check - Order ID: " + order.getOrderId() + 
                              ", hasTickets: " + hasTickets + ", hasCombos: " + hasCombos);
             
             if (!hasTickets && !hasCombos) {
-                System.out.println("EmailService - Order " + order.getOrderId() + 
+                System.err.println("EmailService - ERROR: Order " + order.getOrderId() + 
                                  " has no tickets and no combos, skipping email");
                 return; // Không có vé cũng không có đồ ăn, không gửi
             }
             
+            System.out.println("EmailService - Step 4: Checking user...");
             if (order.getUser() == null) {
-                System.out.println("EmailService - Order " + order.getOrderId() + " has no user, skipping email");
+                System.err.println("EmailService - ERROR: Order " + order.getOrderId() + " has no user, skipping email");
                 return;
             }
             
             toEmail = order.getUser().getEmail();
             if (toEmail == null || toEmail.isEmpty()) {
-                System.out.println("EmailService - Order " + order.getOrderId() + 
+                System.err.println("EmailService - ERROR: Order " + order.getOrderId() + 
                                  " user has no email, skipping email");
                 return;
             }
             
-            System.out.println("EmailService - Sending email to: " + toEmail + " for Order ID: " + order.getOrderId());
+            System.out.println("EmailService - Step 5: Preparing to send email to: " + toEmail + " for Order ID: " + order.getOrderId());
             
             // Nếu có tickets, xử lý thông tin vé
             List<BookingInfo> bookingInfoList = new ArrayList<>();
@@ -398,15 +412,18 @@ public class EmailService {
             String htmlContent = buildBookingEmailHtml(bookingInfoList, qrCodeCids, order, hasTickets, hasCombos);
             
             // Gửi email
+            System.out.println("EmailService - Step 6: Creating MimeMessage...");
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             
+            System.out.println("EmailService - Step 7: Setting email properties...");
             helper.setFrom(fromEmail);
             helper.setTo(toEmail);
             helper.setSubject(emailSubject);
             helper.setText(htmlContent, true);
             
             // Embed QR code images inline using CID
+            System.out.println("EmailService - Step 8: Embedding QR codes (" + qrCodeBase64List.size() + " images)...");
             for (int i = 0; i < qrCodeBase64List.size(); i++) {
                 String base64 = qrCodeBase64List.get(i);
                 if (base64 != null && !base64.isEmpty()) {
@@ -417,21 +434,42 @@ public class EmailService {
                 }
             }
             
+            System.out.println("EmailService - Step 9: Sending email via mailSender.send()...");
             mailSender.send(message);
-            System.out.println("EmailService - Email sent successfully to " + toEmail + 
+            System.out.println("========================================");
+            System.out.println("EmailService - SUCCESS: Email sent successfully to " + toEmail + 
                              " for Order ID: " + order.getOrderId());
+            System.out.println("========================================");
+        } catch (jakarta.mail.MessagingException me) {
+            System.err.println("========================================");
+            System.err.println("EmailService - MESSAGING EXCEPTION for Order ID: " + orderId);
+            System.err.println("Error type: " + me.getClass().getName());
+            System.err.println("Error message: " + me.getMessage());
+            System.err.println("From email: " + fromEmail);
+            System.err.println("To email: " + toEmail);
+            System.err.println("Mail host: " + mailHost);
+            System.err.println("Mail port: " + mailPort);
+            me.printStackTrace();
+            // Log full stack trace
+            StackTraceElement[] stackTrace = me.getStackTrace();
+            for (int i = 0; i < Math.min(stackTrace.length, 20); i++) {
+                System.err.println("Stack[" + i + "]: " + stackTrace[i]);
+            }
+            System.err.println("========================================");
         } catch (Exception e) {
-            System.err.println("EmailService - ERROR sending email for Order ID: " + orderId);
-            System.err.println("EmailService - Error type: " + e.getClass().getName());
-            System.err.println("EmailService - Error message: " + e.getMessage());
-            System.err.println("EmailService - From email: " + fromEmail);
-            System.err.println("EmailService - To email: " + toEmail);
+            System.err.println("========================================");
+            System.err.println("EmailService - GENERAL EXCEPTION for Order ID: " + orderId);
+            System.err.println("Error type: " + e.getClass().getName());
+            System.err.println("Error message: " + e.getMessage());
+            System.err.println("From email: " + fromEmail);
+            System.err.println("To email: " + toEmail);
             e.printStackTrace();
             // Log full stack trace
             StackTraceElement[] stackTrace = e.getStackTrace();
-            for (int i = 0; i < Math.min(stackTrace.length, 10); i++) {
-                System.err.println("EmailService - Stack[" + i + "]: " + stackTrace[i]);
+            for (int i = 0; i < Math.min(stackTrace.length, 20); i++) {
+                System.err.println("Stack[" + i + "]: " + stackTrace[i]);
             }
+            System.err.println("========================================");
         }
     }
     

@@ -544,13 +544,19 @@ public class PaymentController {
                                         .setScale(0, RoundingMode.HALF_UP)
                                         .toPlainString() + " VND";
                                     
+                                    log.info("PaymentController - Triggering notification for Order ID: {}", order.getOrderId());
                                     notificationService.notifyOrderSuccess(order.getUser().getUserId(), order.getOrderId(), totalAmountStr);
                                     
                                     if (!Boolean.TRUE.equals(order.getIsTopUp())) {
+                                        log.info("PaymentController - Triggering email for Order ID: {} (not a top-up)", order.getOrderId());
                                         emailService.sendBookingConfirmationEmail(order.getOrderId());
+                                        log.info("PaymentController - Email method called (async) for Order ID: {}", order.getOrderId());
+                                    } else {
+                                        log.info("PaymentController - Skipping email for Order ID: {} (is top-up)", order.getOrderId());
                                     }
                                 } catch (Exception e) {
-                                    log.error("Error triggering notification/email for Order ID: {}", order.getOrderId(), e);
+                                    log.error("PaymentController - ERROR triggering notification/email for Order ID: {}", order.getOrderId(), e);
+                                    e.printStackTrace();
                                 }
                             }
                         }
@@ -1264,7 +1270,9 @@ public class PaymentController {
             }
             
             // Gửi email (method sẽ tự kiểm tra tickets/combos và gửi nếu hợp lệ)
+            log.info("PaymentController - Manual email trigger for Order ID: {}", order.getOrderId());
             emailService.sendBookingConfirmationEmail(order.getOrderId());
+            log.info("PaymentController - Email method called (async) for Order ID: {}", order.getOrderId());
             
             return ResponseEntity.ok(createSuccessResponse("Email xác nhận đã được gửi", null));
         } catch (Exception e) {
