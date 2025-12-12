@@ -82,33 +82,23 @@ export default function ManagerShowtimeManagement({ complexId }) {
   // Load rooms
   useEffect(() => {
     const loadRooms = async () => {
-      console.log('=== ManagerShowtimeManagement: Loading rooms ===');
-      console.log('complexId:', complexId);
       if (!complexId) {
-        console.log('No complexId, skipping room load');
         return;
       }
       try {
         setLoading(true);
-        console.log('Calling getRoomsByComplexIdManager with:', complexId);
         const result = await cinemaRoomService.getRoomsByComplexIdManager(complexId);
-        console.log('getRoomsByComplexId result:', result);
         if (result.success && result.data) {
-          console.log('Rooms loaded:', result.data);
           setRooms(result.data);
           if (result.data.length > 0) {
             const roomIds = result.data.map(r => r.roomId);
             setSelectedRooms(roomIds); // Load showtimes for all rooms
             setVisibleRooms(new Set(roomIds)); // Display all rooms by default
-          } else {
-            console.log('No rooms found for complexId:', complexId);
           }
         } else {
-          console.error('Failed to load rooms:', result.error);
           showNotification(result.error || 'Không thể tải danh sách phòng', 'error');
         }
       } catch (error) {
-        console.error('Error loading rooms:', error);
         showNotification('Không thể tải danh sách phòng', 'error');
       } finally {
         setLoading(false);
@@ -121,23 +111,17 @@ export default function ManagerShowtimeManagement({ complexId }) {
   useEffect(() => {
     const loadMovies = async () => {
       if (!complexId) {
-        console.log('No complexId, skipping movie load');
         return;
       }
       try {
-        console.log('Loading movies for complexId:', complexId);
         const result = await cinemaComplexService.getComplexMoviesManager(complexId);
-        console.log('getComplexMoviesManager result:', result);
         if (result.success && result.data) {
-          console.log('Movies loaded for complex:', result.data.length);
           setMovies(result.data);
         } else {
-          console.error('Error loading movies:', result.error);
           showNotification(result.error || 'Không thể tải danh sách phim', 'error');
           setMovies([]); // Set empty array if no movies
         }
       } catch (error) {
-        console.error('Error loading movies:', error);
         showNotification('Không thể tải danh sách phim', 'error');
         setMovies([]); // Set empty array on error
       }
@@ -147,11 +131,7 @@ export default function ManagerShowtimeManagement({ complexId }) {
 
   // Function to load showtimes - can be called from useEffect or after creating showtime
   const loadShowtimes = React.useCallback(async () => {
-      console.log('=== ManagerShowtimeManagement: Loading showtimes ===');
-      console.log('selectedRooms:', selectedRooms);
-      console.log('currentDate:', currentDate);
       if (selectedRooms.length === 0) {
-        console.log('No selected rooms, skipping showtime load');
         setShowtimes([]);
         return;
       }
@@ -165,14 +145,9 @@ export default function ManagerShowtimeManagement({ complexId }) {
         const endDate = new Date(monday);
         endDate.setDate(endDate.getDate() + 6); // Sunday (6 days after Monday)
         
-        console.log('Loading showtimes from', startDate.toISOString().split('T')[0], 'to', endDate.toISOString().split('T')[0]);
-        
         for (const roomId of selectedRooms) {
-          console.log('Loading showtimes for roomId:', roomId);
           const result = await showtimeService.getShowtimesByRoomId(roomId);
-          console.log('getShowtimesByRoomId result for roomId', roomId, ':', result);
           if (result.success && result.data) {
-            console.log('Showtimes found for roomId', roomId, ':', result.data.length);
             const mappedShowtimes = result.data.map(st => {
               const startDateTime = new Date(st.startTime);
               const endDateTime = new Date(st.endTime);
@@ -225,16 +200,11 @@ export default function ManagerShowtimeManagement({ complexId }) {
                 cinemaAddress: st.cinemaRoom?.cinemaComplex?.fullAddress || ''
               };
             }).filter(Boolean);
-            console.log('Mapped showtimes for roomId', roomId, ':', mappedShowtimes.length);
             allShowtimes.push(...mappedShowtimes);
-          } else {
-            console.log('No showtimes or error for roomId', roomId, ':', result.error);
           }
         }
-        console.log('Total showtimes loaded:', allShowtimes.length);
         setShowtimes(allShowtimes);
       } catch (error) {
-        console.error('Error loading showtimes:', error);
         showNotification('Không thể tải lịch chiếu', 'error');
         setShowtimes([]);
       } finally {
@@ -581,7 +551,6 @@ export default function ManagerShowtimeManagement({ complexId }) {
       
       showNotification('Xuất file Excel thành công', 'success');
     } catch (error) {
-      console.error('Error exporting to Excel:', error);
       showNotification('Có lỗi xảy ra khi xuất file Excel', 'error');
     }
   };
@@ -1618,7 +1587,6 @@ export default function ManagerShowtimeManagement({ complexId }) {
                       showNotification(result.error || 'Không thể tạo lịch chiếu. Có thể do trùng lịch hoặc lỗi hệ thống.', 'error');
                     }
                   } catch (error) {
-                    console.error('Error creating showtime:', error);
                     showNotification('Có lỗi xảy ra khi tạo lịch chiếu', 'error');
                   } finally {
                     setCreating(false);
@@ -1658,7 +1626,6 @@ export default function ManagerShowtimeManagement({ complexId }) {
         showNotification(result.error || 'Xóa lịch chiếu thất bại', 'error');
       }
     } catch (error) {
-      console.error('Error deleting showtime:', error);
       setDeleteConfirm(null); // Đóng modal khi có lỗi
       showNotification(error.message || 'Có lỗi xảy ra khi xóa lịch chiếu', 'error');
     }

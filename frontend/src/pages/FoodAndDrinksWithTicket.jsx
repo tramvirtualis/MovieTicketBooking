@@ -171,7 +171,6 @@ export default function FoodAndDrinksWithTicket() {
       setLoadingMenu(true);
       try {
         const complexId = Number(selectedCinema);
-        console.log('Loading menu items for cinema complex ID:', complexId);
         
         const response = await foodComboService.getFoodCombosByCinemaComplexId(complexId);
         
@@ -186,7 +185,6 @@ export default function FoodAndDrinksWithTicket() {
             category: 'Đồ ăn' // Default category, có thể thêm field category vào DTO sau
           }));
           
-          console.log('Loaded menu items:', mappedItems);
           setMenuItemsFromDB(mappedItems);
         } else {
           console.warn('No menu items found for cinema complex:', complexId);

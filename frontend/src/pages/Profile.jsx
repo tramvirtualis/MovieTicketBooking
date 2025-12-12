@@ -130,7 +130,6 @@ export default function Profile() {
 
       try {
         const profile = await getCurrentProfile();
-        console.log('Loaded profile from API:', profile);
         
         // Update userData
         setUserData({
@@ -209,15 +208,7 @@ export default function Profile() {
         setPasswordMessage({ type: '', text: '' }); // Clear previous messages
         try {
           const hasPwd = await checkPassword();
-          console.log('=== Password Check Frontend ===');
-          console.log('Raw result:', hasPwd);
-          console.log('Type:', typeof hasPwd);
-          console.log('Is true?', hasPwd === true);
-          console.log('Is false?', hasPwd === false);
-          console.log('Boolean conversion:', Boolean(hasPwd));
           const isTrue = hasPwd === true || hasPwd === 'true' || hasPwd === 1;
-          console.log('Final hasPassword value:', isTrue);
-          console.log('==============================');
           setHasPassword(isTrue);
         } catch (error) {
           console.error('Error checking password status:', error);
@@ -277,28 +268,16 @@ export default function Profile() {
       }
       
       if (activeTab !== 'expenses') {
-        console.log('Not on expenses tab, skipping load. Active tab:', activeTab);
         return;
       }
 
-      console.log('=== Starting to load expense statistics ===');
       setLoadingExpenseStats(true);
       
       try {
         // First, update old orders to set vnpPayDate
-        console.log('Updating old orders first...');
-        const updateResult = await updateOldOrders();
-        console.log('Update old orders result:', updateResult);
+        await updateOldOrders();
         
-        console.log('Calling getExpenseStatistics API...');
         const stats = await getExpenseStatistics();
-        
-        console.log('=== API Response ===');
-        console.log('Full response:', stats);
-        console.log('Response keys:', Object.keys(stats));
-        console.log('totalSpent:', stats.totalSpent, 'Type:', typeof stats.totalSpent);
-        console.log('totalTickets:', stats.totalTickets, 'Type:', typeof stats.totalTickets);
-        console.log('totalOrders:', stats.totalOrders, 'Type:', typeof stats.totalOrders);
         
         const expenseData = {
           totalSpent: stats.totalSpent ? Number(stats.totalSpent) : 0,
@@ -310,22 +289,11 @@ export default function Profile() {
           lastThreeMonthsSpent: stats.lastThreeMonthsSpent ? Number(stats.lastThreeMonthsSpent) : 0
         };
         
-        console.log('=== Data to set in state ===');
-        console.log('Expense data:', expenseData);
-        
         setExpenseStats(expenseData);
-        console.log('State updated successfully');
       } catch (error) {
-        console.error('=== Error loading expense statistics ===');
-        console.error('Error:', error);
-        console.error('Error message:', error.message);
-        console.error('Error response:', error.response);
-        console.error('Error response data:', error.response?.data);
-        console.error('Error response status:', error.response?.status);
         // Keep default values on error
       } finally {
         setLoadingExpenseStats(false);
-        console.log('=== Finished loading expense statistics ===');
       }
     };
 

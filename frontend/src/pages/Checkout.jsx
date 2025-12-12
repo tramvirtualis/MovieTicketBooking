@@ -110,7 +110,6 @@ export default function Checkout() {
     if (savedBooking) {
       try {
         const booking = JSON.parse(savedBooking);
-        console.log('Loaded booking from localStorage:', booking);
         // Kiểm tra nếu có showtimeId (từ bookingInfo mới) hoặc showtime.showtimeId (từ bookingInfo cũ)
         const showtimeId = booking.showtimeId || booking.showtime?.showtimeId;
         // Chỉ set nếu có showtimeId và seats (tức là có đặt vé phim)
@@ -119,22 +118,17 @@ export default function Checkout() {
           if (!booking.showtimeId && booking.showtime?.showtimeId) {
             booking.showtimeId = booking.showtime.showtimeId;
           }
-          console.log('Setting bookingData with showtimeId:', booking.showtimeId, 'seats:', booking.seats);
           setBookingData(booking);
         } else {
-          console.warn('Booking không hợp lệ - showtimeId:', showtimeId, 'seats:', booking.seats);
           // Xóa pendingBooking nếu không hợp lệ (không có seats hoặc không có showtimeId)
           // Đây có thể là dữ liệu cũ từ lần đặt vé trước, cần xóa để tránh nhầm lẫn
           localStorage.removeItem('pendingBooking');
-          console.log('Removed invalid pendingBooking from localStorage');
         }
       } catch (e) {
-        console.error('Failed to parse booking data:', e);
         localStorage.removeItem('pendingBooking');
       }
     } else {
       // Không có savedBooking -> chỉ có đồ ăn, đảm bảo bookingData là null
-      console.log('No savedBooking found - food-only order');
       setBookingData(null);
     }
 
@@ -178,7 +172,6 @@ export default function Checkout() {
     return () => {
       // If NOT redirecting to payment gateway AND we have booked seats
       if (!isRedirectingToPayment.current && bookingData?.seats && bookingData.showtimeId) {
-        console.log('[Checkout] Leaving page without payment, releasing seats:', bookingData.seats);
 
         // Send DESELECT for each seat
         bookingData.seats.forEach(seatId => {
@@ -253,7 +246,6 @@ export default function Checkout() {
 
     // Lưu PIN vào biến local
     const pinToSend = pin.trim();
-    console.log('PIN to send (from input):', pinToSend ? `Length: ${pinToSend.length}` : 'NULL');
     
     // Update state
     setVerifiedPin(pinToSend);
@@ -261,7 +253,6 @@ export default function Checkout() {
     
     // Tiếp tục xử lý thanh toán với PIN đã nhập (truyền trực tiếp để tránh vấn đề async state)
     try {
-      console.log('Calling processWalletPayment with PIN:', pinToSend ? 'PRESENT' : 'NULL');
       await processWalletPayment(pinToSend);
     } catch (error) {
       console.error('Error in processWalletPayment:', error);
@@ -281,15 +272,12 @@ export default function Checkout() {
         
         try {
           const pinStatus = await walletPinService.getPinStatus();
-          console.log('PIN Status after error:', pinStatus);
-          
           if (pinStatus.locked) {
             setPinError('Mã PIN của bạn đang bị khóa. Vui lòng thử lại sau.');
           } else if (pinStatus.failedAttempts !== undefined && pinStatus.failedAttempts !== null) {
             // Tính số lần thử còn lại từ status
             const MAX_ATTEMPTS = 5; // Số lần thử tối đa
             const remainingAttempts = MAX_ATTEMPTS - pinStatus.failedAttempts;
-            console.log(`Failed attempts: ${pinStatus.failedAttempts}, Remaining: ${remainingAttempts}`);
             
             if (remainingAttempts > 0) {
               setPinError(`Mã PIN không đúng. Còn ${remainingAttempts} lần thử.`);
@@ -298,7 +286,6 @@ export default function Checkout() {
             }
           } else {
             // Nếu không có thông tin từ status, dùng error message từ backend
-            console.log('No failedAttempts in status, using error message:', errorMessage);
             setPinError(errorMessage);
           }
         } catch (statusError) {
@@ -316,12 +303,8 @@ export default function Checkout() {
   const processWalletPayment = async (pin = null) => {
     // Sử dụng pin được truyền vào hoặc verifiedPin từ state
     const pinToUse = pin || verifiedPin;
-    console.log('processWalletPayment - pin parameter:', pin ? 'PRESENT' : 'NULL');
-    console.log('processWalletPayment - verifiedPin state:', verifiedPin ? 'PRESENT' : 'NULL');
-    console.log('processWalletPayment - pinToUse:', pinToUse ? `PRESENT (length: ${pinToUse.length})` : 'NULL');
     
     if (!pinToUse || pinToUse.trim().length !== 6) {
-      console.error('PIN validation failed - pinToUse:', pinToUse);
       throw new Error('Vui lòng nhập mã PIN (6 chữ số)');
     }
 
@@ -347,11 +330,7 @@ export default function Checkout() {
         pin: pinToUse // Gửi PIN để backend xác thực
       };
 
-      console.log('Creating wallet payment with payload:', { ...payload, pin: pinToUse ? '***' : null });
-      console.log('PIN to send (length):', pinToUse ? pinToUse.length : 0);
-      console.log('PIN value check:', pinToUse ? 'HAS_VALUE' : 'NULL');
       const response = await paymentService.createWalletPayment(payload);
-      console.log('Wallet payment response:', response);
       
       if (response.success && response.data) {
         // Set flag to prevent seat release
@@ -373,23 +352,18 @@ export default function Checkout() {
           if (errorMessage.includes('PIN') || errorMessage.includes('pin') || errorMessage.includes('mã PIN')) {
             // Parse error message từ backend để lấy số lần thử còn lại
             // Backend trả về: "Mã PIN không đúng. Còn X lần thử."
-            console.log('PIN error detected, parsing message:', errorMessage);
             const remainingAttemptsMatch = errorMessage.match(/Còn (\d+) lần thử/);
-            console.log('Remaining attempts match:', remainingAttemptsMatch);
             
             if (remainingAttemptsMatch) {
               // Dùng error message từ backend (đã có số lần thử còn lại chính xác)
-              console.log('Using error message from backend:', errorMessage);
               setPinError(errorMessage);
             } else {
               // Nếu không parse được, reload PIN status để lấy số lần thử còn lại
               // Thêm delay nhỏ để đảm bảo backend đã commit transaction
-              console.log('Cannot parse error message, reloading PIN status...');
               await new Promise(resolve => setTimeout(resolve, 500));
               
               try {
                 const pinStatus = await walletPinService.getPinStatus();
-                console.log('PIN Status after error:', pinStatus);
                 
                 if (pinStatus.locked) {
                   setPinError('Mã PIN của bạn đang bị khóa. Vui lòng thử lại sau.');
@@ -397,7 +371,6 @@ export default function Checkout() {
                   // Tính số lần thử còn lại từ status
                   const MAX_ATTEMPTS = 5; // Số lần thử tối đa
                   const remainingAttempts = MAX_ATTEMPTS - pinStatus.failedAttempts;
-                  console.log(`Failed attempts: ${pinStatus.failedAttempts}, Remaining: ${remainingAttempts}`);
                   
                   if (remainingAttempts > 0) {
                     setPinError(`Mã PIN không đúng. Còn ${remainingAttempts} lần thử.`);
@@ -406,7 +379,6 @@ export default function Checkout() {
                   }
                 } else {
                   // Nếu không có thông tin từ status, dùng error message từ backend
-                  console.log('No failedAttempts in status, using error message:', errorMessage);
                   setPinError(errorMessage);
                 }
               } catch (statusError) {
@@ -437,23 +409,18 @@ export default function Checkout() {
         if (errorMessage.includes('PIN') || errorMessage.includes('pin') || errorMessage.includes('mã PIN')) {
           // Parse error message từ backend để lấy số lần thử còn lại
           // Backend trả về: "Mã PIN không đúng. Còn X lần thử."
-          console.log('PIN error detected in catch, parsing message:', errorMessage);
           const remainingAttemptsMatch = errorMessage.match(/Còn (\d+) lần thử/);
-          console.log('Remaining attempts match:', remainingAttemptsMatch);
           
           if (remainingAttemptsMatch) {
             // Dùng error message từ backend (đã có số lần thử còn lại chính xác)
-            console.log('Using error message from backend:', errorMessage);
             setPinError(errorMessage);
           } else {
             // Nếu không parse được, reload PIN status để lấy số lần thử còn lại
             // Thêm delay nhỏ để đảm bảo backend đã commit transaction
-            console.log('Cannot parse error message, reloading PIN status...');
             await new Promise(resolve => setTimeout(resolve, 500));
             
             try {
               const pinStatus = await walletPinService.getPinStatus();
-              console.log('PIN Status after error:', pinStatus);
               
               if (pinStatus.locked) {
                 setPinError('Mã PIN của bạn đang bị khóa. Vui lòng thử lại sau.');
@@ -461,7 +428,6 @@ export default function Checkout() {
                 // Tính số lần thử còn lại từ status (luôn tính, kể cả khi failedAttempts = 0)
                 const MAX_ATTEMPTS = 5; // Số lần thử tối đa
                 const remainingAttempts = MAX_ATTEMPTS - pinStatus.failedAttempts;
-                console.log(`Failed attempts: ${pinStatus.failedAttempts}, Remaining: ${remainingAttempts}`);
                 
                 if (remainingAttempts > 0) {
                   setPinError(`Mã PIN không đúng. Còn ${remainingAttempts} lần thử.`);
@@ -469,9 +435,8 @@ export default function Checkout() {
                   setPinError('Mã PIN không đúng. Còn 0 lần thử.');
                 }
               } else {
-                // Nếu không có thông tin từ status, dùng error message từ backend
-                console.log('No failedAttempts in status, using error message:', errorMessage);
-                setPinError(errorMessage);
+                  // Nếu không có thông tin từ status, dùng error message từ backend
+                  setPinError(errorMessage);
               }
             } catch (statusError) {
               // Nếu không load được status, dùng error message từ backend
@@ -516,7 +481,6 @@ export default function Checkout() {
 
     // Prevent double submission - disable button ngay lập tức
     if (isSubmitting) {
-      console.log('Payment is already being processed, please wait...');
       return;
     }
 
@@ -587,9 +551,6 @@ export default function Checkout() {
           Array.isArray(bookingData.seats) &&
           bookingData.seats.length > 0;
 
-        console.log('Checkout - hasValidBooking:', hasValidBooking);
-        console.log('Checkout - bookingData:', bookingData);
-        console.log('Checkout - cartData:', cartData);
 
         // Tạo bookingInfo - CHỈ thêm showtimeId và seatIds nếu có đặt vé phim
         const bookingInfo = {};
@@ -598,13 +559,11 @@ export default function Checkout() {
           // Có đặt vé phim -> gửi showtimeId và seatIds
           bookingInfo.showtimeId = bookingData.showtimeId;
           bookingInfo.seatIds = bookingData.seats;
-          console.log('Checkout - Adding showtimeId and seatIds to bookingInfo');
         } else {
           // Chỉ có đồ ăn -> KHÔNG gửi showtimeId và seatIds
           // NHƯNG cần gửi cinemaComplexId để xác định rạp
           if (cartData?.cinema?.complexId) {
             bookingInfo.cinemaComplexId = cartData.cinema.complexId;
-            console.log('Checkout - Food-only order, adding cinemaComplexId:', bookingInfo.cinemaComplexId);
           } else {
             console.warn('Checkout - Food-only order but no cinemaComplexId found in cartData');
           }
@@ -617,16 +576,6 @@ export default function Checkout() {
         })) || [];
         bookingInfo.voucherCode = selectedVoucher?.code || null;
 
-        console.log('Creating ZaloPay order:', {
-          amount,
-          description,
-          orderId,
-          bookingInfo,
-          hasShowtimeId: 'showtimeId' in bookingInfo,
-          showtimeIdValue: bookingInfo.showtimeId,
-          hasSeatIds: 'seatIds' in bookingInfo
-        });
-
         const result = await paymentService.createZaloPayOrder(
           amount,
           description,
@@ -634,10 +583,7 @@ export default function Checkout() {
           bookingInfo
         );
 
-        console.log('ZaloPay order result:', result);
-
         if (result.success && result.data?.payment_url) {
-          console.log('Redirecting to ZaloPay:', result.data.payment_url);
           // Set flag to prevent seat release
           isRedirectingToPayment.current = true;
           // Redirect đến ZaloPay payment page

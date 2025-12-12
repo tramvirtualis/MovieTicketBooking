@@ -55,31 +55,16 @@ export default function SignIn() {
   const handleLoginSuccess = (userData, source = 'PASSWORD') => {
     showMessage('success', 'Đăng nhập thành công!');
 
-    console.log(`=== LOGIN DEBUG (${source}) ===`);
-    console.log('Full login response data:', userData);
-    console.log('User role (raw):', userData?.role);
-    console.log('User role type:', typeof userData?.role);
-    console.log('User role value:', JSON.stringify(userData?.role));
-    console.log('User status:', userData?.status);
-
     setTimeout(() => {
       const role = (userData?.role || '').toString().toUpperCase().trim();
-      console.log('=== REDIRECT DEBUG ===');
-      console.log('Final role for redirect:', role);
-      console.log('Role === "MANAGER":', role === 'MANAGER');
-      console.log('Role === "ADMIN":', role === 'ADMIN');
 
       if (role === 'ADMIN') {
-        console.log('Redirecting to /admin');
         navigate('/admin');
       } else if (role === 'MANAGER') {
-        console.log('Redirecting to /manager');
         navigate('/manager');
       } else if (role === 'CUSTOMER') {
-        console.log('Redirecting to home (CUSTOMER)');
         navigate('/');
       } else {
-        console.warn('Unknown role, redirecting to home. Role was:', role);
         navigate('/');
       }
     }, 1000);

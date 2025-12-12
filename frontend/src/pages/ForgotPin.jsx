@@ -109,14 +109,12 @@ export default function ForgotPin() {
     }
 
     try {
-      console.log('[ForgotPin] Calling resetPinWithOtp with:', { email, otp, newPin, confirmPin });
       const result = await walletPinService.resetPinWithOtp({
         email,
         otp,
         newPin,
         confirmPin
       });
-      console.log('[ForgotPin] Reset result:', result);
       
       // Reset thành công, hiển thị modal
       setShowSuccessModal(true);

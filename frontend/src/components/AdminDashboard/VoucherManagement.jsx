@@ -436,27 +436,47 @@ function VoucherManagement({ vouchers: initialVouchersList, users: usersList, on
     try {
       const result = await voucherService.deleteVoucher(voucherId);
       if (result.success) {
-        // Reload vouchers from API
-        const reloadResult = await voucherService.getAllVouchers();
-        if (reloadResult.success) {
-          const mappedVouchers = (reloadResult.data || []).map(voucher => mapVoucherFromBackend(voucher));
-          setVouchers(mappedVouchers);
-          if (onVouchersChange) {
-            onVouchersChange(mappedVouchers);
-          }
-          // Save to localStorage
-          try {
-            localStorage.setItem('adminVouchers', JSON.stringify(mappedVouchers));
-          } catch (e) {
-            console.error('Failed to save vouchers to localStorage', e);
-          }
+        // Optimistic update: Xóa voucher khỏi danh sách ngay lập tức
+        const updatedVouchers = vouchers.filter(v => v.voucherId !== voucherId);
+        setVouchers(updatedVouchers);
+        if (onVouchersChange) {
+          onVouchersChange(updatedVouchers);
         }
-        setDeleteConfirm(null); // Đóng modal sau khi xóa thành công
+        // Save to localStorage
+        try {
+          localStorage.setItem('adminVouchers', JSON.stringify(updatedVouchers));
+        } catch (e) {
+          console.error('Failed to save vouchers to localStorage', e);
+        }
+        
+        // Đóng modal ngay sau khi cập nhật danh sách
+        setDeleteConfirm(null);
         showNotification('Xóa voucher thành công', 'success');
+        
+        // Reload vouchers from API để đảm bảo đồng bộ (chạy ngầm, không chặn UI)
+        try {
+          const reloadResult = await voucherService.getAllVouchers();
+          if (reloadResult.success) {
+            const mappedVouchers = (reloadResult.data || []).map(voucher => mapVoucherFromBackend(voucher));
+            setVouchers(mappedVouchers);
+            if (onVouchersChange) {
+              onVouchersChange(mappedVouchers);
+            }
+            // Save to localStorage
+            try {
+              localStorage.setItem('adminVouchers', JSON.stringify(mappedVouchers));
+            } catch (e) {
+              console.error('Failed to save vouchers to localStorage', e);
+            }
+          }
+        } catch (reloadError) {
+          // Nếu reload thất bại, vẫn giữ trạng thái đã xóa (vì xóa đã thành công)
+          console.error('Failed to reload vouchers after delete:', reloadError);
+        }
       } else {
         setDeleteConfirm(null); // Đóng modal khi xóa thất bại
         setError(result.error);
-        showNotification(result.error, 'error');
+        showNotification(result.error || 'Không thể xóa voucher', 'error');
       }
     } catch (err) {
       const errorMsg = err.message || 'Không thể xóa voucher';
