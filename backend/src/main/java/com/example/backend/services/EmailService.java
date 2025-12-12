@@ -13,8 +13,6 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import jakarta.annotation.PostConstruct;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -29,7 +27,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -87,10 +84,6 @@ public class EmailService {
             
             mailSender.send(message);
             System.out.println("EmailService - OTP email sent successfully to " + toEmail);
-        } catch (jakarta.mail.MessagingException me) {
-            System.err.println("EmailService - MessagingException sending OTP to " + toEmail + ": " + me.getMessage());
-            me.printStackTrace();
-            throw new RuntimeException("Không thể gửi email OTP: " + me.getMessage());
         } catch (Exception e) {
             System.err.println("EmailService - Exception sending OTP to " + toEmail + ": " + e.getMessage());
             e.printStackTrace();
@@ -120,10 +113,6 @@ public class EmailService {
             
             mailSender.send(message);
             System.out.println("EmailService - Forgot password OTP email sent successfully to " + toEmail);
-        } catch (jakarta.mail.MessagingException me) {
-            System.err.println("EmailService - MessagingException sending forgot password OTP to " + toEmail + ": " + me.getMessage());
-            me.printStackTrace();
-            throw new RuntimeException("Không thể gửi email OTP: " + me.getMessage());
         } catch (Exception e) {
             System.err.println("EmailService - Exception sending forgot password OTP to " + toEmail + ": " + e.getMessage());
             e.printStackTrace();
